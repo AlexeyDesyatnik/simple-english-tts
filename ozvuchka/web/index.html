@@ -9,12 +9,15 @@
 <body>
   <main>
     <h1>Озвучка</h1>
-    <form id="speak">
-      <input id="phrase" type="text" autocomplete="off" placeholder="Введите английскую фразу" value="Hello, my name is Alice.">
-      <button id="play" type="submit">Play</button>
-    </form>
+    <textarea id="source" rows="6" placeholder="Вставьте английский текст: каждая строка — отдельный абзац"></textarea>
+    <div class="controls">
+      <button id="play" type="button">Play</button>
+      <button id="pause" type="button" class="secondary">Пауза</button>
+      <button id="stop" type="button" class="secondary">Стоп</button>
+    </div>
     <p id="status" role="status"></p>
     <p id="voice" class="muted"></p>
+    <ol id="paragraphs"></ol>
   </main>
   <script src="app.js"></script>
 </body>

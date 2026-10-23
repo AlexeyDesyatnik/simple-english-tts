@@ -1,4 +1,4 @@
-"""Thin HTTP adapter over the core (ADR-0003): JSON commands, the snapshot, audio, static page.
+"""Thin HTTP adapter over the core (ADR-0003): JSON commands and events, the snapshot, audio, static page.
 
 It holds no logic of its own and listens only on 127.0.0.1.
 """
@@ -13,7 +13,13 @@ from ozvuchka.core import Core
 WEB = Path(__file__).resolve().parent / "web"
 
 COMMANDS = {
-    "speak": lambda core, body: core.speak(body["text"]),
+    "set_text": lambda core, body: core.set_text(str(body["text"])),
+    "play": lambda core, body: core.play(),
+    "pause": lambda core, body: core.pause(),
+    "stop": lambda core, body: core.stop(),
+    # events from the page player
+    "paragraph_started": lambda core, body: core.paragraph_started(int(body["paragraph"])),
+    "paragraph_finished": lambda core, body: core.paragraph_finished(int(body["paragraph"])),
 }
 
 

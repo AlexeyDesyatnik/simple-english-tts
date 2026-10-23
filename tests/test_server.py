@@ -29,26 +29,31 @@ def get(url):
         return response.headers.get_content_type(), response.read()
 
 
-def test_command_snapshot_and_audio_pass_through(base_url):
+def command(base_url, **body):
+    request = urllib.request.Request(
+        base_url + "/api/command", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(request, timeout=5).close()
+
+
+def test_commands_events_snapshot_and_audio_pass_through(base_url):
     content_type, page = get(base_url + "/")
     assert content_type == "text/html"
     assert b"Play" in page
 
-    request = urllib.request.Request(
-        base_url + "/api/command",
-        data=json.dumps({"command": "speak", "text": "Good morning."}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    urllib.request.urlopen(request, timeout=5).close()
+    command(base_url, command="set_text", text="Good morning.\nSit down, please.")
+    command(base_url, command="play")
+    command(base_url, command="paragraph_finished", paragraph=0)
 
     deadline = time.monotonic() + 5
     while True:
         snapshot = json.loads(get(base_url + "/api/state")[1])
-        if snapshot["phrase"] and snapshot["phrase"]["status"] == "ready":
+        if all(p["status"] == "ready" for p in snapshot["text"]["paragraphs"]):
             break
         assert time.monotonic() < deadline, snapshot
         time.sleep(0.01)
 
-    content_type, audio = get(base_url + f"/api/audio/{snapshot['phrase']['audio']}")
+    assert snapshot["playback"]["paragraph"] == 1
+    content_type, audio = get(base_url + f"/api/audio/{snapshot['text']['paragraphs'][1]['audio'][0]}")
     assert content_type == "audio/wav"
     assert audio.startswith(b"RIFF")

@@ -3,6 +3,7 @@
   --fg: #1d1d1b;
   --muted: #6b6b66;
   --accent: #1f5fbf;
+  --current: #fff3c4;
   --error: #b3261e;
 }
 
@@ -24,18 +25,20 @@ h1 {
   font-weight: 600;
 }
 
-form {
-  display: flex;
-  gap: 8px;
-}
-
-input {
-  flex: 1;
-  min-width: 0;
+textarea {
+  box-sizing: border-box;
+  width: 100%;
   padding: 10px 12px;
   font: inherit;
   border: 1px solid #c8c8c2;
   border-radius: 6px;
+  resize: vertical;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 button {
@@ -47,6 +50,42 @@ button {
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+}
+
+button.secondary {
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+
+#paragraphs {
+  list-style: none;
+  padding: 0;
+  font-size: 22px;
+}
+
+#paragraphs li {
+  margin: 4px -12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+#paragraphs li.current {
+  background: var(--current);
+}
+
+#paragraphs li.skipped {
+  color: var(--muted);
+}
+
+#paragraphs li.skipped::after {
+  content: " — не читается вслух";
+  font-size: 15px;
+  font-style: italic;
+}
+
+#paragraphs li.failed {
+  color: var(--error);
 }
 
 .muted {

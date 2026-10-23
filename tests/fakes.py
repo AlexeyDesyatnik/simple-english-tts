@@ -32,6 +32,9 @@ class FakeVoiceProvider:
     def available(self) -> bool:
         return self._available
 
+    def set_available(self, available: bool) -> None:
+        self._available = available
+
     def synthesize(self, text: str, voice: str, speed: float) -> Audio:
         self.requests.append((text, voice, speed))
         if self._manual and not self._go.acquire(timeout=5):
