@@ -8,9 +8,12 @@ const sourceEl = document.getElementById("source");
 const statusEl = document.getElementById("status");
 const voiceEl = document.getElementById("voice");
 const paragraphsEl = document.getElementById("paragraphs");
+const libraryEl = document.getElementById("library");
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
+let shownTextId = null; // the Text put in the text box; another one replaces what is typed there
+let shownLibrary = null; // the Library the list was built for
 let audioContext = null;
 let buffers = new Map(); // audio id -> Promise<AudioBuffer>
 // Paragraphs handed to WebAudio, in play order: {paragraph, start, end, nodes, started}.
@@ -169,6 +172,31 @@ async function startAfterReload() {
 
 // ---------------------------------------------------------------- view
 
+function renderLibrary(library, currentId) {
+  const key = JSON.stringify(library);
+  if (key !== shownLibrary) {
+    shownLibrary = key;
+    libraryEl.replaceChildren(
+      ...library.map((t) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = t.title;
+        button.dataset.id = t.id;
+        button.addEventListener("click", () => {
+          clearSchedule();
+          act({ command: "open_text", id: t.id });
+        });
+        li.append(button);
+        return li;
+      }),
+    );
+  }
+  for (const button of libraryEl.querySelectorAll("button")) {
+    button.classList.toggle("current", button.dataset.id === currentId);
+  }
+}
+
 function renderParagraphs(text) {
   if (text?.content !== shownContent) {
     shownContent = text?.content ?? null;
@@ -194,6 +222,7 @@ function renderParagraphs(text) {
 }
 
 function statusText(text, playback) {
+  if (snapshot.library_error) return [snapshot.library_error, "error"];
   if (!text) return ["", ""];
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
@@ -214,7 +243,12 @@ function render(next) {
   snapshot = next;
   const voice = snapshot.voices.find((v) => v.id === snapshot.voice);
   voiceEl.textContent = voice ? `Голос: ${voice.label}` : "";
-  if (first && snapshot.text) sourceEl.value = snapshot.text.content;
+  const textId = snapshot.text?.id ?? null;
+  if (first || textId !== shownTextId) {
+    shownTextId = textId;
+    if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
+  }
+  renderLibrary(snapshot.library, textId);
   renderParagraphs(snapshot.text);
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
@@ -261,6 +295,13 @@ document.getElementById("play").addEventListener("click", async () => {
 document.getElementById("pause").addEventListener("click", () => {
   audioContext?.suspend();
   act({ command: "pause" });
+});
+
+document.getElementById("new-text").addEventListener("click", () => {
+  clearSchedule();
+  sourceEl.value = "";
+  sourceEl.focus();
+  act({ command: "new_text" });
 });
 
 document.getElementById("stop").addEventListener("click", () => {

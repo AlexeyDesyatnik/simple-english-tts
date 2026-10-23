@@ -1,3 +1,5 @@
+import json
+import os
 import time
 
 import pytest
@@ -316,3 +318,169 @@ def test_the_snapshot_gives_back_the_text_as_pasted_so_a_reloaded_page_can_show_
     core.set_text("Hello.\r\n\r\nУпражнение 2.\r\n")
 
     assert core.snapshot()["text"]["content"] == "Hello.\r\n\r\nУпражнение 2.\r\n"
+
+
+# ---------------------------------------------------------------- the Library
+
+
+def ready_and_close(core, text):
+    core.set_text(text)
+    core.play()
+    wait_for(core, all_ready)
+    core.close()
+
+
+def test_after_a_restart_a_saved_text_opens_from_the_library_and_plays_without_synthesis(make_core):
+    ready_and_close(make_core(FakeVoiceProvider()), "Tom has a cat.\nThe cat is black.")
+
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    [saved] = core.snapshot()["library"]
+    assert saved["title"] == "Tom has a cat. The…"
+    core.open_text(saved["id"])
+    core.play()
+
+    snapshot = wait_for(core, all_ready)
+    assert snapshot["text"]["content"] == "Tom has a cat.\nThe cat is black."
+    assert snapshot["playback"]["state"] == "playing"
+    assert core.audio(snapshot["text"]["paragraphs"][1]["audio"][0]).duration == pytest.approx(1.7)
+    assert provider.requests == []
+
+
+FIVE_PARAGRAPHS = "One fish.\nTwo fish.\nRed fish.\nBlue fish.\nOld fish."
+
+
+def test_editing_one_paragraph_of_five_resynthesizes_only_it_and_updates_the_same_text(make_core):
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    core.set_text(FIVE_PARAGRAPHS)
+    core.play()
+    wait_for(core, all_ready)
+    provider.requests.clear()
+
+    core.set_text("One fish.\nTwo fish.\nGreen fish.\nBlue fish.\nOld fish.")
+    core.play()
+
+    wait_for(core, all_ready)
+    assert provider.requests == [("Green fish.", "alice", 1.0)]
+    assert [t["title"] for t in core.snapshot()["library"]] == ["One fish. Two fish. Green…"]
+
+
+def test_identical_pieces_are_synthesized_once(make_core):
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+
+    core.set_text("Repeat after me.\nHello.\nRepeat after me.")
+    core.play()
+
+    wait_for(core, all_ready)
+    assert provider.requests == [("Repeat after me.", "alice", 1.0), ("Hello.", "alice", 1.0)]
+
+
+def test_the_library_lists_texts_by_last_use(make_core):
+    core = make_core(FakeVoiceProvider())
+    for text in ["First text.", "Second text.", "Third text."]:
+        core.new_text()
+        core.set_text(text)
+    first = core.snapshot()["library"][2]
+
+    core.open_text(first["id"])
+
+    snapshot = core.snapshot()
+    assert [t["title"] for t in snapshot["library"]] == ["First text.", "Third text.", "Second text."]
+    assert snapshot["text"]["content"] == "First text."
+    core.close()
+    assert [t["title"] for t in make_core(FakeVoiceProvider()).snapshot()["library"]] == [
+        "First text.",
+        "Third text.",
+        "Second text.",
+    ]
+
+
+def test_a_new_text_leaves_the_current_one_in_the_library(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("First text.")
+
+    core.new_text()
+
+    snapshot = core.snapshot()
+    assert snapshot["text"] is None
+    assert [t["title"] for t in snapshot["library"]] == ["First text."]
+
+
+def test_opening_a_text_that_is_not_in_the_library_is_rejected(make_core):
+    core = make_core(FakeVoiceProvider())
+
+    with pytest.raises(ValueError):
+        core.open_text("nonexistent")
+
+
+def crash_on_every_rename(monkeypatch):
+    """From now on every write stops just before its rename, as if the program were killed there."""
+
+    def crash(source, destination):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(os, "replace", crash)
+
+
+def test_a_crash_while_synthesizing_keeps_the_pieces_already_finished(make_core, monkeypatch):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Tom has a cat.\nThe cat is black.\nIt likes milk.")
+    core.play()
+    provider.finish_next()
+    wait_for(core, lambda s: statuses(s) == ["ready", "synthesizing", "waiting"])
+
+    crash_on_every_rename(monkeypatch)
+    provider.finish_next()
+    provider.finish_next()
+    wait_for(core, all_ready)  # they still play, but were never saved
+    monkeypatch.undo()
+    core.close()
+
+    restarted = FakeVoiceProvider()
+    core = make_core(restarted)
+    core.open_text(core.snapshot()["library"][0]["id"])
+    core.play()
+    wait_for(core, all_ready)
+    assert restarted.requests == [("The cat is black.", "alice", 1.0), ("It likes milk.", "alice", 1.0)]
+
+
+def test_a_crash_while_saving_the_library_leaves_the_previous_version_readable(make_core, monkeypatch):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+
+    crash_on_every_rename(monkeypatch)
+    core.set_text("Tom has a dog.")
+    assert core.snapshot()["library_error"].startswith("Не удалось сохранить Библиотеку")
+    monkeypatch.undo()
+    core.close()
+
+    [saved] = make_core(FakeVoiceProvider()).snapshot()["library"]
+    assert saved["title"] == "Tom has a cat."
+
+
+def test_every_save_records_the_data_format_version(make_core, tmp_path):
+    core = make_core(FakeVoiceProvider())
+
+    core.set_text("Tom has a cat.")
+
+    assert json.loads((tmp_path / "data" / "library.json").read_text(encoding="utf-8"))["version"] == 1
+
+
+@pytest.mark.parametrize("damaged", ["{ not json", '{"version": 99, "texts": []}'])
+def test_an_unreadable_library_is_reported_and_left_untouched_while_the_program_still_works(
+    make_core, tmp_path, damaged
+):
+    library = tmp_path / "data" / "library.json"
+    library.parent.mkdir(parents=True)
+    library.write_text(damaged, encoding="utf-8")
+    core = make_core(FakeVoiceProvider())
+
+    core.set_text("Tom has a cat.")
+    core.play()
+
+    snapshot = wait_for(core, all_ready)
+    assert snapshot["library_error"].startswith("Не удалось прочитать Библиотеку")
+    assert library.read_text(encoding="utf-8") == damaged

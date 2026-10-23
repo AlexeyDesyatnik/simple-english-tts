@@ -96,3 +96,41 @@ button.secondary {
 .error {
   color: var(--error);
 }
+
+.library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+#library {
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+#library button {
+  width: 100%;
+  padding: 6px 12px;
+  font-weight: 400;
+  text-align: left;
+  color: var(--fg);
+  background: transparent;
+  border-radius: 6px;
+}
+
+#library button:hover {
+  background: #ecece6;
+}
+
+#library button.current {
+  font-weight: 600;
+  background: var(--current);
+}

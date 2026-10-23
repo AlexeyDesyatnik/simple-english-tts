@@ -16,6 +16,8 @@ WEB = Path(__file__).resolve().parent / "web"
 
 COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
+    "open_text": lambda core, body: core.open_text(str(body["id"])),
+    "new_text": lambda core, body: core.new_text(),
     "play": lambda core, body: core.play(),
     "pause": lambda core, body: core.pause(),
     "stop": lambda core, body: core.stop(),

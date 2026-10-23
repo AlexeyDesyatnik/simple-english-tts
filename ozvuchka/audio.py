@@ -29,3 +29,8 @@ def wav_from_samples(samples: ArrayLike, sample_rate: int) -> Audio:
         w.setframerate(sample_rate)
         w.writeframes(pcm.tobytes())
     return Audio(buffer.getvalue(), "wav", len(pcm) / sample_rate)
+
+
+def audio_from_wav(data: bytes) -> Audio:
+    with wave.open(io.BytesIO(data), "rb") as w:
+        return Audio(data, "wav", w.getnframes() / w.getframerate())
