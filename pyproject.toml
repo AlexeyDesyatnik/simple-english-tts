@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: uses the real Kokoro model (run with -m slow)"]
+addopts = "-m 'not slow'"

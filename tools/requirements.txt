@@ -1,0 +1,11 @@
+# Program packages, pinned (versions tested in english-speaking-prototype, October 2026).
+# Transitive dependencies are pinned in constraints.txt. Comments must stay ASCII.
+kokoro-onnx==0.6.1
+onnxruntime==1.31.0
+numpy==2.5.4
+phonemizer==3.4.0
+espeakng-loader==0.2.4
+# misaki without [en]: the extra pulls torch and phonemizer-fork (conflicts with phonemizer).
+# The spaCy model en_core_web_sm is installed separately by build.ps1.
+misaki==0.9.4
+spacy==3.8.16

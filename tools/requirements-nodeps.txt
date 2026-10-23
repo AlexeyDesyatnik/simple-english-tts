@@ -1,0 +1,3 @@
+# Installed with pip --no-deps: num2words needs docopt only for its command-line tool,
+# and docopt ships no wheel.
+num2words==0.5.14

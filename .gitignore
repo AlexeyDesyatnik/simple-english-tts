@@ -1,0 +1,7 @@
+runtime/
+models/
+data/
+.cache/
+*.part
+__pycache__/
+.pytest_cache/

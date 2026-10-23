@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Озвучка</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Озвучка</h1>
+    <form id="speak">
+      <input id="phrase" type="text" autocomplete="off" placeholder="Введите английскую фразу" value="Hello, my name is Alice.">
+      <button id="play" type="submit">Play</button>
+    </form>
+    <p id="status" role="status"></p>
+    <p id="voice" class="muted"></p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
