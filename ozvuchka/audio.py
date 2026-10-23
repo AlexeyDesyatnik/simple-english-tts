@@ -5,6 +5,7 @@ import wave
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 
 @dataclass(frozen=True)
@@ -18,7 +19,7 @@ class Audio:
         return {"wav": "audio/wav", "mp3": "audio/mpeg"}[self.format]
 
 
-def wav_from_samples(samples, sample_rate: int) -> Audio:
+def wav_from_samples(samples: ArrayLike, sample_rate: int) -> Audio:
     """Encodes float samples in [-1, 1] as 16-bit mono WAV."""
     pcm = (np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0) * 32767).round().astype("<i2")
     buffer = io.BytesIO()

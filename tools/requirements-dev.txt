@@ -1,2 +1,4 @@
 # Developer build only.
 pytest==9.1.1
+mypy==2.4.0
+ruff==0.17.2

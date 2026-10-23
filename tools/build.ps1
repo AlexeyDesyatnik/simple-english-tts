@@ -2,7 +2,7 @@
   Developer-only build of the program's runtime (ADR-0001). Nothing in tools\ ships.
 
   Modes:
-    dev      runtime\ and models\ inside the repository, plus pytest
+    dev      runtime\ and models\ inside the repository, plus pytest, mypy and ruff
     release  (not implemented yet) program folder and zip
 
   Run: tools\build.bat dev   (or powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Mode dev)
@@ -197,4 +197,4 @@ $env:PYTHONUTF8 = '1'
 Invoke-Py -c "import kokoro_onnx, misaki.en, spacy, ozvuchka; assert spacy.util.is_package('$SpacyModel'); print('  imports OK')"
 
 Write-Host ""
-Write-Host "Done. Run the tests with: runtime\python.exe -m pytest" -ForegroundColor Green
+Write-Host "Done. Run the checks with: runtime\python.exe -m pytest / -m mypy / -m ruff check" -ForegroundColor Green

@@ -3,3 +3,27 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = ["slow: uses the real Kokoro model (run with -m slow)"]
 addopts = "-m 'not slow'"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["ozvuchka", "tests", "tools"]
+strict = true
+
+[[tool.mypy.overrides]]
+# Tests read as specifications, so annotations are optional there; their bodies are still checked.
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+# Packages without type information.
+module = ["kokoro_onnx.*", "misaki.*", "num2words.*", "spacy.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "I"]

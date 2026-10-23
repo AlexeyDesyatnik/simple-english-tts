@@ -6,8 +6,9 @@ one piece at a time, so commands return at once and the page sees progress throu
 
 import hashlib
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
 from ozvuchka.audio import Audio
 from ozvuchka.text import Paragraph, paragraphs
@@ -99,7 +100,7 @@ class Core:
 
     # ---------------------------------------------------------------- reading
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, Any]:
         with self._lock:
             text = None if self._text is None else {
                 "content": self._text,
@@ -131,8 +132,8 @@ class Core:
         """The next Paragraph to play after this one: Skipped paragraphs are passed over."""
         return next((i for i in range(index + 1, len(self._paragraphs)) if self._readable(i)), None)
 
-    def _paragraph_state(self, paragraph: Paragraph) -> dict:
-        state = {"text": paragraph.text, "audio": None}
+    def _paragraph_state(self, paragraph: Paragraph) -> dict[str, Any]:
+        state: dict[str, Any] = {"text": paragraph.text, "audio": None}
         ids = self._audio_ids(paragraph)
         if paragraph.skipped:
             state["status"] = "skipped"
@@ -158,7 +159,7 @@ class Core:
         if not self._play_pressed:
             return None
         for paragraph in self._paragraphs:
-            for audio_id, piece in zip(self._audio_ids(paragraph), paragraph.pieces):
+            for audio_id, piece in zip(self._audio_ids(paragraph), paragraph.pieces, strict=True):
                 if audio_id not in self._audio and audio_id not in self._failed:
                     return audio_id, piece
         return None
@@ -166,23 +167,25 @@ class Core:
     def _synthesize_pieces(self) -> None:
         while True:
             with self._work:
-                while not self._closed and (piece := self._next_piece()) is None:
+                piece = self._next_piece()
+                while not self._closed and piece is None:
                     self._work.wait()
-                if self._closed:
+                    piece = self._next_piece()
+                if self._closed or piece is None:
                     return
                 audio_id, text = piece
                 voice = self._voice
                 self._synthesizing = audio_id
-            audio = error = None
+            result: Audio | str  # the audio, or why there is none
             try:
                 if not self._registry.available(voice):
                     raise RuntimeError(f"{voice.label}: голос недоступен")
-                audio = self._registry.provider(voice).synthesize(text, voice.id, SPEED)
-            except Exception as e:
-                error = str(e)
+                result = self._registry.provider(voice).synthesize(text, voice.id, SPEED)
+            except Exception as error:
+                result = str(error)
             with self._lock:
                 self._synthesizing = None
-                if audio is not None:
-                    self._audio[audio_id] = audio
+                if isinstance(result, Audio):
+                    self._audio[audio_id] = result
                 else:
-                    self._failed[audio_id] = error
+                    self._failed[audio_id] = result

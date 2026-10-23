@@ -2,11 +2,15 @@
 
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from ozvuchka.audio import Audio, wav_from_samples
 from ozvuchka.voices import Voice
+
+if TYPE_CHECKING:  # imported for real in load(): it takes seconds
+    from kokoro_onnx import Kokoro
 
 SPACY_MODEL = "en_core_web_sm"
 SAMPLE_RATE = 24000
@@ -31,8 +35,8 @@ class KokoroProvider:
 
     def __init__(self, model_dir: Path):
         self._model_dir = model_dir
-        self._tts = None
-        self._g2p = None
+        self._tts: Kokoro | None = None
+        self._g2p: Any = None  # misaki.en.G2P; misaki has no type information
         self._lock = threading.Lock()  # the model and misaki are used by one synthesis at a time
 
     def voices(self) -> list[Voice]:

@@ -5,14 +5,16 @@ It holds no logic of its own and listens only on 127.0.0.1.
 
 import json
 import mimetypes
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 from ozvuchka.core import Core
 
 WEB = Path(__file__).resolve().parent / "web"
 
-COMMANDS = {
+COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
     "play": lambda core, body: core.play(),
     "pause": lambda core, body: core.pause(),
@@ -25,7 +27,7 @@ COMMANDS = {
 
 def make_server(core: Core, port: int) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
+        def do_GET(self) -> None:
             if self.path == "/api/state":
                 self._send(200, "application/json", json.dumps(core.snapshot()).encode())
             elif self.path.startswith("/api/audio/"):
@@ -37,7 +39,7 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             else:
                 self._send_static(self.path.split("?", 1)[0])
 
-        def do_POST(self):
+        def do_POST(self) -> None:
             if self.path != "/api/command":
                 return self._send_error(404, "not found")
             try:
@@ -48,7 +50,7 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
                 return self._send_error(400, f"{type(error).__name__}: {error}")
             self._send(200, "application/json", json.dumps({"result": result}).encode())
 
-        def _send_static(self, path: str):
+        def _send_static(self, path: str) -> None:
             name = "index.html" if path == "/" else path.lstrip("/")
             files = {f.name: f for f in WEB.iterdir() if f.is_file()}
             if name not in files:
@@ -58,10 +60,10 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
                 content_type += "; charset=utf-8"
             self._send(200, content_type, files[name].read_bytes())
 
-        def _send_error(self, status: int, message: str):
+        def _send_error(self, status: int, message: str) -> None:
             self._send(status, "application/json", json.dumps({"error": message}).encode())
 
-        def _send(self, status: int, content_type: str, data: bytes):
+        def _send(self, status: int, content_type: str, data: bytes) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
@@ -69,7 +71,7 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             self.end_headers()
             self.wfile.write(data)
 
-        def log_message(self, format, *args):
+        def log_message(self, format: str, *args: Any) -> None:
             pass  # the snapshot is polled twice a second; logging comes with the log ticket
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)

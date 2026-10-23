@@ -90,7 +90,7 @@ def _sentences(paragraph: str) -> list[str]:
     return result
 
 
-def _time(m: re.Match) -> str:
+def _time(m: re.Match[str]) -> str:
     h, mm = int(m.group(1)), int(m.group(2))
     if mm == 0:
         return f"{num2words(h)} o'clock"

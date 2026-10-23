@@ -6,13 +6,14 @@ Usage: python pack_kokoro_voices.py <folder with .bin> <output .npz>
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 
 def main() -> int:
     src, dst = Path(sys.argv[1]), Path(sys.argv[2])
-    voices = {}
+    voices: dict[str, Any] = {}  # Any: numpy's stubs reject **arrays next to savez's own keyword arguments
     for f in sorted(src.glob("*.bin")):
         arr = np.fromfile(f, dtype=np.float32)
         if arr.size % 256:
