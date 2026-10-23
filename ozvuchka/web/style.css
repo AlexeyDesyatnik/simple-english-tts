@@ -70,6 +70,14 @@ button.secondary {
   border-radius: 6px;
 }
 
+#paragraphs li:not(.skipped) {
+  cursor: pointer; /* a click plays from this Paragraph */
+}
+
+#paragraphs li:not(.skipped):not(.current):hover {
+  background: color-mix(in srgb, var(--current) 40%, transparent);
+}
+
 #paragraphs li.current {
   background: var(--current);
 }

@@ -40,6 +40,10 @@ _Avoid_: Preview, demo, test phrase
 How fast a Voice reads, as a multiple of its normal pace (1.0 = normal, 0.8 = slower for younger pupils).
 _Avoid_: Rate, tempo
 
+**Synthesis speed**:
+How many seconds of speech a computer synthesizes per second (about 0.44 on the Celeron, 1.85 on the i5); measured during work and remembered for each computer.
+_Avoid_: Performance, real-time factor
+
 **Narration**:
 The synthesized speech of one Text in one Voice at one Speed, kept in the Library so it can be played again without waiting.
 _Avoid_: Recording, audio, cache, voiceover

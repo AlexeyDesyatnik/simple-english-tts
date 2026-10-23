@@ -115,7 +115,8 @@ async function sync() {
   const playback = snapshot.playback;
   if (playback.state === "stopped") return clearSchedule();
   if (!audioContext) return;
-  if (playback.state === "paused") {
+  // While waiting for the Start delay, what was scheduled before a pause stays held where it is.
+  if (playback.state === "paused" || playback.state === "waiting") {
     if (audioContext.state === "running") await audioContext.suspend();
     return;
   }
@@ -201,9 +202,10 @@ function renderParagraphs(text) {
   if (text?.content !== shownContent) {
     shownContent = text?.content ?? null;
     paragraphsEl.replaceChildren(
-      ...(text?.paragraphs ?? []).map((p) => {
+      ...(text?.paragraphs ?? []).map((p, i) => {
         const li = document.createElement("li");
         li.textContent = p.text;
+        li.addEventListener("click", () => playFrom(i));
         return li;
       }),
     );
@@ -221,6 +223,13 @@ function renderParagraphs(text) {
   });
 }
 
+// "~1 мин 20 с", "~45 с"
+function formatDuration(seconds) {
+  const s = Math.max(1, Math.ceil(seconds));
+  const minutes = Math.floor(s / 60);
+  return minutes ? `~${minutes} мин ${s % 60} с` : `~${s} с`;
+}
+
 function statusText(text, playback) {
   if (snapshot.library_error) return [snapshot.library_error, "error"];
   if (!text) return ["", ""];
@@ -228,6 +237,10 @@ function statusText(text, playback) {
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
   if (blocked && playback.state === "paused") return ["Нажмите Play, чтобы продолжить", ""];
+  if (playback.state === "waiting") {
+    if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
+    return [`Начнётся через ${formatDuration(playback.start_delay)}`, ""];
+  }
   const current = playback.paragraph === null ? null : text.paragraphs[playback.paragraph];
   if (playback.state === "playing" && current && current.status !== "ready") return ["Готовлю озвучку абзаца…", ""];
   const ready = readable.filter((p) => p.status === "ready").length;
@@ -253,7 +266,7 @@ function render(next) {
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
   statusEl.className = className;
-  if (first && snapshot.playback.state === "playing") {
+  if (first && ["playing", "waiting"].includes(snapshot.playback.state)) {
     startAfterReload().then(sync);
   } else {
     sync().catch((e) => showError(`Ошибка воспроизведения: ${e.message}`));
@@ -276,11 +289,22 @@ async function poll() {
 
 // ---------------------------------------------------------------- buttons
 
-document.getElementById("play").addEventListener("click", async () => {
-  // Created and resumed inside the click, so the browser allows it to play sound.
+// Created and resumed inside a click, so the browser allows it to play sound.
+function allowSound() {
   audioContext ??= new AudioContext();
   audioContext.resume();
   blocked = false;
+}
+
+function playFrom(index) {
+  if (snapshot.text.paragraphs[index].status === "skipped") return;
+  allowSound();
+  clearSchedule();
+  act({ command: "play_from", paragraph: index });
+}
+
+document.getElementById("play").addEventListener("click", async () => {
+  allowSound();
   try {
     if (sourceEl.value !== snapshot?.text?.content) {
       clearSchedule();

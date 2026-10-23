@@ -15,7 +15,13 @@ from tests.fakes import FakeClock, FakeVoiceProvider
 
 @pytest.fixture
 def base_url(tmp_path):
-    core = Core(VoiceRegistry([FakeVoiceProvider()]), "fake:alice", clock=FakeClock(), data_dir=tmp_path / "data")
+    core = Core(
+        VoiceRegistry([FakeVoiceProvider()]),
+        "fake:alice",
+        clock=FakeClock(),
+        data_dir=tmp_path / "data",
+        computer="classroom-pc",
+    )
     server = make_server(core, port=0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{server.server_address[1]}"
@@ -43,7 +49,6 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
 
     command(base_url, command="set_text", text="Good morning.\nSit down, please.")
     command(base_url, command="play")
-    command(base_url, command="paragraph_finished", paragraph=0)
 
     deadline = time.monotonic() + 5
     while True:
@@ -52,7 +57,9 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
             break
         assert time.monotonic() < deadline, snapshot
         time.sleep(0.01)
+    command(base_url, command="paragraph_finished", paragraph=0)
 
+    snapshot = json.loads(get(base_url + "/api/state")[1])
     assert snapshot["playback"]["paragraph"] == 1
     content_type, audio = get(base_url + f"/api/audio/{snapshot['text']['paragraphs'][1]['audio'][0]}")
     assert content_type == "audio/wav"

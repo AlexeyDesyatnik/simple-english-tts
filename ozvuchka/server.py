@@ -19,6 +19,7 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "open_text": lambda core, body: core.open_text(str(body["id"])),
     "new_text": lambda core, body: core.new_text(),
     "play": lambda core, body: core.play(),
+    "play_from": lambda core, body: core.play_from(int(body["paragraph"])),
     "pause": lambda core, body: core.pause(),
     "stop": lambda core, body: core.stop(),
     # events from the page player

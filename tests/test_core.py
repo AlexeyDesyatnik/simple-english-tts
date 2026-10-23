@@ -13,13 +13,20 @@ from tests.fakes import FakeClock, FakeVoiceProvider
 def make_core(tmp_path):
     cores = []
 
-    def make(provider):
-        core = Core(VoiceRegistry([provider]), "fake:alice", clock=FakeClock(), data_dir=tmp_path / "data")
-        cores.append(core)
+    def make(provider, clock=None, computer="classroom-pc"):
+        core = Core(
+            VoiceRegistry([provider]),
+            "fake:alice",
+            clock=clock or FakeClock(),
+            data_dir=tmp_path / "data",
+            computer=computer,
+        )
+        cores.append((core, provider))
         return core
 
     yield make
-    for core in cores:
+    for core, provider in cores:
+        provider.finish_all()  # a manual provider may still hold a piece the test did not need
         core.close()
 
 
@@ -193,37 +200,43 @@ def playback(core):
     return core.snapshot()["playback"]
 
 
+def play_when_ready(core):
+    """Presses Play and waits until the whole Narration is ready and playing."""
+    core.play()
+    wait_for(core, lambda s: all_ready(s) and s["playback"]["state"] == "playing")
+
+
 TEXT_WITH_A_TASK = "Упражнение 1. Послушайте.\nTom has a cat.\nЗадание 2.\nThe cat is black.\nIt likes milk."
 
 
 def test_paragraphs_play_in_order_skipping_skipped_paragraphs(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
 
-    core.play()
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3}
+    play_when_ready(core)
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
     core.paragraph_started(1)
     core.paragraph_finished(1)
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
     core.paragraph_started(3)
     core.paragraph_finished(3)
     core.paragraph_started(4)
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
     core.paragraph_finished(4)
 
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
 
 
 def test_the_page_can_start_the_next_paragraph_before_reporting_the_end_of_the_previous_one(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    core.play()
+    play_when_ready(core)
 
     core.paragraph_started(3)
     core.paragraph_finished(1)  # late: the position has already moved on
 
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
 
 
 def test_a_text_with_nothing_to_read_does_not_start_playing(make_core):
@@ -238,26 +251,26 @@ def test_a_text_with_nothing_to_read_does_not_start_playing(make_core):
 def test_pause_keeps_the_position_and_play_resumes_it(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    core.play()
+    play_when_ready(core)
     core.paragraph_finished(1)
 
     core.pause()
-    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4}
+    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4, "start_delay": None}
     core.paragraph_finished(3)  # the page may still report what was playing as it paused
     assert playback(core)["paragraph"] == 3
 
     core.play()
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
 
 
 def test_stop_returns_to_the_start_of_the_text(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    core.play()
+    play_when_ready(core)
     core.paragraph_finished(1)
 
     core.stop()
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
 
     core.play()
     assert playback(core)["paragraph"] == 1
@@ -266,7 +279,7 @@ def test_stop_returns_to_the_start_of_the_text(make_core):
 def test_a_new_text_stops_playback_but_the_same_text_again_changes_nothing(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    core.play()
+    play_when_ready(core)
     core.paragraph_finished(1)
 
     core.set_text(TEXT_WITH_A_TASK)
@@ -484,3 +497,184 @@ def test_an_unreadable_library_is_reported_and_left_untouched_while_the_program_
     snapshot = wait_for(core, all_ready)
     assert snapshot["library_error"].startswith("Не удалось прочитать Библиотеку")
     assert library.read_text(encoding="utf-8") == damaged
+
+
+# ---------------------------------------------------------------- Start delay
+
+
+def lasting(seconds, letter="a"):
+    """A one-word Paragraph the fake Voice provider says in this many seconds (0.1 s per character)."""
+    return letter.upper() + letter * (round(seconds * 10) - 2) + "."
+
+
+FOUR_PARAGRAPHS_OF_10_S = "\n".join(lasting(10, letter) for letter in "abcd")
+
+
+def test_play_on_a_narration_slower_than_speech_waits_out_a_start_delay_that_counts_down(make_core):
+    clock = FakeClock()
+    provider = FakeVoiceProvider(manual=True, clock=clock, speed=0.5)
+    core = make_core(provider, clock)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+
+    core.play()
+    assert playback(core) == {"state": "waiting", "paragraph": 0, "next": 1, "start_delay": None}  # not measured yet
+
+    provider.finish_next()  # 20 s for 10 s of speech: this computer synthesizes at half the pace of speech
+    snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
+    # Paragraph 1 is ready 23 s from now (20 s plus 15% to spare) and heard after 10 s; paragraph 2 at 46 s
+    # and 20 s; paragraph 3 at 69 s and 30 s: playback can start in 39 s without ever waiting.
+    assert snapshot["playback"]["state"] == "waiting"
+    assert snapshot["playback"]["start_delay"] == pytest.approx(39)
+
+    clock.advance(10)
+    assert playback(core)["start_delay"] == pytest.approx(29)
+
+
+def test_playback_starts_by_itself_before_synthesis_ends_and_never_reaches_a_paragraph_that_is_not_ready(make_core):
+    clock = FakeClock(start=0)
+    provider = FakeVoiceProvider(manual=True)  # the test moves the clock: each paragraph takes twice its length
+    core = make_core(provider, clock)
+    seconds = [4, 12, 6, 20, 8, 10]
+    core.set_text("\n".join(lasting(s, letter) for s, letter in zip(seconds, "abcdef", strict=True)))
+    core.play()
+
+    ready_at, started_at = [], None
+    for n, length in enumerate(seconds):
+        wait_for(core, lambda s, n=n: statuses(s)[n] == "synthesizing")
+        for _ in range(length * 4):  # half-second ticks, as the page polls
+            clock.advance(0.5)
+            if started_at is None and playback(core)["state"] == "playing":
+                started_at = clock.now
+        provider.finish_next()
+        wait_for(core, lambda s, n=n: statuses(s)[n] == "ready")
+        ready_at.append(clock.now)
+
+    assert started_at is not None and started_at < ready_at[-1]
+    heard_from = [started_at + sum(seconds[:n]) for n in range(len(seconds))]
+    assert all(ready <= heard for ready, heard in zip(ready_at, heard_from, strict=True))
+
+
+def test_on_a_computer_faster_than_speech_playback_starts_as_soon_as_the_first_paragraph_is_ready(make_core):
+    clock = FakeClock()
+    provider = FakeVoiceProvider(manual=True, clock=clock, speed=2)
+    core = make_core(provider, clock)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+    core.play()
+
+    provider.finish_next()
+
+    snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
+    assert statuses(snapshot)[1:] != ["ready"] * 3
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 0, "next": 1, "start_delay": None}
+
+
+def test_the_start_delay_is_recalculated_when_synthesis_slows_down_along_the_way(make_core):
+    clock = FakeClock()
+    provider = FakeVoiceProvider(manual=True, clock=clock, speed=0.5)
+    core = make_core(provider, clock)
+    core.set_text("\n".join(lasting(10, letter) for letter in "abcde"))
+    core.play()
+    provider.finish_next()
+    # 23 s of synthesis per paragraph: the last one is ready at 92 s and heard after 40 s.
+    assert wait_for(core, lambda s: statuses(s)[0] == "ready")["playback"]["start_delay"] == pytest.approx(52)
+
+    provider.speed = 0.25
+    provider.finish_next()
+
+    # 40 s for the second paragraph: synthesis is now counted at 34.5 s per paragraph (30 s, the average of
+    # the two, plus 15%), so the last one is ready at 103.5 s and heard after 40 s.
+    snapshot = wait_for(core, lambda s: statuses(s)[1] == "ready")
+    assert snapshot["playback"]["start_delay"] == pytest.approx(63.5)
+
+
+def measure_and_close(make_core, computer, speed, text):
+    clock = FakeClock()
+    core = make_core(FakeVoiceProvider(clock=clock, speed=speed), clock, computer=computer)
+    core.set_text(text)
+    core.play()
+    wait_for(core, all_ready)
+    core.close()
+
+
+def start_delay_on(make_core, computer, text):
+    """The Start delay right after Play on this computer, before anything is synthesized."""
+    core = make_core(FakeVoiceProvider(manual=True), computer=computer)
+    core.set_text(text)
+    core.play()
+    return playback(core)["start_delay"]
+
+
+def test_the_synthesis_speed_is_remembered_separately_for_each_computer(make_core):
+    measure_and_close(make_core, "celeron", 0.5, lasting(10, "a"))
+    assert start_delay_on(make_core, "i5", lasting(10, "b")) is None  # never measured on this one
+    measure_and_close(make_core, "i5", 2, lasting(10, "c"))
+
+    two_paragraphs = lasting(10, "d") + "\n" + lasting(10, "e")
+    # Celeron: 23 s per paragraph, the second heard after 10 s; i5: 5.75 s per paragraph.
+    assert start_delay_on(make_core, "celeron", two_paragraphs) == pytest.approx(36)
+    assert start_delay_on(make_core, "i5", two_paragraphs) == pytest.approx(5.75)
+
+
+def test_a_ready_narration_does_not_start_playing_without_play(make_core):
+    ready_and_close(make_core(FakeVoiceProvider()), FOUR_PARAGRAPHS_OF_10_S)
+    clock = FakeClock()
+    core = make_core(FakeVoiceProvider(), clock)
+
+    core.open_text(core.snapshot()["library"][0]["id"])
+    clock.advance(60)
+
+    assert playback(core)["state"] == "stopped"
+
+
+@pytest.mark.parametrize("command, state", [("stop", "stopped"), ("pause", "paused")])
+def test_stop_or_pause_while_waiting_keeps_the_narration_from_starting_once_it_is_ready(make_core, command, state):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+    core.play()
+
+    getattr(core, command)()
+    provider.finish_all()
+
+    assert wait_for(core, all_ready)["playback"]["state"] == state
+
+
+def said(provider):
+    return [request[0][0] for request in provider.requests]  # the paragraphs' letters
+
+
+def test_play_from_a_paragraph_that_is_not_ready_synthesizes_from_it_then_the_ones_before_it(make_core):
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+
+    core.play_from(2)
+    assert playback(core)["paragraph"] == 2
+
+    snapshot = wait_for(core, all_ready)
+    assert said(provider) == ["C", "D", "A", "B"]
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 2, "next": 3, "start_delay": None}
+
+
+def test_play_from_a_paragraph_while_another_is_synthesizing_switches_to_it_after_that_piece(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+    core.play()
+    wait_for(core, lambda s: statuses(s)[0] == "synthesizing")
+
+    core.play_from(2)
+    provider.finish_all()
+
+    wait_for(core, all_ready)
+    assert said(provider) == ["A", "C", "D", "B"]
+
+
+def test_play_from_a_skipped_paragraph_is_rejected(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+
+    with pytest.raises(ValueError):
+        core.play_from(0)
+
+    assert playback(core)["state"] == "stopped"

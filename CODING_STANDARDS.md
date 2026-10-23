@@ -19,7 +19,7 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 
 ## Shape
 
-- **The core** (`ozvuchka/core.py`) holds all program state and decides what happens, including what plays. It knows nothing about HTTP or the page. It is driven by commands and the page player's events and read through one snapshot.
+- **The core** (`ozvuchka/core.py`) holds all program state and decides what happens, including what plays. It knows nothing about HTTP or the page. It is driven by commands, the page player's events and its clock, and read through one snapshot; what the clock decides (a Start delay running out) happens when the core is next called, the snapshot included.
 - **The HTTP layer** (`ozvuchka/server.py`) only translates: a command or event per JSON body, the snapshot, audio, static files. No logic.
 - **The page** (`ozvuchka/web/`) is a view (ADR-0003): plain HTML, CSS and JS, no framework, no build step. It renders the snapshot, plays what the core says and reports events. It keeps no state that must survive F5, and settings go through the core, not `localStorage`.
 - **A Voice provider** is anything with the `VoiceProvider` shape (`ozvuchka/voices.py`); a new provider is one new module.

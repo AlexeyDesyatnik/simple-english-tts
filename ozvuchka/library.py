@@ -37,7 +37,7 @@ class LibraryFiles:
 
     def save_texts(self, texts: list[SavedText]) -> None:
         stored = {"version": _FORMAT_VERSION, "texts": [{"id": t.id, "content": t.content} for t in texts]}
-        _write_atomically(self._texts, json.dumps(stored, ensure_ascii=False, indent=1).encode())
+        write_atomically(self._texts, json.dumps(stored, ensure_ascii=False, indent=1).encode())
 
     def pieces(self) -> set[str]:
         """The audio ids of the Narration pieces already saved."""
@@ -46,13 +46,12 @@ class LibraryFiles:
     def save_piece(self, audio_id: str, audio: Audio) -> None:
         # Only Kokoro's WAV for now; the online Voice provider's MP3 needs its duration stored too.
         assert audio.format == "wav"
-        _write_atomically(self._pieces / f"{audio_id}.wav", audio.data)
+        write_atomically(self._pieces / f"{audio_id}.wav", audio.data)
 
     def piece(self, audio_id: str) -> Audio:
         return audio_from_wav((self._pieces / f"{audio_id}.wav").read_bytes())
 
-
-def _write_atomically(path: Path, data: bytes) -> None:
+def write_atomically(path: Path, data: bytes) -> None:
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("wb") as file:
         file.write(data)

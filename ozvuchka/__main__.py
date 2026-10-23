@@ -1,6 +1,7 @@
 """Starts the program: runtime\\python.exe -m ozvuchka [--port N]"""
 
 import argparse
+import platform
 import time
 from pathlib import Path
 
@@ -20,7 +21,13 @@ def main() -> None:
     kokoro = KokoroProvider(ROOT / "models" / "kokoro")
     print("Loading Kokoro…", flush=True)
     kokoro.load()
-    core = Core(VoiceRegistry([kokoro]), DEFAULT_VOICE, clock=time.monotonic, data_dir=ROOT / "data")
+    core = Core(
+        VoiceRegistry([kokoro]),
+        DEFAULT_VOICE,
+        clock=time.monotonic,
+        data_dir=ROOT / "data",
+        computer=platform.node(),  # the Synthesis speed is remembered for each computer
+    )
     server = make_server(core, args.port)
     print(f"Ozvuchka: http://127.0.0.1:{server.server_address[1]}", flush=True)
     try:
