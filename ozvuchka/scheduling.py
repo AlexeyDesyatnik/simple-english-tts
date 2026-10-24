@@ -18,25 +18,31 @@ _SHORTEST = 0.001  # seconds; a short piece may finish within one tick of the cl
 
 @dataclass(frozen=True)
 class SynthesisSpeed:
+    # Both count speech at Speed 1.0, so pieces read at different Speeds can be measured together.
     speed: float  # seconds of speech synthesized per second (0.44 on the Celeron, 1.85 on the i5)
     # Seconds of speech per character of prepared text, to estimate what is not synthesized yet. It belongs to
-    # the Voice and Speed rather than the computer, but there is one Voice at one Speed so far.
+    # the Voice rather than the computer, but the Voices are close enough to share it.
     speech_per_character: float
 
     def synthesis_time(self, characters: int) -> float:
         """How long to allow for synthesizing this many characters."""
         return characters * self._cost * _SAFETY
 
-    def duration(self, characters: int) -> float:
-        return characters * self.speech_per_character
+    def duration(self, characters: int, voice_speed: float) -> float:
+        """Seconds of speech in this many characters read at this Speed."""
+        return characters * self.speech_per_character / voice_speed
 
     @property
     def _cost(self) -> float:
         return self.speech_per_character / self.speed
 
 
-def measured(previous: SynthesisSpeed | None, characters: int, duration: float, seconds: float) -> SynthesisSpeed:
-    """The speed updated with one more piece of `duration` seconds of speech, synthesized in `seconds`."""
+def measured(
+    previous: SynthesisSpeed | None, characters: int, duration: float, seconds: float, voice_speed: float
+) -> SynthesisSpeed:
+    """The speed updated with one more piece of `duration` seconds of speech read at `voice_speed`, synthesized
+    in `seconds`."""
+    duration *= voice_speed  # as long as it would be at Speed 1.0
     latest = SynthesisSpeed(duration / max(seconds, _SHORTEST), duration / characters)
     if previous is None:
         return latest

@@ -191,9 +191,15 @@ foreach ($v in $KokoroVoices.Keys) {
 }
 Invoke-Py (Join-Path $Tools 'pack_kokoro_voices.py') $voiceDir (Join-Path $k 'voices.npz')
 
+$env:PYTHONUTF8 = '1'   # misaki reads its dictionaries in the locale's encoding otherwise
+
+# ------------------------------------------------------------------ Voice samples
+# Shipped with the program so the teacher hears a Voice at once, even on the Celeron.
+Step "Voice samples"
+Invoke-Py (Join-Path $Tools 'make_voice_samples.py') $k
+
 # ------------------------------------------------------------------ check
 Step "Check"
-$env:PYTHONUTF8 = '1'
 Invoke-Py -c "import kokoro_onnx, misaki.en, spacy, ozvuchka; assert spacy.util.is_package('$SpacyModel'); print('  imports OK')"
 
 Write-Host ""

@@ -1,4 +1,4 @@
-"""Smoke test: a command, the snapshot and the audio pass through the HTTP layer."""
+"""Smoke test: commands, the snapshot, a Voice sample and the audio pass through the HTTP layer."""
 
 import json
 import threading
@@ -47,6 +47,12 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
     assert content_type == "text/html"
     assert b"Play" in page
 
+    content_type, sample = get(base_url + "/api/sample/fake%3Ageorge")
+    assert content_type == "audio/wav"
+    assert sample.startswith(b"RIFF")
+
+    command(base_url, command="set_voice", voice="fake:george")
+    command(base_url, command="set_speed", speed=0.9)
     command(base_url, command="set_text", text="Good morning.\nSit down, please.")
     command(base_url, command="play")
 
@@ -61,6 +67,7 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
 
     snapshot = json.loads(get(base_url + "/api/state")[1])
     assert snapshot["playback"]["paragraph"] == 1
+    assert (snapshot["voice"], snapshot["speed"]) == ("fake:george", 0.9)
     content_type, audio = get(base_url + f"/api/audio/{snapshot['text']['paragraphs'][1]['audio'][0]}")
     assert content_type == "audio/wav"
     assert audio.startswith(b"RIFF")

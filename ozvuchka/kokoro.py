@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ozvuchka.audio import Audio, wav_from_samples
+from ozvuchka.audio import Audio, audio_from_wav, wav_from_samples
 from ozvuchka.voices import Voice
 
 if TYPE_CHECKING:  # imported for real in load(): it takes seconds
@@ -62,6 +62,15 @@ class KokoroProvider:
         tts = Kokoro(str(self._model_dir / "kokoro-int8.onnx"), str(self._model_dir / "voices.npz"))
         with self._lock:
             self._g2p, self._tts = g2p, tts
+
+    def sample(self, voice: str) -> Audio | None:
+        # Made by the build (tools\make_voice_samples.py), so it plays at once even on the Celeron.
+        if voice not in (v for v, _, _ in VOICES):
+            return None
+        try:
+            return audio_from_wav((self._model_dir / "samples" / f"{voice}.wav").read_bytes())
+        except OSError:
+            return None
 
     def synthesize(self, text: str, voice: str, speed: float) -> Audio:
         if self._tts is None:

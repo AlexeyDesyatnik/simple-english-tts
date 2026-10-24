@@ -9,7 +9,7 @@ SAMPLE_RATE = 24000
 
 
 class FakeVoiceProvider:
-    """Speaks with two made-up Voices. Speech lasts 0.1 s per character at Speed 1.0.
+    """Speaks with two made-up Voices. Speech lasts 0.1 s per character at Speed 1.0; a Voice sample, 6 s.
 
     With manual=True each synthesis waits until the test calls finish_next(),
     so a test can look at the program while a piece is still being synthesized.
@@ -49,6 +49,11 @@ class FakeVoiceProvider:
         if self._clock is not None:
             self._clock.advance(seconds / self.speed)
         return wav_from_samples([0.0] * round(seconds * SAMPLE_RATE), SAMPLE_RATE)
+
+    def sample(self, voice: str) -> Audio | None:
+        if voice not in (v.id for v in self.voices()):
+            return None
+        return wav_from_samples([0.0] * 6 * SAMPLE_RATE, SAMPLE_RATE)
 
     def finish_next(self) -> None:
         self._go.release()

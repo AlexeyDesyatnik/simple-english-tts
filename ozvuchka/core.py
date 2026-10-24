@@ -16,10 +16,12 @@ from typing import Any
 from ozvuchka.audio import Audio
 from ozvuchka.library import LibraryFiles, SavedText
 from ozvuchka.scheduling import PlannedPiece, SpeedRecords, SynthesisSpeed, measured, start_delay
+from ozvuchka.settings import Settings, SettingsFile
 from ozvuchka.text import Paragraph, paragraphs
 from ozvuchka.voices import Voice, VoiceRegistry
 
-SPEED = 1.0
+_SPEEDS = (0.8, 0.9, 1.0, 1.1)  # the Speeds the teacher chooses from
+_DEFAULT_SPEED = 1.0
 _TITLE_WORDS = 5  # a Text's title in the Library is its first words
 
 
@@ -48,9 +50,12 @@ class Core:
         computer: str,
     ):
         self._registry = registry
-        self._voice = registry.voice(default_voice)
         self._clock = clock
         self._files = LibraryFiles(data_dir)
+        self._settings = SettingsFile(data_dir)
+        saved = self._settings.read()
+        self._voice = (saved.voice and registry.voice(saved.voice)) or self._known_voice(default_voice)
+        self._speed = saved.speed if saved.speed in _SPEEDS else _DEFAULT_SPEED
 
         self._lock = threading.Lock()
         self._work = threading.Condition(self._lock)  # wakes the synthesis thread
@@ -74,7 +79,7 @@ class Core:
         self._durations: dict[str, float] = {}  # audio id -> seconds, for the pieces synthesized since the start
         self._computer = computer
         self._speeds = SpeedRecords(data_dir)
-        self._speed = self._speeds.speed(computer)
+        self._synthesis_speed = self._speeds.speed(computer)
         self._synthesizing: str | None = None
         self._synthesizing_since = 0.0
         self._synthesizing_length = 0  # characters
@@ -116,6 +121,34 @@ class Core:
         with self._work:
             self._text_id = None
             self._show(None)
+
+    def set_voice(self, voice_key: str) -> None:
+        """Chooses the Voice of the current Text's Narration; a Narration playing in another one stops."""
+        voice = self._known_voice(voice_key)
+        with self._lock:
+            if voice != self._voice:
+                self._voice = voice
+                self._switch_narration()
+
+    def set_speed(self, speed: float) -> None:
+        """Chooses the Speed of the current Text's Narration; a Narration playing at another one stops."""
+        if speed not in _SPEEDS:
+            raise ValueError(f"speed {speed} is not one of {_SPEEDS}")
+        with self._lock:
+            if speed != self._speed:
+                self._speed = speed
+                self._switch_narration()
+
+    def _known_voice(self, voice_key: str) -> Voice:
+        voice = self._registry.voice(voice_key)
+        if voice is None:
+            raise ValueError(f"no voice {voice_key}")
+        return voice
+
+    def _switch_narration(self) -> None:
+        """Remembers the Voice and Speed for the next start; the Narration playing is another one now."""
+        self._settings.save(Settings(self._voice.key, self._speed))
+        self._state, self._paragraph = "stopped", None
 
     def enqueue(self) -> None:
         """Puts the current Text's Narration at the back of the Narration queue, unless it is ready or queued."""
@@ -172,7 +205,7 @@ class Core:
     def _current_narration(self, start: int = 0) -> _Queued | None:
         if self._text_id is None:
             return None
-        return _Queued(self._text_id, self._voice, SPEED, start)
+        return _Queued(self._text_id, self._voice, self._speed, start)
 
     def pause(self) -> None:
         with self._lock:
@@ -222,12 +255,15 @@ class Core:
             library = [{"id": t.id, "title": _title(t.content)} for t in self._library]
             queue = self._queue_state()
             library_error = self._library_error
+            voice, speed = self._voice.key, self._speed
         return {
             "voices": [
                 {"id": v.key, "label": v.label, "available": self._registry.available(v)}
                 for v in self._registry.voices()
             ],
-            "voice": self._voice.key,
+            "voice": voice,
+            "speeds": list(_SPEEDS),
+            "speed": speed,
             "library": library,
             "library_error": library_error,
             "queue": queue,
@@ -244,6 +280,10 @@ class Core:
             return self._files.piece(audio_id) if saved else None
         except OSError:
             return None
+
+    def voice_sample(self, voice_key: str) -> Audio | None:
+        voice = self._registry.voice(voice_key)
+        return None if voice is None else self._registry.provider(voice).sample(voice.id)
 
     def _show(self, text: str | None) -> None:
         self._text = text
@@ -284,10 +324,10 @@ class Core:
         planned = self._pieces(self._paragraphs[self._paragraph :])
         if all(self._ready(audio_id) for audio_id, _ in planned):
             return 0.0
-        speed = self._speed
-        if speed is None:
+        synthesis = self._synthesis_speed
+        if synthesis is None:
             return None
-        busy = self._busy(speed)
+        busy = self._busy(synthesis)
         pieces = []
         coming = {self._synthesizing}  # a piece repeated later is ready with its first occurrence
         for audio_id, piece in planned:
@@ -295,9 +335,9 @@ class Core:
             pieces.append(
                 PlannedPiece(
                     # Pieces from an earlier start are estimated, not read from disk under the lock.
-                    duration=self._durations.get(audio_id, speed.duration(len(piece))),
+                    duration=self._durations.get(audio_id, synthesis.duration(len(piece), self._speed)),
                     ready=ready,
-                    synthesis_left=0.0 if ready or audio_id in coming else speed.synthesis_time(len(piece)),
+                    synthesis_left=0.0 if ready or audio_id in coming else synthesis.synthesis_time(len(piece)),
                 )
             )
             coming.add(audio_id)
@@ -339,7 +379,7 @@ class Core:
     # ---------------------------------------------------------------- synthesis thread
 
     def _audio_ids(self, paragraph: Paragraph) -> list[str]:
-        return [_audio_id(self._voice, SPEED, piece) for piece in paragraph.pieces]
+        return [_audio_id(self._voice, self._speed, piece) for piece in paragraph.pieces]
 
     def _content(self, text_id: str) -> str:
         return next((t.content for t in self._library if t.id == text_id), "")
@@ -370,7 +410,7 @@ class Core:
 
     def _queue_state(self) -> list[dict[str, Any]]:
         """The queued Narrations with the seconds until each is ready; None until the Synthesis speed is known."""
-        speed = self._speed
+        speed = self._synthesis_speed
         synthesized = 0.0 if speed is None else self._busy(speed)
         coming = {self._synthesizing}  # a piece shared with a Narration ahead is ready with it
         state = []
@@ -385,6 +425,8 @@ class Core:
                     "id": narration.id,
                     "text_id": narration.text_id,
                     "title": _title(self._content(narration.text_id)),
+                    "voice": narration.voice.key,
+                    "speed": narration.speed,
                     "synthesizing": any(audio_id == self._synthesizing for audio_id, _ in pieces),
                     "ready_in": None if speed is None else synthesized,
                 }
@@ -431,7 +473,9 @@ class Core:
                 if not isinstance(result, Audio):
                     self._failed[audio_id] = result
                 else:
-                    self._speed = measured(self._speed, len(text), result.duration, finished - started)
+                    self._synthesis_speed = measured(
+                        self._synthesis_speed, len(text), result.duration, finished - started, voice_speed
+                    )
                     self._durations[audio_id] = result.duration
                     if save_error is None:
                         self._saved_pieces.add(audio_id)
@@ -442,7 +486,7 @@ class Core:
                 # The next piece is under way at once: between two pieces nothing would count down.
                 piece = self._claim_next_piece()
                 self._start_when_safe()
-                speed = self._speed
+                speed = self._synthesis_speed
             if isinstance(result, Audio) and speed is not None:
                 self._speeds.save(self._computer, speed)
 

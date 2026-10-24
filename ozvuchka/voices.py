@@ -36,6 +36,11 @@ class VoiceProvider(Protocol):
         """Synthesizes one piece of text with one of this provider's Voices at a Speed."""
         ...
 
+    def sample(self, voice: str) -> Audio | None:
+        """A ready-made Voice sample of 5 to 7 seconds, played at once even before the provider is available;
+        None for a Voice it does not have."""
+        ...
+
 
 class VoiceRegistry:
     def __init__(self, providers: list[VoiceProvider]):
@@ -44,8 +49,8 @@ class VoiceRegistry:
     def voices(self) -> list[Voice]:
         return [v for p in self._providers.values() for v in p.voices()]
 
-    def voice(self, key: str) -> Voice:
-        return next(v for v in self.voices() if v.key == key)
+    def voice(self, key: str) -> Voice | None:
+        return next((v for v in self.voices() if v.key == key), None)
 
     def provider(self, voice: Voice) -> VoiceProvider:
         return self._providers[voice.provider]

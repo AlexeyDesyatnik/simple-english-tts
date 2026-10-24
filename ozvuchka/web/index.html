@@ -20,6 +20,11 @@
       <h2>Очередь озвучки</h2>
       <ol id="queue"></ol>
     </section>
+    <fieldset id="voice-panel">
+      <legend>Голос</legend>
+      <ul id="voices"></ul>
+      <label>Скорость <select id="speed"></select></label>
+    </fieldset>
     <textarea id="source" rows="6" placeholder="Вставьте английский текст: каждая строка — отдельный абзац"></textarea>
     <div class="controls">
       <button id="play" type="button">Play</button>
@@ -28,7 +33,6 @@
       <button id="enqueue" type="button" class="secondary">В очередь</button>
     </div>
     <p id="status" role="status"></p>
-    <p id="voice" class="muted"></p>
     <ol id="paragraphs"></ol>
   </main>
   <script src="app.js"></script>

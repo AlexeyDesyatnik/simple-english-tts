@@ -6,7 +6,8 @@ const FADE = 0.005; // seconds; pieces fade in and out so they join without clic
 
 const sourceEl = document.getElementById("source");
 const statusEl = document.getElementById("status");
-const voiceEl = document.getElementById("voice");
+const voicesEl = document.getElementById("voices");
+const speedEl = document.getElementById("speed");
 const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
 const queuePanelEl = document.getElementById("queue-panel");
@@ -17,6 +18,8 @@ let shownContent = null; // the Text the paragraph list was built for
 let shownTextId = null; // the Text put in the text box; another one replaces what is typed there
 let shownLibrary = null; // the Library the list was built for
 let shownQueue = null; // the Narration queue the list was built for
+let shownVoices = null; // the Voices and Speeds the pickers were built for
+let sample = null; // the Voice sample playing
 let audioContext = null;
 let buffers = new Map(); // audio id -> Promise<AudioBuffer>
 // Paragraphs handed to WebAudio, in play order: {paragraph, start, end, nodes, started}.
@@ -201,6 +204,57 @@ function renderLibrary(library, currentId) {
   }
 }
 
+// "0,8×"; normal Speed is named so the teacher can find the way back to it
+function speedLabel(speed) {
+  return speed === 1 ? "1× — обычная" : `${String(speed).replace(".", ",")}×`;
+}
+
+// A Voice sample is ready-made: the core hands it over without synthesizing anything.
+function playSample(voiceId) {
+  sample?.pause();
+  sample = new Audio(`/api/sample/${encodeURIComponent(voiceId)}`);
+  sample.play().catch(() => showError("Не получилось проиграть образец голоса"));
+}
+
+function renderVoices() {
+  const key = JSON.stringify([snapshot.voices, snapshot.speeds]);
+  if (key !== shownVoices) {
+    shownVoices = key;
+    voicesEl.replaceChildren(
+      ...snapshot.voices.map((v) => {
+        const li = document.createElement("li");
+        const label = document.createElement("label");
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "voice";
+        radio.value = v.id;
+        // Another Voice is another Narration: the core stops the one playing.
+        radio.addEventListener("change", () => {
+          clearSchedule();
+          act({ command: "set_voice", voice: v.id });
+        });
+        label.append(radio, ` ${v.available ? v.label : `${v.label} (недоступен)`}`);
+        const listen = document.createElement("button");
+        listen.type = "button";
+        listen.className = "secondary";
+        listen.textContent = "Послушать";
+        listen.addEventListener("click", () => playSample(v.id));
+        li.append(label, listen);
+        return li;
+      }),
+    );
+    speedEl.replaceChildren(...snapshot.speeds.map((s) => new Option(speedLabel(s), String(s))));
+  }
+  for (const radio of voicesEl.querySelectorAll("input")) radio.checked = radio.value === snapshot.voice;
+  if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
+}
+
+// "George, 0,8×"
+function narrationLabel(narration) {
+  const voice = snapshot.voices.find((v) => v.id === narration.voice);
+  return `${voice ? voice.label.split(" — ")[0] : narration.voice}, ${String(narration.speed).replace(".", ",")}×`;
+}
+
 function renderQueue(queue) {
   queuePanelEl.hidden = queue.length === 0;
   const key = JSON.stringify(queue.map((n) => n.id));
@@ -211,7 +265,7 @@ function renderQueue(queue) {
         const li = document.createElement("li");
         const title = document.createElement("span");
         title.className = "title";
-        title.textContent = n.title;
+        title.textContent = `${n.title} · ${narrationLabel(n)}`;
         const left = document.createElement("span");
         left.className = "muted";
         const cancel = document.createElement("button");
@@ -287,8 +341,7 @@ function statusText(text, playback) {
 function render(next) {
   const first = snapshot === null;
   snapshot = next;
-  const voice = snapshot.voices.find((v) => v.id === snapshot.voice);
-  voiceEl.textContent = voice ? `Голос: ${voice.label}` : "";
+  renderVoices();
   const textId = snapshot.text?.id ?? null;
   if (first || textId !== shownTextId) {
     shownTextId = textId;
@@ -353,6 +406,12 @@ async function actOnTypedText(name) {
 document.getElementById("play").addEventListener("click", () => {
   allowSound();
   actOnTypedText("play");
+});
+
+// Another Speed is another Narration: the core stops the one playing.
+speedEl.addEventListener("change", () => {
+  clearSchedule();
+  act({ command: "set_speed", speed: Number(speedEl.value) });
 });
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));

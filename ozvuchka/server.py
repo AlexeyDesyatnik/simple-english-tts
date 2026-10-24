@@ -1,4 +1,5 @@
-"""Thin HTTP adapter over the core (ADR-0003): JSON commands and events, the snapshot, audio, static page.
+"""Thin HTTP adapter over the core (ADR-0003): JSON commands and events, the snapshot, audio and Voice samples,
+the static page.
 
 It holds no logic of its own and listens only on 127.0.0.1.
 """
@@ -9,7 +10,9 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
+from ozvuchka.audio import Audio
 from ozvuchka.core import Core
 
 WEB = Path(__file__).resolve().parent / "web"
@@ -18,6 +21,8 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
     "open_text": lambda core, body: core.open_text(str(body["id"])),
     "new_text": lambda core, body: core.new_text(),
+    "set_voice": lambda core, body: core.set_voice(str(body["voice"])),
+    "set_speed": lambda core, body: core.set_speed(float(body["speed"])),
     "enqueue": lambda core, body: core.enqueue(),
     "cancel": lambda core, body: core.cancel(str(body["narration"])),
     "play": lambda core, body: core.play(),
@@ -36,11 +41,9 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             if self.path == "/api/state":
                 self._send(200, "application/json", json.dumps(core.snapshot()).encode())
             elif self.path.startswith("/api/audio/"):
-                audio = core.audio(self.path.removeprefix("/api/audio/"))
-                if audio is None:
-                    self._send_error(404, "no such audio")
-                else:
-                    self._send(200, audio.mime_type, audio.data)
+                self._send_audio(core.audio(self.path.removeprefix("/api/audio/")))
+            elif self.path.startswith("/api/sample/"):
+                self._send_audio(core.voice_sample(unquote(self.path.removeprefix("/api/sample/"))))
             else:
                 self._send_static(self.path.split("?", 1)[0])
 
@@ -54,6 +57,12 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             except (ValueError, KeyError, TypeError) as error:
                 return self._send_error(400, f"{type(error).__name__}: {error}")
             self._send(200, "application/json", json.dumps({"result": result}).encode())
+
+        def _send_audio(self, audio: Audio | None) -> None:
+            if audio is None:
+                self._send_error(404, "no such audio")
+            else:
+                self._send(200, audio.mime_type, audio.data)
 
         def _send_static(self, path: str) -> None:
             name = "index.html" if path == "/" else path.lstrip("/")

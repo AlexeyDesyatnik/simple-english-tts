@@ -62,3 +62,14 @@ def test_slower_speed_gives_longer_audio(provider):
     slow = provider.synthesize("We read a book every day.", voice, 0.8)
 
     assert slow.duration > normal.duration * 1.1
+
+
+def test_every_voice_has_a_voice_sample_of_5_to_7_seconds(provider):
+    for voice in provider.voices():
+        sample = provider.sample(voice.id)
+        assert sample is not None, voice.id
+        assert 5.0 <= sample.duration <= 7.0, voice.id
+
+
+def test_a_voice_it_does_not_have_has_no_sample(provider):
+    assert provider.sample("nobody") is None

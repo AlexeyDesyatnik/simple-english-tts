@@ -864,3 +864,144 @@ def test_after_a_restart_in_the_middle_of_a_queued_narration_only_the_rest_is_sy
 
     wait_for(core, all_ready)
     assert [r[0] for r in restarted.requests] == ["Apple three."]
+
+
+# ---------------------------------------------------------------- Voice and Speed
+
+
+def test_the_teacher_chooses_from_the_voices_by_their_labels_and_from_four_speeds_alice_at_normal_by_default(
+    make_core,
+):
+    core = make_core(FakeVoiceProvider())
+
+    snapshot = core.snapshot()
+
+    assert [(v["id"], v["label"]) for v in snapshot["voices"]] == [
+        ("fake:alice", "Alice — женский, британский"),
+        ("fake:george", "George — мужской, британский"),
+    ]
+    assert snapshot["voice"] == "fake:alice"
+    assert snapshot["speeds"] == [0.8, 0.9, 1.0, 1.1]
+    assert snapshot["speed"] == 1.0
+
+
+def test_one_text_in_two_voices_and_two_speeds_is_four_separate_narrations(make_core):
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    core.set_text("Tom has a cat.")
+
+    for voice, speed in [("fake:alice", 1.0), ("fake:george", 1.0), ("fake:george", 0.8), ("fake:alice", 0.8)]:
+        core.set_voice(voice)
+        core.set_speed(speed)
+        assert statuses(core.snapshot()) == ["waiting"]
+        core.play()
+        wait_for(core, all_ready)
+
+    assert provider.requests == [
+        ("Tom has a cat.", "alice", 1.0),
+        ("Tom has a cat.", "george", 1.0),
+        ("Tom has a cat.", "george", 0.8),
+        ("Tom has a cat.", "alice", 0.8),
+    ]
+    core.set_voice("fake:george")
+    core.set_speed(1.0)
+    snapshot = core.snapshot()
+    assert statuses(snapshot) == ["ready"]
+    assert core.audio(snapshot["text"]["paragraphs"][0]["audio"][0]).duration == pytest.approx(1.4)
+
+
+def test_each_voice_and_speed_is_queued_as_a_narration_of_its_own(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Tom has a cat.")
+
+    core.enqueue()
+    core.set_speed(0.9)
+    core.enqueue()
+
+    assert [(n["voice"], n["speed"]) for n in core.snapshot()["queue"]] == [("fake:alice", 1.0), ("fake:alice", 0.9)]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert provider.requests == [("Tom has a cat.", "alice", 1.0), ("Tom has a cat.", "alice", 0.9)]
+
+
+@pytest.mark.parametrize("command, value", [("set_voice", "fake:george"), ("set_speed", 0.8)])
+def test_choosing_another_voice_or_speed_stops_the_narration_playing(make_core, command, value):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+
+    getattr(core, command)(value)
+
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+
+
+@pytest.mark.parametrize("command, value", [("set_voice", "fake:bob"), ("set_speed", 1.5)])
+def test_a_voice_or_speed_not_on_offer_is_rejected(make_core, command, value):
+    core = make_core(FakeVoiceProvider())
+
+    with pytest.raises(ValueError):
+        getattr(core, command)(value)
+
+    assert (core.snapshot()["voice"], core.snapshot()["speed"]) == ("fake:alice", 1.0)
+
+
+def test_the_last_voice_and_speed_chosen_are_remembered_after_a_restart(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_voice("fake:george")
+    core.set_speed(0.8)
+    core.close()
+
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    snapshot = core.snapshot()
+    assert (snapshot["voice"], snapshot["speed"]) == ("fake:george", 0.8)
+    core.set_text("Hello.")
+    core.play()
+    wait_for(core, all_ready)
+    assert provider.requests == [("Hello.", "george", 0.8)]
+
+
+@pytest.mark.parametrize(
+    "saved",
+    [
+        '{"version": 1, "voice": "fake:bob", "speed": 0.7}',  # a Voice no longer offered
+        "{ not json",
+        '{"version": 99, "voice": "fake:george", "speed": 0.8}',
+    ],
+)
+def test_settings_that_cannot_be_used_give_the_default_voice_and_speed(make_core, tmp_path, saved):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "settings.json").write_text(saved, encoding="utf-8")
+
+    core = make_core(FakeVoiceProvider())
+
+    assert (core.snapshot()["voice"], core.snapshot()["speed"]) == ("fake:alice", 1.0)
+    core.set_speed(0.9)
+    core.close()
+    assert make_core(FakeVoiceProvider()).snapshot()["speed"] == 0.9
+
+
+def test_the_start_delay_allows_for_the_speech_of_a_slower_speed_lasting_longer(make_core):
+    two_paragraphs = lasting(10, "d") + "\n" + lasting(10, "e")
+
+    measure_and_close(make_core, "celeron", 0.5, lasting(10, "a"))  # at Speed 1.0
+    make_core(FakeVoiceProvider()).set_speed(0.8)
+    # 23 s of synthesis per paragraph; the second is heard after 12.5 s at Speed 0.8.
+    assert start_delay_on(make_core, "celeron", two_paragraphs) == pytest.approx(33.5)
+
+    measure_and_close(make_core, "i5", 0.5, lasting(10, "b"))  # at Speed 0.8: 12.5 s of speech in 25 s
+    make_core(FakeVoiceProvider()).set_speed(1.0)
+    # 28.75 s of synthesis per paragraph; the second is heard after 10 s at Speed 1.0.
+    assert start_delay_on(make_core, "i5", two_paragraphs) == pytest.approx(47.5)
+
+
+def test_a_voice_sample_is_ready_to_play_without_synthesis(make_core):
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+
+    sample = core.voice_sample("fake:george")
+
+    assert sample is not None and sample.duration == pytest.approx(6)
+    assert core.voice_sample("fake:bob") is None
+    assert provider.requests == []
