@@ -5,6 +5,7 @@ one piece at a time, so commands return at once and the page sees progress throu
 """
 
 import hashlib
+import logging
 import threading
 import uuid
 from collections.abc import Callable
@@ -20,11 +21,16 @@ from ozvuchka.settings import Settings, SettingsFile
 from ozvuchka.text import Paragraph, paragraphs
 from ozvuchka.voices import Voice, VoiceRegistry
 
+_log = logging.getLogger(__name__)
+
 _SPEEDS = (0.8, 0.9, 1.0, 1.1)  # the Speeds the teacher chooses from
 _DEFAULT_SPEED = 1.0
 _TEXT_SIZES = (18, 22, 28, 36, 48, 64, 80)  # pixels; the large ones are for a projector
 _DEFAULT_TEXT_SIZE = 22
 _TITLE_WORDS = 5  # a Text's title in the Library is its first words
+# The program ends when its window is closed, which it learns from the page's heartbeat (ADR-0003).
+_PAGE_TIMEOUT = 120.0  # seconds; a minimized window's timers may run only once a minute
+_RELOAD_TIMEOUT = 10.0  # seconds after the page goes away; enough for F5 to bring it back
 
 
 @dataclass(frozen=True)
@@ -91,6 +97,8 @@ class Core:
         self._state = "stopped"  # "waiting" | "playing" | "paused" | "stopped"
         self._paragraph: int | None = None
         self._ended_at: int | None = None  # the last Paragraph heard, once playback has reached the end of the Text
+        # When the program is done unless the page is heard from; None while the page is frozen.
+        self._page_deadline: float | None = clock() + _PAGE_TIMEOUT
 
         self._worker = threading.Thread(target=self._synthesize_pieces, name="synthesis", daemon=True)
         self._worker.start()
@@ -286,6 +294,27 @@ class Core:
                 self._paragraph = self._readable_after(index)
                 if self._paragraph is None:
                     self._state, self._ended_at = "stopped", index  # the end of the Text
+
+    # ---------------------------------------------------------------- events from the page: its heartbeat
+
+    def page_alive(self) -> None:
+        with self._lock:
+            self._page_deadline = self._clock() + _PAGE_TIMEOUT
+
+    def page_closing(self) -> None:
+        """The page is going away: its window is closing, or it is being reloaded."""
+        with self._lock:
+            self._page_deadline = self._clock() + _RELOAD_TIMEOUT
+
+    def page_frozen(self) -> None:
+        """The browser has stopped the page (a window minimized for long); it sends nothing until it resumes."""
+        with self._lock:
+            self._page_deadline = None
+
+    def page_gone(self) -> bool:
+        """Whether the window is closed, so the program is done."""
+        with self._lock:
+            return self._page_deadline is not None and self._clock() >= self._page_deadline
 
     def close(self) -> None:
         with self._work:
@@ -522,6 +551,7 @@ class Core:
                     raise RuntimeError(f"{voice.label}: голос недоступен")
                 result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed)
             except Exception as error:
+                _log.exception("Could not synthesize %r in %s", text, voice.key)
                 result = str(error)
             finished = self._clock()
             save_error = None

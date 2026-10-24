@@ -1,5 +1,6 @@
 """The offline Voice provider: Kokoro-82M int8 fed with misaki phonemes (ADR-0002)."""
 
+import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -55,9 +56,14 @@ class KokoroProvider:
         if not spacy.util.is_package(SPACY_MODEL):
             # otherwise misaki would try to download it from the internet
             raise RuntimeError(f"spaCy model {SPACY_MODEL} is not installed; run tools\\build.bat dev")
+        import espeakng_loader
         from kokoro_onnx import Kokoro
         from misaki import en, espeak
+        from phonemizer.backend.espeak.wrapper import EspeakWrapper
 
+        # phonemizer would make the path absolute again, so it goes to eSpeak NG itself (see _ascii_path).
+        EspeakWrapper.set_data_path(None)
+        os.environ["ESPEAK_DATA_PATH"] = _ascii_path(espeakng_loader.get_data_path())
         g2p = en.G2P(trf=False, british=True, fallback=espeak.EspeakFallback(british=True))
         tts = Kokoro(str(self._model_dir / "kokoro-int8.onnx"), str(self._model_dir / "voices.npz"))
         with self._lock:
@@ -83,3 +89,14 @@ class KokoroProvider:
             else:
                 samples = np.zeros(0, dtype=np.float32)
         return wav_from_samples(samples, SAMPLE_RATE)
+
+
+def _ascii_path(path: str) -> str:
+    """eSpeak NG opens its data with the ANSI file functions, which fail on a path with Cyrillic in it (the folder
+    Озвучка, a teacher's flash drive folders). Relative to the current folder, which is the program folder, the path
+    has only ASCII in it."""
+    try:
+        relative = os.path.relpath(path)
+    except ValueError:  # another drive
+        return path
+    return relative if relative.isascii() else path

@@ -5,6 +5,7 @@ It holds no logic of its own and listens only on 127.0.0.1.
 """
 
 import json
+import logging
 import mimetypes
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,7 @@ from ozvuchka.audio import Audio
 from ozvuchka.core import Core
 
 WEB = Path(__file__).resolve().parent / "web"
+_log = logging.getLogger(__name__)
 
 COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
@@ -37,6 +39,10 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     # events from the page player
     "paragraph_started": lambda core, body: core.paragraph_started(int(body["paragraph"])),
     "paragraph_finished": lambda core, body: core.paragraph_finished(int(body["paragraph"])),
+    # the page's heartbeat
+    "page_alive": lambda core, body: core.page_alive(),
+    "page_closing": lambda core, body: core.page_closing(),
+    "page_frozen": lambda core, body: core.page_frozen(),
 }
 
 
@@ -90,7 +96,11 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             self.end_headers()
             self.wfile.write(data)
 
+        def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+            if isinstance(code, int) and code >= 400:  # the snapshot is polled twice a second
+                super().log_request(code, size)
+
         def log_message(self, format: str, *args: Any) -> None:
-            pass  # the snapshot is polled twice a second; logging comes with the log ticket
+            _log.warning("%s: %s", self.requestline, format % args)
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)

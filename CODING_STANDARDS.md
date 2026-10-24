@@ -36,7 +36,8 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 - Tests check behaviour through public seams only:
   - the core: commands, events and the snapshot, built with `FakeVoiceProvider`, `FakeClock` and a temporary data folder;
   - the `VoiceProvider` contract, run against the fake and the real providers;
-  - one HTTP smoke test.
+  - one HTTP smoke test;
+  - the smoke test of the release zip, `tools\smoke_test.py`, run in GitHub Actions on every push (run it locally after touching the build or the launcher).
 - Internal modules (`ozvuchka/text.py`, storage, scheduling) have no tests of their own, so they can be reworked freely.
 - Write tests first (`/tdd`). A test name reads as a sentence of the spec; expected values are literals from the spec or a worked example, never recomputed the way the code does it.
 - Tests that use the real Kokoro are marked `slow`.

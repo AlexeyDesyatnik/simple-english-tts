@@ -1,0 +1,36 @@
+Ozvuchka includes the following third-party software and data. Their license texts are in this folder;
+the licenses of every Python package are in packages\<package name>\.
+
+Kokoro-82M model and voices (models\kokoro\)
+    Copyright hexgrad. Apache License 2.0 (Apache-2.0.txt).
+    https://huggingface.co/hexgrad/Kokoro-82M
+    ONNX version: https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX
+
+kokoro-onnx (runtime\Lib\site-packages\kokoro_onnx\)
+    MIT License (packages\kokoro_onnx\). https://github.com/thewh1teagle/kokoro-onnx
+
+misaki (runtime\Lib\site-packages\misaki\)
+    Apache License 2.0 (packages\misaki\, Apache-2.0.txt). https://github.com/hexgrad/misaki
+
+spaCy and the en_core_web_sm model (runtime\Lib\site-packages\spacy\, en_core_web_sm\)
+    MIT License (packages\spacy\, packages\en_core_web_sm\). https://github.com/explosion/spaCy
+
+eSpeak NG 1.52.0 (runtime\Lib\site-packages\espeakng_loader\espeak-ng.dll and espeak-ng-data\)
+    GNU General Public License version 3 (GPL-3.0.txt).
+    It is used unmodified, as a separate library. Its source code:
+    https://github.com/espeak-ng/espeak-ng/tree/1.52.0
+
+espeakng-loader, which ships eSpeak NG for Python
+    MIT License (espeakng-loader-MIT.txt). https://github.com/thewh1teagle/espeakng-loader
+
+ONNX Runtime (runtime\Lib\site-packages\onnxruntime\)
+    MIT License, with third-party notices (packages\onnxruntime\). https://github.com/microsoft/onnxruntime
+
+flatbuffers (runtime\Lib\site-packages\flatbuffers\)
+    Apache License 2.0 (Apache-2.0.txt). https://github.com/google/flatbuffers
+
+Python (runtime\)
+    Python Software Foundation License (python\LICENSE.txt). https://www.python.org
+
+Microsoft Visual C++ runtime (runtime\msvcp140*.dll, vcruntime140*.dll)
+    Redistributable under the Microsoft Visual Studio license terms.

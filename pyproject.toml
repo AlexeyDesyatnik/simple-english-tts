@@ -18,7 +18,7 @@ disallow_untyped_calls = false
 
 [[tool.mypy.overrides]]
 # Packages without type information.
-module = ["kokoro_onnx.*", "misaki.*", "num2words.*", "spacy.*"]
+module = ["espeakng_loader.*", "kokoro_onnx.*", "misaki.*", "num2words.*", "phonemizer.*", "spacy.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

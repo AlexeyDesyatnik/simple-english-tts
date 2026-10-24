@@ -1,0 +1,64 @@
+# The build in GitHub Actions (ADR-0001): on every push the checks, the release zip and its smoke test;
+# on a tag v*, the zip is also published in GitHub Releases. See README.md, "Releasing a version".
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # to publish the release on a tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # git describe gives the version
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: downloads-${{ hashFiles('tools/build.ps1', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          restore-keys: downloads-
+
+      - name: Dev runtime
+        shell: cmd
+        run: tools\build.bat dev
+
+      - name: Checks
+        shell: cmd
+        run: |
+          runtime\python.exe -m pytest || exit /b 1
+          runtime\python.exe -m pytest -m slow || exit /b 1
+          runtime\python.exe -m mypy || exit /b 1
+          runtime\python.exe -m ruff check || exit /b 1
+
+      - name: Release zip
+        shell: cmd
+        run: tools\build.bat release
+
+      - name: Smoke test of the zip
+        shell: pwsh
+        run: |
+          runtime\python.exe -X utf8 tools\smoke_test.py (Get-Item dist\ozvuchka-*.zip).FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ozvuchka-zip
+          path: dist/ozvuchka-*.zip
+          retention-days: 14
+          compression-level: 0 # it is a zip already
+
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME (Get-Item dist\ozvuchka-*.zip).FullName --title $env:GITHUB_REF_NAME --generate-notes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
