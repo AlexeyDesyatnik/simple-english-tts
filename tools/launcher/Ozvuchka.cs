@@ -14,10 +14,12 @@ using System.Windows.Forms;
 static class Launcher
 {
     const string Title = "Озвучка";
+    static bool quiet;  // --no-window (the smoke test): nobody is there to close a message box
 
     [STAThread]
     static int Main(string[] args)
     {
+        quiet = args.Contains("--no-window");
         string folder = AppDomain.CurrentDomain.BaseDirectory;
         string python = Path.Combine(folder, "runtime", "pythonw.exe");
         if (!File.Exists(python))
@@ -58,6 +60,7 @@ static class Launcher
 
     static void Fail(string message)
     {
+        if (quiet) return;
         MessageBox.Show(message, Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 }

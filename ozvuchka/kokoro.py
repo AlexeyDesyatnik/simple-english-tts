@@ -1,5 +1,6 @@
 """The offline Voice provider: Kokoro-82M int8 fed with misaki phonemes (ADR-0002)."""
 
+import logging
 import os
 import threading
 from pathlib import Path
@@ -12,6 +13,8 @@ from ozvuchka.voices import Voice
 
 if TYPE_CHECKING:  # imported for real in load(): it takes seconds
     from kokoro_onnx import Kokoro
+
+_log = logging.getLogger(__name__)
 
 SPACY_MODEL = "en_core_web_sm"
 SAMPLE_RATE = 24000
@@ -64,6 +67,8 @@ class KokoroProvider:
         # phonemizer would make the path absolute again, so it goes to eSpeak NG itself (see _ascii_path).
         EspeakWrapper.set_data_path(None)
         os.environ["ESPEAK_DATA_PATH"] = _ascii_path(espeakng_loader.get_data_path())
+        # eSpeak NG ends the process without a word from Python if it cannot read its data
+        _log.info("eSpeak NG data: %s", os.environ["ESPEAK_DATA_PATH"])
         g2p = en.G2P(trf=False, british=True, fallback=espeak.EspeakFallback(british=True))
         tts = Kokoro(str(self._model_dir / "kokoro-int8.onnx"), str(self._model_dir / "voices.npz"))
         with self._lock:
@@ -96,7 +101,8 @@ def _ascii_path(path: str) -> str:
     Озвучка, a teacher's flash drive folders). Relative to the current folder, which is the program folder, the path
     has only ASCII in it."""
     try:
-        relative = os.path.relpath(path)
+        # realpath on both: a folder reached by its short name (RUNNER~1) differs from the current folder otherwise
+        relative = os.path.relpath(os.path.realpath(path), os.path.realpath(os.getcwd()))
     except ValueError:  # another drive
         return path
     return relative if relative.isascii() else path
