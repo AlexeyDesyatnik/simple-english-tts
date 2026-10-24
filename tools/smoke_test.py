@@ -35,34 +35,42 @@ def main() -> int:
         assert not any(p.parts[0] == "data" for p in shipped), "the zip has user data"
         assert Path("licenses", "NOTICE.txt") in shipped, "the zip has no licenses"
 
-        port = _free_port()
-        url = f"http://127.0.0.1:{port}"
-        started = time.monotonic()
-        launcher = subprocess.Popen([str(folder / f"{APP}.exe"), "--no-window", "--port", str(port)])
-        try:
-            _wait_for_page(url, launcher)
-            print(f"page served after {time.monotonic() - started:.1f} s", flush=True)
-            _command(url, "page_alive")
-            _command(url, "set_text", text="Hello.")
-            _command(url, "play")
-            seconds = _wait_for_speech(url)
-            print(f'"Hello." synthesized: {seconds:.2f} s of speech', flush=True)
-            assert 0.3 < seconds < 3.0, seconds
-
-            _command(url, "page_closing")
-            code = launcher.wait(timeout=EXIT_TIMEOUT)
-        finally:
-            if launcher.poll() is None:
-                subprocess.run(["taskkill", "/T", "/F", "/PID", str(launcher.pid)], check=False)
-        assert code == 0, f"Озвучка.exe exited with code {code}"
-        print("the program ended by itself after the page closed", flush=True)
-
         log = folder / "data" / "ozvuchka.log"
-        assert "Kokoro loaded" in log.read_text(encoding="utf-8"), "no log in the data folder"
-        written = sorted(str(p) for p in _files(folder) - shipped if p.parts[0] != "data")
-        assert not written, f"written outside data: {written}"
-        print("OK: the log is in data\\, nothing else was written into the program folder", flush=True)
+        try:
+            _run(folder, shipped, log)
+        except BaseException:
+            print(f"--- {log}:", log.read_text(encoding="utf-8") if log.exists() else "(none)", sep="\n", flush=True)
+            raise
     return 0
+
+
+def _run(folder: Path, shipped: set[Path], log: Path) -> None:
+    port = _free_port()
+    url = f"http://127.0.0.1:{port}"
+    started = time.monotonic()
+    launcher = subprocess.Popen([str(folder / f"{APP}.exe"), "--no-window", "--port", str(port)])
+    try:
+        _wait_for_page(url, launcher, log)
+        print(f"page served after {time.monotonic() - started:.1f} s", flush=True)
+        _command(url, "page_alive")
+        _command(url, "set_text", text="Hello.")
+        _command(url, "play")
+        seconds = _wait_for_speech(url)
+        print(f'"Hello." synthesized: {seconds:.2f} s of speech', flush=True)
+        assert 0.3 < seconds < 3.0, seconds
+
+        _command(url, "page_closing")
+        code = launcher.wait(timeout=EXIT_TIMEOUT)
+    finally:
+        if launcher.poll() is None:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(launcher.pid)], check=False)
+    assert code == 0, f"Озвучка.exe exited with code {code}"
+    print("the program ended by itself after the page closed", flush=True)
+
+    assert "Kokoro loaded" in log.read_text(encoding="utf-8"), "no log in the data folder"
+    written = sorted(str(p) for p in _files(folder) - shipped if p.parts[0] != "data")
+    assert not written, f"written outside data: {written}"
+    print("OK: the log is in data\\, nothing else was written into the program folder", flush=True)
 
 
 def _files(folder: Path) -> set[Path]:
@@ -92,10 +100,13 @@ def _command(url: str, command: str, **body: Any) -> Any:
         return json.loads(response.read())["result"]
 
 
-def _wait_for_page(url: str, launcher: subprocess.Popen[bytes]) -> None:
+def _wait_for_page(url: str, launcher: subprocess.Popen[bytes], log: Path) -> None:
     deadline = time.monotonic() + START_TIMEOUT
     while True:
         assert launcher.poll() is None, f"Озвучка.exe exited with code {launcher.returncode}"
+        # after an error the launcher shows a message box and waits for it to be closed
+        failed = log.exists() and " CRITICAL " in log.read_text(encoding="utf-8")
+        assert not failed, "the program stopped with an error"
         try:
             assert b"<html" in _get(url + "/").lower()
             return
