@@ -18,6 +18,8 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
     "open_text": lambda core, body: core.open_text(str(body["id"])),
     "new_text": lambda core, body: core.new_text(),
+    "enqueue": lambda core, body: core.enqueue(),
+    "cancel": lambda core, body: core.cancel(str(body["narration"])),
     "play": lambda core, body: core.play(),
     "play_from": lambda core, body: core.play_from(int(body["paragraph"])),
     "pause": lambda core, body: core.pause(),

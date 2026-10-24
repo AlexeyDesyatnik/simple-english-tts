@@ -16,11 +16,16 @@
       </div>
       <ul id="library"></ul>
     </section>
+    <section id="queue-panel" hidden>
+      <h2>Очередь озвучки</h2>
+      <ol id="queue"></ol>
+    </section>
     <textarea id="source" rows="6" placeholder="Вставьте английский текст: каждая строка — отдельный абзац"></textarea>
     <div class="controls">
       <button id="play" type="button">Play</button>
       <button id="pause" type="button" class="secondary">Пауза</button>
       <button id="stop" type="button" class="secondary">Стоп</button>
+      <button id="enqueue" type="button" class="secondary">В очередь</button>
     </div>
     <p id="status" role="status"></p>
     <p id="voice" class="muted"></p>

@@ -8,17 +8,34 @@ import hashlib
 import threading
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from ozvuchka.audio import Audio
 from ozvuchka.library import LibraryFiles, SavedText
-from ozvuchka.scheduling import PlannedPiece, SpeedRecords, measured, start_delay
+from ozvuchka.scheduling import PlannedPiece, SpeedRecords, SynthesisSpeed, measured, start_delay
 from ozvuchka.text import Paragraph, paragraphs
-from ozvuchka.voices import VoiceRegistry
+from ozvuchka.voices import Voice, VoiceRegistry
 
 SPEED = 1.0
 _TITLE_WORDS = 5  # a Text's title in the Library is its first words
+
+
+@dataclass(frozen=True)
+class _Queued:
+    """A Narration in the Narration queue: its pieces are synthesized from Paragraph `start` to the end, then the
+    Paragraphs before it."""
+
+    text_id: str
+    voice: Voice
+    speed: float
+    start: int = 0
+
+    @property
+    def id(self) -> str:
+        return f"{self.text_id}|{self.voice.key}|{self.speed}"
 
 
 class Core:
@@ -49,7 +66,7 @@ class Core:
         self._text_id: str | None = None  # the current Text's place in the Library; None until it is saved
         self._text: str | None = None
         self._paragraphs: list[Paragraph] = []
-        self._play_pressed = False  # Play asked for the current Text to be synthesized
+        self._queue: list[_Queued] = []  # the Narration queue; the first one is being synthesized
         # A piece's audio is saved in the Library; only one that could not be saved is kept in memory.
         self._saved_pieces = self._files.pieces()
         self._audio: dict[str, Audio] = {}
@@ -81,6 +98,7 @@ class Core:
             if self._paragraphs:
                 self._text_id = self._text_id or uuid.uuid4().hex[:12]
                 self._move_to_front(SavedText(self._text_id, text))
+                self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
 
     def open_text(self, text_id: str) -> None:
         """Makes a Text from the Library the current one."""
@@ -98,6 +116,27 @@ class Core:
         with self._work:
             self._text_id = None
             self._show(None)
+
+    def enqueue(self) -> None:
+        """Puts the current Text's Narration at the back of the Narration queue, unless it is ready or queued."""
+        with self._work:
+            if self._text is None:
+                raise ValueError("no text to queue")
+            narration = self._current_narration()
+            if narration is not None and all(q.id != narration.id for q in self._queue):
+                self._queue.append(narration)
+                self._failed.clear()  # queueing again tries again what could not be synthesized
+                self._drop_finished()
+                self._work.notify()
+
+    def cancel(self, narration_id: str) -> None:
+        """Takes a Narration out of the Narration queue; its pieces already synthesized are kept, and a piece under
+        way is finished. Playback of a cancelled Narration stops."""
+        with self._lock:
+            self._queue = [q for q in self._queue if q.id != narration_id]
+            current = self._current_narration()
+            if current is not None and current.id == narration_id:
+                self._state, self._paragraph = "stopped", None
 
     def play(self) -> None:
         with self._work:
@@ -120,10 +159,20 @@ class Core:
             self._press_play()
 
     def _press_play(self) -> None:
-        self._play_pressed = True
-        self._failed.clear()  # Play tries again what could not be synthesized
-        self._work.notify()
+        """Moves the current Text's Narration to the front of the Narration queue, synthesizing from the playback
+        position."""
+        narration = self._current_narration(start=self._paragraph or 0)
+        if narration is not None:
+            self._queue = [narration] + [q for q in self._queue if q.id != narration.id]
+            self._failed.clear()  # Play tries again what could not be synthesized
+            self._drop_finished()
+            self._work.notify()
         self._start_when_safe()
+
+    def _current_narration(self, start: int = 0) -> _Queued | None:
+        if self._text_id is None:
+            return None
+        return _Queued(self._text_id, self._voice, SPEED, start)
 
     def pause(self) -> None:
         with self._lock:
@@ -171,6 +220,7 @@ class Core:
                 "start_delay": self._start_delay() if self._state == "waiting" else None,
             }
             library = [{"id": t.id, "title": _title(t.content)} for t in self._library]
+            queue = self._queue_state()
             library_error = self._library_error
         return {
             "voices": [
@@ -180,6 +230,7 @@ class Core:
             "voice": self._voice.key,
             "library": library,
             "library_error": library_error,
+            "queue": queue,
             "text": text,
             "playback": playback,
         }
@@ -197,7 +248,6 @@ class Core:
     def _show(self, text: str | None) -> None:
         self._text = text
         self._paragraphs = [] if text is None else paragraphs(text)
-        self._play_pressed = False
         self._state, self._paragraph = "stopped", None
         self._failed.clear()
 
@@ -237,10 +287,7 @@ class Core:
         speed = self._speed
         if speed is None:
             return None
-        busy = 0.0
-        if self._synthesizing is not None:
-            elapsed = self._clock() - self._synthesizing_since
-            busy = max(0.0, speed.synthesis_time(self._synthesizing_length) - elapsed)
+        busy = self._busy(speed)
         pieces = []
         coming = {self._synthesizing}  # a piece repeated later is ready with its first occurrence
         for audio_id, piece in planned:
@@ -255,6 +302,13 @@ class Core:
             )
             coming.add(audio_id)
         return start_delay(pieces, busy)
+
+    def _busy(self, speed: SynthesisSpeed) -> float:
+        """Seconds of synthesis left in the piece under way."""
+        if self._synthesizing is None:
+            return 0.0
+        elapsed = self._clock() - self._synthesizing_since
+        return max(0.0, speed.synthesis_time(self._synthesizing_length) - elapsed)
 
     def _pieces(self, paragraphs: list[Paragraph]) -> list[tuple[str, str]]:
         """The pieces of these Paragraphs in play order: their audio ids and prepared text."""
@@ -285,40 +339,84 @@ class Core:
     # ---------------------------------------------------------------- synthesis thread
 
     def _audio_ids(self, paragraph: Paragraph) -> list[str]:
-        """A piece's audio is the same for the same prepared text, Voice and Speed."""
+        return [_audio_id(self._voice, SPEED, piece) for piece in paragraph.pieces]
+
+    def _content(self, text_id: str) -> str:
+        return next((t.content for t in self._library if t.id == text_id), "")
+
+    def _queued_pieces(self, narration: _Queued) -> list[tuple[str, str]]:
+        """A queued Narration's pieces in the order they are synthesized: their audio ids and prepared text."""
+        all_paragraphs = _parsed(self._content(narration.text_id))
+        ordered = all_paragraphs[narration.start :] + all_paragraphs[: narration.start]
         return [
-            hashlib.sha1(f"{self._voice.key}|{SPEED}|{piece}".encode()).hexdigest()[:16] for piece in paragraph.pieces
+            (_audio_id(narration.voice, narration.speed, piece), piece)
+            for paragraph in ordered
+            for piece in paragraph.pieces
         ]
 
-    def _next_piece(self) -> tuple[str, str] | None:
-        """From the playback position to the end of the Text first, then the Paragraphs before it."""
-        if not self._play_pressed:
-            return None
-        start = self._paragraph or 0
-        for audio_id, piece in self._pieces(self._paragraphs[start:] + self._paragraphs[:start]):
-            if not self._ready(audio_id) and audio_id not in self._failed:
-                return audio_id, piece
+    def _to_synthesize(self, audio_id: str) -> bool:
+        return not self._ready(audio_id) and audio_id not in self._failed
+
+    def _drop_finished(self) -> None:
+        """A Narration leaves the queue once nothing is left to synthesize in it."""
+        self._queue = [q for q in self._queue if any(self._to_synthesize(i) for i, _ in self._queued_pieces(q))]
+
+    def _next_piece(self) -> tuple[str, str, Voice, float] | None:
+        for narration in self._queue:
+            for audio_id, piece in self._queued_pieces(narration):
+                if self._to_synthesize(audio_id):
+                    return audio_id, piece, narration.voice, narration.speed
         return None
 
+    def _queue_state(self) -> list[dict[str, Any]]:
+        """The queued Narrations with the seconds until each is ready; None until the Synthesis speed is known."""
+        speed = self._speed
+        synthesized = 0.0 if speed is None else self._busy(speed)
+        coming = {self._synthesizing}  # a piece shared with a Narration ahead is ready with it
+        state = []
+        for narration in self._queue:
+            pieces = self._queued_pieces(narration)
+            for audio_id, piece in pieces:
+                if speed is not None and self._to_synthesize(audio_id) and audio_id not in coming:
+                    synthesized += speed.synthesis_time(len(piece))
+                coming.add(audio_id)
+            state.append(
+                {
+                    "id": narration.id,
+                    "text_id": narration.text_id,
+                    "title": _title(self._content(narration.text_id)),
+                    "synthesizing": any(audio_id == self._synthesizing for audio_id, _ in pieces),
+                    "ready_in": None if speed is None else synthesized,
+                }
+            )
+        return state
+
+    def _claim_next_piece(self) -> tuple[str, str, Voice, float] | None:
+        """Counts the next piece as under way from now on, so the Start delay and the queue's times run down."""
+        piece = self._next_piece()
+        if piece is not None:
+            self._synthesizing = piece[0]
+            self._synthesizing_since = self._clock()
+            self._synthesizing_length = len(piece[1])
+        return piece
+
     def _synthesize_pieces(self) -> None:
+        piece = None
         while True:
             with self._work:
-                piece = self._next_piece()
                 while not self._closed and piece is None:
-                    self._work.wait()
-                    piece = self._next_piece()
+                    piece = self._claim_next_piece()
+                    if piece is None:
+                        self._work.wait()
                 if self._closed or piece is None:
                     return
-                audio_id, text = piece
-                voice = self._voice
-                self._synthesizing = audio_id
-                started = self._synthesizing_since = self._clock()
-                self._synthesizing_length = len(text)
+                audio_id, text, voice, voice_speed = piece
+                started = self._synthesizing_since
             result: Audio | str  # the audio, or why there is none
             try:
                 if not self._registry.available(voice):
                     raise RuntimeError(f"{voice.label}: голос недоступен")
-                result = self._registry.provider(voice).synthesize(text, voice.id, SPEED)
+                result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed)
             except Exception as error:
                 result = str(error)
             finished = self._clock()
@@ -340,10 +438,24 @@ class Core:
                     else:
                         self._audio[audio_id] = result  # it still plays until the program is closed
                         self._library_error = save_error
+                self._drop_finished()
+                # The next piece is under way at once: between two pieces nothing would count down.
+                piece = self._claim_next_piece()
                 self._start_when_safe()
                 speed = self._speed
             if isinstance(result, Audio) and speed is not None:
                 self._speeds.save(self._computer, speed)
+
+
+def _audio_id(voice: Voice, speed: float, piece: str) -> str:
+    """A piece's audio is the same for the same prepared text, Voice and Speed."""
+    return hashlib.sha1(f"{voice.key}|{speed}|{piece}".encode()).hexdigest()[:16]
+
+
+@lru_cache(maxsize=64)
+def _parsed(content: str) -> list[Paragraph]:
+    # The queue is looked through on every snapshot, twice a second; callers only slice the list.
+    return paragraphs(content)
 
 
 def _title(content: str) -> str:

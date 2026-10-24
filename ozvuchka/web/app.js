@@ -9,11 +9,14 @@ const statusEl = document.getElementById("status");
 const voiceEl = document.getElementById("voice");
 const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
+const queuePanelEl = document.getElementById("queue-panel");
+const queueEl = document.getElementById("queue");
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
 let shownTextId = null; // the Text put in the text box; another one replaces what is typed there
 let shownLibrary = null; // the Library the list was built for
+let shownQueue = null; // the Narration queue the list was built for
 let audioContext = null;
 let buffers = new Map(); // audio id -> Promise<AudioBuffer>
 // Paragraphs handed to WebAudio, in play order: {paragraph, start, end, nodes, started}.
@@ -198,6 +201,36 @@ function renderLibrary(library, currentId) {
   }
 }
 
+function renderQueue(queue) {
+  queuePanelEl.hidden = queue.length === 0;
+  const key = JSON.stringify(queue.map((n) => n.id));
+  if (key !== shownQueue) {
+    shownQueue = key;
+    queueEl.replaceChildren(
+      ...queue.map((n) => {
+        const li = document.createElement("li");
+        const title = document.createElement("span");
+        title.className = "title";
+        title.textContent = n.title;
+        const left = document.createElement("span");
+        left.className = "muted";
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "secondary";
+        cancel.textContent = "Отменить";
+        cancel.addEventListener("click", () => act({ command: "cancel", narration: n.id }));
+        li.append(title, left, cancel);
+        return li;
+      }),
+    );
+  }
+  queue.forEach((n, i) => {
+    const state = n.synthesizing ? "озвучивается" : "ждёт";
+    const left = n.ready_in === null ? "" : ` · готово через ${formatDuration(n.ready_in)}`;
+    queueEl.children[i].querySelector(".muted").textContent = state + left;
+  });
+}
+
 function renderParagraphs(text) {
   if (text?.content !== shownContent) {
     shownContent = text?.content ?? null;
@@ -262,6 +295,7 @@ function render(next) {
     if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
   }
   renderLibrary(snapshot.library, textId);
+  renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text);
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
@@ -303,18 +337,25 @@ function playFrom(index) {
   act({ command: "play_from", paragraph: index });
 }
 
-document.getElementById("play").addEventListener("click", async () => {
-  allowSound();
+// Saves what is typed in the text box as the current Text first, then sends the command for it.
+async function actOnTypedText(name) {
   try {
     if (sourceEl.value !== snapshot?.text?.content) {
       clearSchedule();
       await command({ command: "set_text", text: sourceEl.value });
     }
-    await act({ command: "play" });
+    await act({ command: name });
   } catch (e) {
     showError(e.message);
   }
+}
+
+document.getElementById("play").addEventListener("click", () => {
+  allowSound();
+  actOnTypedText("play");
 });
+
+document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
 
 document.getElementById("pause").addEventListener("click", () => {
   audioContext?.suspend();

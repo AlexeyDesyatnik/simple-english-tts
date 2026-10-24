@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 
 import pytest
@@ -678,3 +679,188 @@ def test_play_from_a_skipped_paragraph_is_rejected(make_core):
         core.play_from(0)
 
     assert playback(core)["state"] == "stopped"
+
+
+# ---------------------------------------------------------------- Narration queue
+
+
+def queue_text(core, text):
+    """Pastes a Text and queues its Narration, leaving it as the current Text."""
+    core.new_text()
+    core.set_text(text)
+    core.enqueue()
+
+
+def queued(snapshot):
+    return [n["title"] for n in snapshot["queue"]]
+
+
+def test_queued_narrations_are_synthesized_one_at_a_time_in_the_order_they_were_queued(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+
+    queue_text(core, "Apple one.\nApple two.")
+    queue_text(core, "Banana one.")
+
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 1)
+    assert queued(snapshot) == ["Apple one. Apple two.", "Banana one."]
+    assert snapshot["playback"]["state"] == "stopped"
+    provider.finish_all()
+    assert wait_for(core, lambda s: s["queue"] == [])["playback"]["state"] == "stopped"
+    assert [r[0] for r in provider.requests] == ["Apple one.", "Apple two.", "Banana one."]
+
+
+def test_play_moves_a_queued_narration_to_the_front_once_the_piece_under_way_is_done(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    queue_text(core, "Apple one.\nApple two.")
+    queue_text(core, "Banana one.")
+    queue_text(core, "Cherry one.\nCherry two.")
+    wait_for(core, lambda s: len(provider.requests) == 1)
+
+    core.play()
+
+    assert queued(core.snapshot()) == ["Cherry one. Cherry two.", "Apple one. Apple two.", "Banana one."]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert [r[0] for r in provider.requests] == [
+        "Apple one.",
+        "Cherry one.",
+        "Cherry two.",
+        "Apple two.",
+        "Banana one.",
+    ]
+
+
+def test_a_cancelled_narration_keeps_the_pieces_already_synthesized_and_the_queue_moves_on(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    queue_text(core, "Apple one.\nApple two.\nApple three.")
+    queue_text(core, "Banana one.")
+    queue_text(core, "Cherry one.")
+    apple, banana, _ = core.snapshot()["queue"]
+    provider.finish_next()
+    wait_for(core, lambda s: len(provider.requests) == 2)  # "Apple two." is under way
+
+    core.cancel(banana["id"])
+    core.cancel(apple["id"])
+
+    assert queued(core.snapshot()) == ["Cherry one."]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert [r[0] for r in provider.requests] == ["Apple one.", "Apple two.", "Cherry one."]
+    core.open_text(apple["text_id"])
+    assert statuses(core.snapshot()) == ["ready", "ready", "waiting"]
+
+
+def test_cancelling_the_narration_waiting_to_play_stops_playback(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text(FOUR_PARAGRAPHS_OF_10_S)
+    core.play()
+    [narration] = wait_for(core, lambda s: len(provider.requests) == 1)["queue"]
+
+    core.cancel(narration["id"])
+    provider.finish_all()
+
+    assert playback(core)["state"] == "stopped"
+    assert core.snapshot()["queue"] == []
+    assert len(provider.requests) == 1
+
+
+def test_the_queue_shows_roughly_how_long_until_each_narration_is_ready(make_core):
+    measure_and_close(make_core, "celeron", 0.5, lasting(10, "z"))
+    clock = FakeClock()
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider, clock, computer="celeron")
+
+    queue_text(core, lasting(10, "a"))
+    queue_text(core, lasting(10, "b") + "\n" + lasting(10, "c"))
+
+    # 23 s of synthesis per paragraph of 10 s (20 s plus 15% to spare): the first is ready in 23 s, the second
+    # 46 s after it.
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 1)
+    assert [n["ready_in"] for n in snapshot["queue"]] == pytest.approx([23, 69])
+    clock.advance(10)
+    assert [n["ready_in"] for n in core.snapshot()["queue"]] == pytest.approx([13, 59])
+
+
+def test_the_time_left_is_unknown_until_the_synthesis_speed_is_measured(make_core):
+    core = make_core(FakeVoiceProvider(manual=True))
+
+    queue_text(core, lasting(10, "a"))
+
+    assert [n["ready_in"] for n in core.snapshot()["queue"]] == [None]
+
+
+def test_a_ready_narration_plays_while_another_one_is_synthesized(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Banana one.")
+    core.play()
+    provider.finish_next()
+    banana = wait_for(core, all_ready)["text"]["id"]
+    queue_text(core, "Apple one.\nApple two.")
+    wait_for(core, lambda s: len(provider.requests) == 2)
+
+    core.open_text(banana)
+    core.play()
+
+    snapshot = core.snapshot()
+    assert snapshot["playback"]["state"] == "playing"
+    assert queued(snapshot) == ["Apple one. Apple two."]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert [r[0] for r in provider.requests] == ["Banana one.", "Apple one.", "Apple two."]
+
+
+def test_a_narration_queued_before_a_restart_plays_after_it_without_synthesis(make_core):
+    core = make_core(FakeVoiceProvider())
+    queue_text(core, "Apple one.\nApple two.")
+    core.new_text()
+    wait_for(core, lambda s: s["queue"] == [])
+    core.close()
+
+    provider = FakeVoiceProvider()
+    core = make_core(provider)
+    core.open_text(core.snapshot()["library"][0]["id"])
+    core.play()
+
+    assert wait_for(core, all_ready)["playback"]["state"] == "playing"
+    assert provider.requests == []
+
+
+def test_the_queue_shows_which_narration_is_being_synthesized_until_the_piece_under_way_is_done(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    queue_text(core, "Apple one.\nApple two.")
+    queue_text(core, "Banana one.")
+    wait_for(core, lambda s: len(provider.requests) == 1)
+
+    core.play()  # Banana moves to the front, but "Apple one." is still under way
+
+    assert [(n["title"], n["synthesizing"]) for n in core.snapshot()["queue"]] == [
+        ("Banana one.", False),
+        ("Apple one. Apple two.", True),
+    ]
+    provider.finish_next()
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2)
+    assert [n["synthesizing"] for n in snapshot["queue"]] == [True, False]
+
+
+def test_after_a_restart_in_the_middle_of_a_queued_narration_only_the_rest_is_synthesized(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    queue_text(core, "Apple one.\nApple two.\nApple three.")
+    provider.finish_next()
+    wait_for(core, lambda s: len(provider.requests) == 2)
+    threading.Timer(0.05, provider.finish_next).start()  # the piece under way finishes as the program closes
+    core.close()
+
+    restarted = FakeVoiceProvider()
+    core = make_core(restarted)
+    core.open_text(core.snapshot()["library"][0]["id"])
+    core.play()
+
+    wait_for(core, all_ready)
+    assert [r[0] for r in restarted.requests] == ["Apple three."]
