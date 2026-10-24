@@ -1,4 +1,4 @@
-"""Smoke test: commands, the snapshot, a Voice sample and the audio pass through the HTTP layer."""
+"""Smoke test: commands and their results, the snapshot, a Voice sample and the audio pass through the HTTP layer."""
 
 import json
 import threading
@@ -39,7 +39,8 @@ def command(base_url, **body):
     request = urllib.request.Request(
         base_url + "/api/command", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
     )
-    urllib.request.urlopen(request, timeout=5).close()
+    with urllib.request.urlopen(request, timeout=5) as response:
+        return json.loads(response.read())["result"]
 
 
 def test_commands_events_snapshot_and_audio_pass_through(base_url):
@@ -67,6 +68,7 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
 
     snapshot = json.loads(get(base_url + "/api/state")[1])
     assert snapshot["playback"]["paragraph"] == 1
+    assert command(base_url, command="next_paragraph") is False  # the page keeps the Paragraph playing
     assert (snapshot["voice"], snapshot["speed"]) == ("fake:george", 0.9)
     content_type, audio = get(base_url + f"/api/audio/{snapshot['text']['paragraphs'][1]['audio'][0]}")
     assert content_type == "audio/wav"

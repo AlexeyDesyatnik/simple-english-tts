@@ -55,3 +55,13 @@ _Avoid_: Jobs, tasks, backlog
 **Start delay**:
 How long the teacher must wait after pressing Play before a Narration that is still being synthesized can play through without stopping.
 _Avoid_: ETA, loading time, latency
+
+### The screen in class
+
+**Text size**:
+How large the teacher has chosen to show a Text's Paragraphs, so they can be read from the back rows on a projector; it stays the same from one lesson to the next.
+_Avoid_: Font size, zoom, scale
+
+**Playback mode**:
+How the screen looks while a Narration is being played, paused or waited for: only the Text and the buttons, with the Library and the settings put away.
+_Avoid_: Presentation mode, full screen, projector mode

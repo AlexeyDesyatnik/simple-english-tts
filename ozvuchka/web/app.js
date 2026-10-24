@@ -12,6 +12,8 @@ const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
 const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
+const smallerEl = document.getElementById("smaller");
+const biggerEl = document.getElementById("bigger");
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -302,7 +304,11 @@ function renderParagraphs(text) {
   (text?.paragraphs ?? []).forEach((p, i) => {
     const li = paragraphsEl.children[i];
     const current = highlighted === i;
-    if (current && !li.classList.contains("current")) li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (current && !li.classList.contains("current")) {
+      // On a projector the class reads ahead, so the current Paragraph is kept in the middle of the screen.
+      const block = document.body.classList.contains("playback") ? "center" : "nearest";
+      li.scrollIntoView({ block, behavior: "smooth" });
+    }
     li.className = [p.status === "skipped" && "skipped", p.status === "failed" && "failed", current && "current"]
       .filter(Boolean)
       .join(" ");
@@ -338,10 +344,20 @@ function statusText(text, playback) {
   return [parts.join(" · "), ""];
 }
 
+function renderTextSize() {
+  paragraphsEl.style.fontSize = `${snapshot.text_size}px`;
+  const at = snapshot.text_sizes.indexOf(snapshot.text_size);
+  smallerEl.disabled = at <= 0;
+  biggerEl.disabled = at === snapshot.text_sizes.length - 1;
+}
+
 function render(next) {
   const first = snapshot === null;
   snapshot = next;
+  // Playback mode: only the Text and the buttons, for the class to read on a projector.
+  document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
   renderVoices();
+  renderTextSize();
   const textId = snapshot.text?.id ?? null;
   if (first || textId !== shownTextId) {
     shownTextId = textId;
@@ -390,23 +406,47 @@ function playFrom(index) {
   act({ command: "play_from", paragraph: index });
 }
 
-// Saves what is typed in the text box as the current Text first, then sends the command for it.
+// Saves what is typed in the text box as the current Text, before a command for it.
+async function saveTypedText() {
+  if (sourceEl.value !== snapshot?.text?.content) {
+    clearSchedule();
+    await command({ command: "set_text", text: sourceEl.value });
+  }
+}
+
 async function actOnTypedText(name) {
   try {
-    if (sourceEl.value !== snapshot?.text?.content) {
-      clearSchedule();
-      await command({ command: "set_text", text: sourceEl.value });
-    }
+    await saveTypedText();
     await act({ command: name });
   } catch (e) {
     showError(e.message);
   }
 }
 
-document.getElementById("play").addEventListener("click", () => {
+function play() {
   allowSound();
   actOnTypedText("play");
-});
+}
+
+function pause() {
+  audioContext?.suspend();
+  act({ command: "pause" });
+}
+
+// The core answers whether playback moves; only then is what was scheduled thrown away,
+// so a key pressed at the end of the Text does not interrupt the Paragraph playing.
+async function moveParagraph(name) {
+  allowSound();
+  try {
+    await saveTypedText();
+    if (await command({ command: name })) clearSchedule();
+    await refresh();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+document.getElementById("play").addEventListener("click", play);
 
 // Another Speed is another Narration: the core stops the one playing.
 speedEl.addEventListener("change", () => {
@@ -416,9 +456,39 @@ speedEl.addEventListener("change", () => {
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
 
-document.getElementById("pause").addEventListener("click", () => {
-  audioContext?.suspend();
-  act({ command: "pause" });
+document.getElementById("pause").addEventListener("click", pause);
+
+smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
+biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
+
+// Keys by their place on the keyboard (code), so R works in the Russian layout too.
+// Presenter remotes send the arrows or PageUp / PageDown.
+const KEYS = {
+  Space: () => (["playing", "waiting"].includes(snapshot?.playback.state) ? pause() : play()),
+  ArrowLeft: () => moveParagraph("previous_paragraph"),
+  PageUp: () => moveParagraph("previous_paragraph"),
+  ArrowRight: () => moveParagraph("next_paragraph"),
+  PageDown: () => moveParagraph("next_paragraph"),
+  KeyR: () => moveParagraph("repeat_paragraph"),
+};
+
+// The text box hidden in Playback mode may still hold the focus from typing before Play.
+function typing(e) {
+  return e.target === sourceEl && !document.body.classList.contains("playback");
+}
+
+document.addEventListener("keydown", (e) => {
+  const key = KEYS[e.code];
+  if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (typing(e)) return;
+  // The keys also win over a focused button, radio or list, which would otherwise take them too.
+  e.preventDefault();
+  if (!e.repeat) key();
+});
+
+// A focused button is pressed by Space on keyup.
+document.addEventListener("keyup", (e) => {
+  if (e.code === "Space" && !typing(e)) e.preventDefault();
 });
 
 document.getElementById("new-text").addEventListener("click", () => {

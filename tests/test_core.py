@@ -291,6 +291,97 @@ def test_a_new_text_stops_playback_but_the_same_text_again_changes_nothing(make_
     assert [p["text"] for p in core.snapshot()["text"]["paragraphs"]] == ["Another text."]
 
 
+def test_next_and_previous_paragraph_play_the_neighbouring_one_passing_over_skipped_paragraphs(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+
+    assert core.next_paragraph() is True
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert core.previous_paragraph() is True
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+
+
+def test_previous_at_the_first_paragraph_and_next_at_the_last_leave_playback_as_it_is(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK + "\nУпражнение 3.")
+    play_when_ready(core)
+
+    assert core.previous_paragraph() is False
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    core.next_paragraph()
+    core.next_paragraph()
+    assert core.next_paragraph() is False
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+
+
+def test_repeat_plays_the_current_paragraph_again_even_when_paused(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+    core.paragraph_finished(1)
+    core.pause()
+
+    assert core.repeat_paragraph() is True
+
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+
+
+def test_after_the_end_of_the_text_repeat_and_previous_go_back_from_the_last_paragraph(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+    core.next_paragraph()
+    core.next_paragraph()
+    core.paragraph_finished(4)
+
+    assert core.next_paragraph() is False
+    assert playback(core)["state"] == "stopped"
+    assert core.repeat_paragraph() is True
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    core.paragraph_finished(4)
+    assert core.previous_paragraph() is True
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+
+
+def test_after_stop_next_plays_the_first_paragraph_while_previous_and_repeat_do_nothing(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+    core.paragraph_finished(1)
+    core.stop()
+
+    assert core.previous_paragraph() is False
+    assert core.repeat_paragraph() is False
+    assert playback(core)["state"] == "stopped"
+    assert core.next_paragraph() is True
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+
+
+def test_next_previous_and_repeat_do_nothing_without_a_text(make_core):
+    core = make_core(FakeVoiceProvider())
+
+    assert (core.next_paragraph(), core.previous_paragraph(), core.repeat_paragraph()) == (False, False, False)
+    assert playback(core)["state"] == "stopped"
+
+
+def test_moving_to_a_paragraph_that_is_not_ready_synthesizes_it_next_and_waits_for_it(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text(TEXT_WITH_A_TASK)
+    core.play()
+    wait_for(core, lambda s: provider.requests == [("Tom has a cat.", "alice", 1.0)])
+
+    core.next_paragraph()
+    core.next_paragraph()
+
+    assert playback(core)["state"] == "waiting"
+    assert playback(core)["paragraph"] == 4
+    provider.finish_next()
+    wait_for(core, lambda s: len(provider.requests) == 2)
+    assert provider.requests[1] == ("It likes milk.", "alice", 1.0)
+
+
 def test_play_without_a_text_is_rejected(make_core):
     core = make_core(FakeVoiceProvider())
 
@@ -980,6 +1071,40 @@ def test_settings_that_cannot_be_used_give_the_default_voice_and_speed(make_core
     core.set_speed(0.9)
     core.close()
     assert make_core(FakeVoiceProvider()).snapshot()["speed"] == 0.9
+
+
+def test_the_text_size_steps_through_seven_sizes_and_is_remembered_after_a_restart_with_the_voice(make_core):
+    core = make_core(FakeVoiceProvider())
+    assert core.snapshot()["text_sizes"] == [18, 22, 28, 36, 48, 64, 80]
+    assert core.snapshot()["text_size"] == 22
+    core.set_voice("fake:george")
+    core.bigger_text()
+    core.bigger_text()
+    core.bigger_text()
+    core.smaller_text()
+    core.close()
+
+    snapshot = make_core(FakeVoiceProvider()).snapshot()
+
+    assert (snapshot["text_size"], snapshot["voice"]) == (36, "fake:george")
+
+
+def test_the_text_size_stops_at_the_smallest_and_the_largest(make_core):
+    core = make_core(FakeVoiceProvider())
+
+    for _ in range(3):
+        core.smaller_text()
+    assert core.snapshot()["text_size"] == 18
+    for _ in range(8):
+        core.bigger_text()
+    assert core.snapshot()["text_size"] == 80
+
+
+def test_a_saved_text_size_not_on_offer_gives_the_default(make_core, tmp_path):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "settings.json").write_text('{"version": 1, "text_size": 100}', encoding="utf-8")
+
+    assert make_core(FakeVoiceProvider()).snapshot()["text_size"] == 22
 
 
 def test_the_start_delay_allows_for_the_speech_of_a_slower_speed_lasting_longer(make_core):

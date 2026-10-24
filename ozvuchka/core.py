@@ -22,6 +22,8 @@ from ozvuchka.voices import Voice, VoiceRegistry
 
 _SPEEDS = (0.8, 0.9, 1.0, 1.1)  # the Speeds the teacher chooses from
 _DEFAULT_SPEED = 1.0
+_TEXT_SIZES = (18, 22, 28, 36, 48, 64, 80)  # pixels; the large ones are for a projector
+_DEFAULT_TEXT_SIZE = 22
 _TITLE_WORDS = 5  # a Text's title in the Library is its first words
 
 
@@ -56,6 +58,7 @@ class Core:
         saved = self._settings.read()
         self._voice = (saved.voice and registry.voice(saved.voice)) or self._known_voice(default_voice)
         self._speed = saved.speed if saved.speed in _SPEEDS else _DEFAULT_SPEED
+        self._text_size = saved.text_size if saved.text_size in _TEXT_SIZES else _DEFAULT_TEXT_SIZE
 
         self._lock = threading.Lock()
         self._work = threading.Condition(self._lock)  # wakes the synthesis thread
@@ -87,6 +90,7 @@ class Core:
         # "waiting" is after Play, until the Narration can play through without stopping to wait.
         self._state = "stopped"  # "waiting" | "playing" | "paused" | "stopped"
         self._paragraph: int | None = None
+        self._ended_at: int | None = None  # the last Paragraph heard, once playback has reached the end of the Text
 
         self._worker = threading.Thread(target=self._synthesize_pieces, name="synthesis", daemon=True)
         self._worker.start()
@@ -139,16 +143,34 @@ class Core:
                 self._speed = speed
                 self._switch_narration()
 
+    # A− and A+ step from the size the core has, not the one the page last saw, so quick clicks all count.
+
+    def bigger_text(self) -> None:
+        self._step_text_size(1)
+
+    def smaller_text(self) -> None:
+        self._step_text_size(-1)
+
+    def _step_text_size(self, step: int) -> None:
+        with self._lock:
+            at = _TEXT_SIZES.index(self._text_size) + step
+            if 0 <= at < len(_TEXT_SIZES):
+                self._text_size = _TEXT_SIZES[at]
+                self._save_settings()
+
     def _known_voice(self, voice_key: str) -> Voice:
         voice = self._registry.voice(voice_key)
         if voice is None:
             raise ValueError(f"no voice {voice_key}")
         return voice
 
+    def _save_settings(self) -> None:
+        self._settings.save(Settings(self._voice.key, self._speed, self._text_size))
+
     def _switch_narration(self) -> None:
         """Remembers the Voice and Speed for the next start; the Narration playing is another one now."""
-        self._settings.save(Settings(self._voice.key, self._speed))
-        self._state, self._paragraph = "stopped", None
+        self._save_settings()
+        self._stop_playback()
 
     def enqueue(self) -> None:
         """Puts the current Text's Narration at the back of the Narration queue, unless it is ready or queued."""
@@ -169,7 +191,7 @@ class Core:
             self._queue = [q for q in self._queue if q.id != narration_id]
             current = self._current_narration()
             if current is not None and current.id == narration_id:
-                self._state, self._paragraph = "stopped", None
+                self._stop_playback()
 
     def play(self) -> None:
         with self._work:
@@ -191,9 +213,40 @@ class Core:
             self._state, self._paragraph = "waiting", index
             self._press_play()
 
+    # Next, previous and repeat return whether playback moves, so the page throws away what it has scheduled.
+
+    def next_paragraph(self) -> bool:
+        """Plays the next Paragraph; after Stop, the first one."""
+        with self._work:
+            if self._ended_at is not None:
+                return False
+            return self._play_paragraph(self._readable_after(-1 if self._paragraph is None else self._paragraph))
+
+    def previous_paragraph(self) -> bool:
+        with self._work:
+            here = self._position_or_last_heard()
+            return self._play_paragraph(None if here is None else self._readable_before(here))
+
+    def repeat_paragraph(self) -> bool:
+        """Plays the current Paragraph again from its beginning; after the end of the Text, the last one."""
+        with self._work:
+            return self._play_paragraph(self._position_or_last_heard())
+
+    def _position_or_last_heard(self) -> int | None:
+        """Where previous and repeat start from: the playback position, or after the end the last Paragraph heard."""
+        return self._paragraph if self._paragraph is not None else self._ended_at
+
+    def _play_paragraph(self, index: int | None) -> bool:
+        if index is None:
+            return False
+        self._state, self._paragraph = "waiting", index
+        self._press_play()
+        return True
+
     def _press_play(self) -> None:
         """Moves the current Text's Narration to the front of the Narration queue, synthesizing from the playback
         position."""
+        self._ended_at = None
         narration = self._current_narration(start=self._paragraph or 0)
         if narration is not None:
             self._queue = [narration] + [q for q in self._queue if q.id != narration.id]
@@ -214,7 +267,11 @@ class Core:
 
     def stop(self) -> None:
         with self._lock:
-            self._state, self._paragraph = "stopped", None
+            self._stop_playback()
+
+    def _stop_playback(self) -> None:
+        """Stops at the start of the Text: Play starts from its first Paragraph."""
+        self._state, self._paragraph, self._ended_at = "stopped", None, None
 
     # ---------------------------------------------------------------- events from the page player
 
@@ -228,7 +285,7 @@ class Core:
             if self._state == "playing" and index == self._paragraph:
                 self._paragraph = self._readable_after(index)
                 if self._paragraph is None:
-                    self._state = "stopped"  # the end of the Text
+                    self._state, self._ended_at = "stopped", index  # the end of the Text
 
     def close(self) -> None:
         with self._work:
@@ -255,7 +312,7 @@ class Core:
             library = [{"id": t.id, "title": _title(t.content)} for t in self._library]
             queue = self._queue_state()
             library_error = self._library_error
-            voice, speed = self._voice.key, self._speed
+            voice, speed, text_size = self._voice.key, self._speed, self._text_size
         return {
             "voices": [
                 {"id": v.key, "label": v.label, "available": self._registry.available(v)}
@@ -264,6 +321,8 @@ class Core:
             "voice": voice,
             "speeds": list(_SPEEDS),
             "speed": speed,
+            "text_sizes": list(_TEXT_SIZES),
+            "text_size": text_size,
             "library": library,
             "library_error": library_error,
             "queue": queue,
@@ -288,7 +347,7 @@ class Core:
     def _show(self, text: str | None) -> None:
         self._text = text
         self._paragraphs = [] if text is None else paragraphs(text)
-        self._state, self._paragraph = "stopped", None
+        self._stop_playback()
         self._failed.clear()
 
     def _move_to_front(self, text: SavedText) -> None:
@@ -308,6 +367,9 @@ class Core:
     def _readable_after(self, index: int) -> int | None:
         """The next Paragraph to play after this one: Skipped paragraphs are passed over."""
         return next((i for i in range(index + 1, len(self._paragraphs)) if self._readable(i)), None)
+
+    def _readable_before(self, index: int) -> int | None:
+        return next((i for i in range(index - 1, -1, -1) if self._readable(i)), None)
 
     def _start_when_safe(self) -> None:
         """Starts playback once the Narration can play through without stopping to wait for synthesis."""
