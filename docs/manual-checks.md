@@ -12,27 +12,6 @@ Take the zip from the latest green build of `main` in GitHub Actions (the run's 
 
 The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech, about ×0.44) and **i5** (about ×1.85).
 
-## From a flash drive, on both laptops
-
-- [ ] **#11** Celeron: a double-click on `Озвучка.exe` opens the window with no console; a phrase plays in the Alice voice; no DLL errors.
-- [ ] **#11** i5: the same.
-- [ ] **#11** Measured for both laptops and written in a comment on #11: time until the window appears, time until the model is ready, peak memory (Task Manager), the folder's size.
-- [ ] **#11** About 10 s after the window is closed, nothing of the program is left in Task Manager (no `pythonw.exe`, no extra `msedge.exe`). If it takes about two minutes instead, Edge did not tell the program that the window was closing: write that down.
-- [ ] **#11** The program folder put inside a folder with a Russian name on the flash drive (e.g. `E:\Уроки\Озвучка`): it starts and speaks all the same (eSpeak NG used to fail on such paths).
-- [ ] **#11** F5 in the window: the page comes back and the program keeps running.
-- [ ] **#11** The window minimized for half an hour, then restored: the program is still running and plays.
-- [ ] **#11** After a lesson with the program, nothing of it is left on the laptop outside the program folder: no log, no Library (phonemizer's temporary copy of `espeak-ng.dll` in `%TEMP%` is expected while it runs and may stay behind).
-
-## On the Celeron
-
-- [ ] **#5** A Text of about 150 words that is not ready: the Start delay shown after Play is within about ±20% of the real wait, and once playback starts it never stops to wait for synthesis.
-- [ ] **#6** A ready Narration plays without stuttering while another one is synthesized in the Narration queue.
-
-## In class, with the projector
-
-- [ ] **#9** The Text can be read from the back of the room. Write down the smallest Text size (A− / A+) that is enough.
-- [ ] **#9** If the school has a presenter remote: its buttons move to the next and previous Paragraph. If a button does nothing, note which one; it may send a key the program does not listen to yet.
-
 ## Waiting for the work
 
 Checks the issues ask for, to be done once the work is in a release:
