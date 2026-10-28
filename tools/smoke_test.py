@@ -1,7 +1,8 @@
 """Smoke test of a release zip, as the teacher gets it.
 
 Unpacks the zip, starts Озвучка.exe from the unpacked folder (without opening the window), gets the page and
-synthesizes "Hello." with the real Kokoro. Then the page says it is closing, and the program must end by itself,
+synthesizes "Hello." with the real Kokoro. A second start on the same port must end by itself without starting another
+program. Then the page says it is closing, and the program must end by itself,
 with its log in its data folder and nothing else written into the program folder.
 Usage: python smoke_test.py <release zip>
 """
@@ -20,8 +21,9 @@ from pathlib import Path
 from typing import Any
 
 APP = "Озвучка"
-START_TIMEOUT = 300.0  # seconds; Kokoro loads before the page is served
-SYNTHESIS_TIMEOUT = 120.0
+START_TIMEOUT = 60.0  # seconds; the page is served while Kokoro loads in the background
+SYNTHESIS_TIMEOUT = 420.0  # Kokoro loads first
+SECOND_START_TIMEOUT = 60.0
 EXIT_TIMEOUT = 60.0  # the program waits 10 s for a reload after the page closes
 
 
@@ -53,6 +55,7 @@ def _run(folder: Path, shipped: set[Path], log: Path) -> None:
         _wait_for_page(url, launcher, log)
         print(f"page served after {time.monotonic() - started:.1f} s", flush=True)
         _command(url, "page_alive")
+        _start_again(folder, port, log)
         _command(url, "set_text", text="Hello.")
         _command(url, "play")
         seconds = _wait_for_speech(url)
@@ -67,10 +70,20 @@ def _run(folder: Path, shipped: set[Path], log: Path) -> None:
     assert code == 0, f"Озвучка.exe exited with code {code}"
     print("the program ended by itself after the page closed", flush=True)
 
-    assert "Kokoro loaded" in log.read_text(encoding="utf-8"), "no log in the data folder"
+    assert "Voice provider kokoro loaded" in log.read_text(encoding="utf-8"), "no log in the data folder"
     written = sorted(str(p) for p in _files(folder) - shipped if p.parts[0] != "data")
     assert not written, f"written outside data: {written}"
     print("OK: the log is in data\\, nothing else was written into the program folder", flush=True)
+
+
+def _start_again(folder: Path, port: int, log: Path) -> None:
+    start = [str(folder / f"{APP}.exe"), "--no-window", "--port", str(port)]
+    second = subprocess.run(start, timeout=SECOND_START_TIMEOUT)
+    assert second.returncode == 0, f"the second Озвучка.exe exited with code {second.returncode}"
+    text = log.read_text(encoding="utf-8")
+    assert "already running" in text, "the second start did not find the program running"
+    assert text.count("Serving http") == 1, "the second start served the page too"
+    print("a second start ended by itself, leaving the program running", flush=True)
 
 
 def _files(folder: Path) -> set[Path]:

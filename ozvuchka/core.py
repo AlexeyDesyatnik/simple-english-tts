@@ -69,6 +69,8 @@ class Core:
         self._lock = threading.Lock()
         self._work = threading.Condition(self._lock)  # wakes the synthesis thread
         self._closed = False
+        self._loading = True  # the Voice providers load on the synthesis thread; ready Narrations play meanwhile
+        self._load_errors: dict[str, str] = {}  # provider id -> why it could not be loaded
         self._library: list[SavedText] = []  # most recently used first
         self._library_error: str | None = None  # why the Library could not be read or saved
         self._library_readable = True  # an unreadable Library file is never overwritten
@@ -342,11 +344,13 @@ class Core:
             queue = self._queue_state()
             library_error = self._library_error
             voice, speed, text_size = self._voice.key, self._speed, self._text_size
+            voices_loading = self._loading
         return {
             "voices": [
                 {"id": v.key, "label": v.label, "available": self._registry.available(v)}
                 for v in self._registry.voices()
             ],
+            "voices_loading": voices_loading,
             "voice": voice,
             "speeds": list(_SPEEDS),
             "speed": speed,
@@ -416,7 +420,7 @@ class Core:
         if all(self._ready(audio_id) for audio_id, _ in planned):
             return 0.0
         synthesis = self._synthesis_speed
-        if synthesis is None:
+        if synthesis is None or self._loading:
             return None
         busy = self._busy(synthesis)
         pieces = []
@@ -501,7 +505,7 @@ class Core:
 
     def _queue_state(self) -> list[dict[str, Any]]:
         """The queued Narrations with the seconds until each is ready; None until the Synthesis speed is known."""
-        speed = self._synthesis_speed
+        speed = None if self._loading else self._synthesis_speed
         synthesized = 0.0 if speed is None else self._busy(speed)
         coming = {self._synthesizing}  # a piece shared with a Narration ahead is ready with it
         state = []
@@ -533,7 +537,21 @@ class Core:
             self._synthesizing_length = len(piece[1])
         return piece
 
+    def _load_providers(self) -> None:
+        for provider in self._registry.providers():
+            started = self._clock()
+            try:
+                provider.load()
+                _log.info("Voice provider %s loaded in %.1f s", provider.id, self._clock() - started)
+            except Exception as error:
+                _log.exception("Could not load the Voice provider %s", provider.id)
+                with self._lock:
+                    self._load_errors[provider.id] = f"Не удалось загрузить голоса: {error}"
+        with self._lock:
+            self._loading = False
+
     def _synthesize_pieces(self) -> None:
+        self._load_providers()
         piece = None
         while True:
             with self._work:
@@ -545,10 +563,11 @@ class Core:
                     return
                 audio_id, text, voice, voice_speed = piece
                 started = self._synthesizing_since
+                load_error = self._load_errors.get(voice.provider)
             result: Audio | str  # the audio, or why there is none
             try:
                 if not self._registry.available(voice):
-                    raise RuntimeError(f"{voice.label}: голос недоступен")
+                    raise RuntimeError(load_error or f"{voice.label}: голос недоступен")
                 result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed)
             except Exception as error:
                 _log.exception("Could not synthesize %r in %s", text, voice.key)

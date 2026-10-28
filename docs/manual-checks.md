@@ -17,3 +17,5 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 Checks the issues ask for, to be done once the work is in a release:
 
 - **#10** On the Celeron from a flash drive: a ready Narration plays before the model has loaded.
+- **#10** On the Celeron from a flash drive: the page opens in the default browser at once, and a new Narration shows «Голоса загружаются…» until Kokoro has loaded.
+- **#10** Starting Озвучка.exe again while it runs opens its page once more (a new window or tab), with no error box and still one pythonw.exe in Task Manager; closing every page then ends the program.

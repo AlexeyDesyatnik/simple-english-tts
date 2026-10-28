@@ -28,6 +28,11 @@ class VoiceProvider(Protocol):
 
     def voices(self) -> list[Voice]: ...
 
+    def load(self) -> None:
+        """Gets ready to synthesize (loads a model, say); may take long, so the core calls it once, on its synthesis
+        thread, before anything is synthesized. An error means the provider's Voices cannot be used."""
+        ...
+
     def available(self) -> bool:
         """Whether the provider can synthesize right now (model loaded, connection up)."""
         ...
@@ -45,6 +50,9 @@ class VoiceProvider(Protocol):
 class VoiceRegistry:
     def __init__(self, providers: list[VoiceProvider]):
         self._providers = {p.id: p for p in providers}
+
+    def providers(self) -> list[VoiceProvider]:
+        return list(self._providers.values())
 
     def voices(self) -> list[Voice]:
         return [v for p in self._providers.values() for v in p.voices()]

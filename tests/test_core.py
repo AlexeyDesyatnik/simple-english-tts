@@ -404,6 +404,17 @@ def test_a_paragraph_fails_visibly_when_the_voice_provider_is_unavailable(make_c
     assert snapshot["voices"][0]["available"] is False
 
 
+def test_voices_that_could_not_be_loaded_fail_a_new_narration_with_the_reason(make_core):
+    core = make_core(FakeVoiceProvider(load_error="no model file"))
+    core.set_text("Hello.")
+
+    core.play()
+
+    snapshot = wait_for(core, lambda s: statuses(s) == ["failed"])
+    assert snapshot["voices_loading"] is False
+    assert snapshot["text"]["paragraphs"][0]["error"] == "Не удалось загрузить голоса: no model file"
+
+
 def test_play_again_retries_a_failed_paragraph(make_core):
     provider = FakeVoiceProvider(available=False)
     core = make_core(provider)
@@ -450,6 +461,34 @@ def test_after_a_restart_a_saved_text_opens_from_the_library_and_plays_without_s
     assert snapshot["playback"]["state"] == "playing"
     assert core.audio(snapshot["text"]["paragraphs"][1]["audio"][0]).duration == pytest.approx(1.7)
     assert provider.requests == []
+
+
+def test_while_the_voices_load_a_ready_narration_plays_and_a_new_one_waits_for_them(make_core):
+    ready_and_close(make_core(FakeVoiceProvider()), "Tom has a cat.")
+    provider = FakeVoiceProvider(loading=True)
+    core = make_core(provider)
+    [saved] = core.snapshot()["library"]
+    core.open_text(saved["id"])
+
+    core.play()
+
+    snapshot = core.snapshot()
+    assert snapshot["voices_loading"] is True
+    assert snapshot["playback"]["state"] == "playing"
+
+    core.set_voice("fake:george")
+    core.play()
+    time.sleep(0.05)
+    snapshot = core.snapshot()
+    assert statuses(snapshot) == ["waiting"]
+    assert snapshot["playback"]["state"] == "waiting"
+    assert provider.requests == []
+
+    provider.finish_loading()
+
+    snapshot = wait_for(core, all_ready)
+    assert snapshot["voices_loading"] is False
+    assert provider.requests == [("Tom has a cat.", "george", 1.0)]
 
 
 FIVE_PARAGRAPHS = "One fish.\nTwo fish.\nRed fish.\nBlue fish.\nOld fish."

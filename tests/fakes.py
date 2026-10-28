@@ -11,6 +11,8 @@ SAMPLE_RATE = 24000
 class FakeVoiceProvider:
     """Speaks with two made-up Voices. Speech lasts 0.1 s per character at Speed 1.0; a Voice sample, 6 s.
 
+    With loading=True it is loading its model until the test calls finish_loading(); given a load_error, loading
+    fails with it.
     With manual=True each synthesis waits until the test calls finish_next(),
     so a test can look at the program while a piece is still being synthesized.
     Given a clock and a speed, each synthesis moves the clock on by the speech's duration
@@ -20,7 +22,13 @@ class FakeVoiceProvider:
     id = "fake"
 
     def __init__(
-        self, manual: bool = False, available: bool = True, clock: "FakeClock | None" = None, speed: float = 1.0
+        self,
+        manual: bool = False,
+        available: bool = True,
+        clock: "FakeClock | None" = None,
+        speed: float = 1.0,
+        loading: bool = False,
+        load_error: str | None = None,
     ):
         self.requests: list[tuple[str, str, float]] = []
         self.speed = speed  # a test may change it along the way
@@ -28,6 +36,10 @@ class FakeVoiceProvider:
         self._manual = manual
         self._available = available
         self._go = threading.Semaphore(0)
+        self._loaded = threading.Event()
+        if not loading:
+            self._loaded.set()
+        self._load_error = load_error
 
     def voices(self) -> list[Voice]:
         return [
@@ -35,8 +47,17 @@ class FakeVoiceProvider:
             Voice(self.id, "george", "George — мужской, британский", "male", "gb"),
         ]
 
+    def load(self) -> None:
+        if not self._loaded.wait(timeout=5):
+            raise TimeoutError("the test never called finish_loading()")
+        if self._load_error is not None:
+            raise RuntimeError(self._load_error)
+
+    def finish_loading(self) -> None:
+        self._loaded.set()
+
     def available(self) -> bool:
-        return self._available
+        return self._available and self._loaded.is_set() and self._load_error is None
 
     def set_available(self, available: bool) -> None:
         self._available = available
@@ -59,6 +80,7 @@ class FakeVoiceProvider:
         self._go.release()
 
     def finish_all(self) -> None:
+        self._loaded.set()
         self._go.release(1000)
 
 

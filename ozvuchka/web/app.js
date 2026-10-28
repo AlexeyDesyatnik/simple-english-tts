@@ -219,7 +219,7 @@ function playSample(voiceId) {
 }
 
 function renderVoices() {
-  const key = JSON.stringify([snapshot.voices, snapshot.speeds]);
+  const key = JSON.stringify([snapshot.voices, snapshot.speeds, snapshot.voices_loading]);
   if (key !== shownVoices) {
     shownVoices = key;
     voicesEl.replaceChildren(
@@ -235,7 +235,9 @@ function renderVoices() {
           clearSchedule();
           act({ command: "set_voice", voice: v.id });
         });
-        label.append(radio, ` ${v.available ? v.label : `${v.label} (недоступен)`}`);
+        // While the Voices load they are not available yet, but nothing is wrong with them.
+        const unavailable = !v.available && !snapshot.voices_loading;
+        label.append(radio, ` ${unavailable ? `${v.label} (недоступен)` : v.label}`);
         const listen = document.createElement("button");
         listen.type = "button";
         listen.className = "secondary";
@@ -331,6 +333,7 @@ function statusText(text, playback) {
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
   if (blocked && playback.state === "paused") return ["Нажмите Play, чтобы продолжить", ""];
   if (playback.state === "waiting") {
+    if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
     if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
     return [`Начнётся через ${formatDuration(playback.start_delay)}`, ""];
   }
@@ -341,6 +344,7 @@ function statusText(text, playback) {
   const parts = [];
   if (playback.state === "paused") parts.push("Пауза");
   if (progress) parts.push(`Озвучено абзацев: ${ready} из ${readable.length}`);
+  if (snapshot.voices_loading && snapshot.queue.length) parts.push("Голоса загружаются…");
   return [parts.join(" · "), ""];
 }
 

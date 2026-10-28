@@ -2,6 +2,8 @@
 
 The UI is plain HTML/JS (no framework, no build step) served by the program's own Python HTTP server on `127.0.0.1` and opened with `msedge --app=http://127.0.0.1:<port>`, so it looks like an ordinary window. We chose this over a native PySide6 window even though 100–200 MB for Qt was acceptable: the deciding factor is that the developer (an AI agent) can open and check the very same page in its own built-in browser, which a Qt window does not allow, and the web stack is already proven on the target laptops in the prototype.
 
+**Update (#10):** the Edge app window was dropped. The page opens in the default browser, `webbrowser.open`, in an ordinary window or tab; everything below still holds for it. A second launch is caught by a named mutex per port and opens the page of the program already running.
+
 ## Considered Options
 
 - **PySide6**: one process, no browser quirks (F5, Ctrl+W, zoom), no dependency on Edge or its group policies, less RAM on the 3.8 GB Celeron. Rejected for the reason above; it was also never tested in embeddable Python.
