@@ -2,8 +2,8 @@
 // of .NET Framework 4, which every Windows 10 and 11 has.
 //
 // It starts runtime\pythonw.exe from its own folder (no console window, no absolute paths) with
-// "-m ozvuchka --app" and its own arguments; the program opens its page in the default browser itself. A second start
-// ends at once with code 0 after opening the page of the program already running.
+// "-m ozvuchka --app" and its own arguments; the program opens the Edge window itself. A second start ends at once
+// with code 0 after opening the window of the program already running.
 // It waits for the program to end, so a start that fails is shown to the teacher instead of passing silently.
 
 using System;

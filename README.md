@@ -36,12 +36,12 @@ Started this way the program keeps running until Ctrl+C. Its log is `data\ozvuch
 
 The release zip `ozvuchka-<version>.zip` holds one folder, `Озвучка\` (ADR-0001):
 
-- `Озвучка.exe` — the launcher. It starts `runtime\pythonw.exe -m ozvuchka --app` from its own folder, with no console window; the program opens its page `http://127.0.0.1:8770` in the default browser at once and loads Kokoro in the background (ADR-0003): a ready Narration plays meanwhile, a new one waits for the Voices. Starting `Озвучка.exe` again opens the page of the program already running instead of starting a second one. If the program stops with an error, the launcher says so in a message box.
+- `Озвучка.exe` — the launcher. It starts `runtime\pythonw.exe -m ozvuchka --app` from its own folder, with no console window; the program opens its window with `msedge --app=http://127.0.0.1:8770` at once, or the default browser on a computer without Edge (ADR-0003), and loads Kokoro in the background: a ready Narration plays meanwhile, a new one waits for the Voices. Starting `Озвучка.exe` again opens the window of the program already running instead of starting a second one. If the program stops with an error, the launcher says so in a message box.
 - `runtime\`, `ozvuchka\`, `models\` — Python with the packages, the program, the Kokoro model and the Voice samples. Python code is compiled ahead, so nothing is written there at start.
 - `licenses\` — third-party licenses; `licenses\NOTICE.txt` lists the components.
 - `data\` — not in the zip: the program makes it on the first start and keeps the Library, the settings and its log `ozvuchka.log` there (rotated: at most three parts of 1 MB), and nothing anywhere else on the computer.
 
-When the page's window or tab is closed, the page stops sending its heartbeat and the program ends by itself, about 10 seconds later (it waits that long in case the page is only being reloaded with F5). A page that has not been heard from for two minutes counts as closed too.
+When the window is closed, the page stops sending its heartbeat and the program ends by itself, about 10 seconds later (it waits that long in case the page is only being reloaded with F5). A page that has not been heard from for two minutes counts as closed too.
 
 ## Building a release
 

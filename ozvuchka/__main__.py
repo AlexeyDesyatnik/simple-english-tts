@@ -1,8 +1,8 @@
 """Starts the program: runtime\\python.exe -m ozvuchka [--port N] [--app [--no-window]]
 
-Озвучка.exe starts it with --app: it opens the page in the default browser and ends when the page is closed.
-The page is served at once; Kokoro loads in the background. A second start on the same port opens the page of the
-program already running and ends (ADR-0003).
+Озвучка.exe starts it with --app: it opens its window and ends when the window is closed.
+The page is served at once; Kokoro loads in the background. A second start on the same port opens the window of
+the program already running and ends (ADR-0003).
 """
 
 import argparse
@@ -13,7 +13,6 @@ import platform
 import threading
 import time
 import urllib.request
-import webbrowser
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
 from ozvuchka.log import start_log
 from ozvuchka.server import make_server
 from ozvuchka.voices import VoiceRegistry
+from ozvuchka.window import open_window
 
 ROOT = Path(__file__).resolve().parent.parent  # the program folder (ADR-0001)
 _log = logging.getLogger("ozvuchka")
@@ -32,8 +32,8 @@ _WAIT_OBJECT_0, _WAIT_ABANDONED = 0x0, 0x80  # the mutex is ours; or ours since 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ozvuchka")
     parser.add_argument("--port", type=int, default=8770)
-    parser.add_argument("--app", action="store_true", help="open the page and end when it is closed")
-    parser.add_argument("--no-window", action="store_true", help="with --app: do not open the page (smoke test)")
+    parser.add_argument("--app", action="store_true", help="open the window and end when it is closed")
+    parser.add_argument("--no-window", action="store_true", help="with --app: do not open the window (smoke test)")
     args = parser.parse_args()
 
     os.chdir(ROOT)  # as from Озвучка.exe; eSpeak NG needs a path relative to it (kokoro.py)
@@ -48,9 +48,9 @@ def main() -> None:
         _run(args.port, args.app, open_page)
         _log.info("Ozvuchka stopped")
     else:
-        _log.info("Ozvuchka is already running at %s; opening its page", url)
+        _log.info("Ozvuchka is already running at %s; opening its window", url)
         if open_page:
-            webbrowser.open(url)
+            open_window(url)
 
 
 def _first_on_port(port: int, url: str) -> bool:
@@ -94,7 +94,7 @@ def _run(port: int, app: bool, open_page: bool) -> None:
     if app:
         threading.Thread(target=_end_when_closed, args=(core, server), name="window", daemon=True).start()
     if open_page:
-        webbrowser.open(url)
+        open_window(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

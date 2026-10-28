@@ -16,6 +16,7 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 
 Checks the issues ask for, to be done once the work is in a release:
 
-- **#10** On the Celeron from a flash drive: a ready Narration plays before the model has loaded.
-- **#10** On the Celeron from a flash drive: the page opens in the default browser at once, and a new Narration shows «Голоса загружаются…» until Kokoro has loaded.
-- **#10** Starting Озвучка.exe again while it runs opens its page once more (a new window or tab), with no error box and still one pythonw.exe in Task Manager; closing every page then ends the program.
+- [x] **#10** On the Celeron from a flash drive: a ready Narration plays before the model has loaded. — 2026-10-28, Celeron: yes.
+- [ ] **#10** On the Celeron from a flash drive: the page opens at once, and a new Narration shows «Голоса загружаются…» until Kokoro has loaded. — 2026-10-28, Celeron: the window came about a minute after the start, then «Голоса загружаются…» for a couple of minutes (Kokoro loaded in 156 s cold, 15 s the second time). The log starts only about 45 s after the launch, so the time before it is not seen yet.
+- [x] **#10** Starting Озвучка.exe again while it runs opens its page once more, with no error box and still one pythonw.exe in Task Manager; closing every page then ends the program. — 2026-10-28, Celeron: yes, in a tab of Yandex Browser (the default one), as the build then had no Edge window. Starting it right after closing the window gave a page with no server: #13.
+- [ ] **#10** With another default browser (Yandex Browser on the Celeron), the program opens an Edge app window, with no address bar, both on the first start and on a second one.
