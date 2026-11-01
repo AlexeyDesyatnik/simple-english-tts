@@ -354,6 +354,15 @@ class Core:
 
     # ---------------------------------------------------------------- events from the page: its heartbeat
 
+    def page_opening(self) -> bool:
+        """A second start is about to open a page, which gets the same wait as the page after the program's start."""
+        with self._lock:
+            now = self._clock()
+            if self._page_deadline is not None and now >= self._page_deadline:
+                return False
+            self._page_deadline = now + _PAGE_TIMEOUT
+            return True
+
     def page_alive(self) -> None:
         with self._lock:
             self._page_deadline = self._clock() + _PAGE_TIMEOUT

@@ -46,6 +46,7 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "paragraph_started": lambda core, body: core.paragraph_started(int(body["paragraph"])),
     "paragraph_finished": lambda core, body: core.paragraph_finished(int(body["paragraph"])),
     # the page's heartbeat
+    "page_opening": lambda core, body: core.page_opening(),
     "page_alive": lambda core, body: core.page_alive(),
     "page_closing": lambda core, body: core.page_closing(),
     "page_frozen": lambda core, body: core.page_frozen(),

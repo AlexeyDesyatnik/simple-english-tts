@@ -1337,6 +1337,29 @@ def test_after_the_page_closes_the_program_waits_ten_seconds_for_it_to_reload(ma
     assert core.page_gone() is True
 
 
+def test_a_page_announced_by_a_second_start_gets_the_full_initial_wait_after_closing(make_core):
+    clock = FakeClock()
+    core = make_core(FakeVoiceProvider(), clock=clock)
+    core.page_closing()
+    clock.advance(9)
+
+    assert core.page_opening() is True
+    clock.advance(119)
+    assert core.page_gone() is False
+    clock.advance(1)
+    assert core.page_gone() is True
+
+
+def test_a_second_start_is_refused_once_the_program_is_done_and_does_not_revive_it(make_core):
+    clock = FakeClock()
+    core = make_core(FakeVoiceProvider(), clock=clock)
+    core.page_closing()
+    clock.advance(10)
+
+    assert core.page_opening() is False
+    assert core.page_gone() is True
+
+
 def test_a_page_reloaded_after_closing_keeps_the_program_going(make_core):
     clock = FakeClock()
     core = make_core(FakeVoiceProvider(), clock=clock)
