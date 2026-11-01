@@ -72,6 +72,7 @@ class Core:
         self._loading = True  # the Voice providers load on the synthesis thread; ready Narrations play meanwhile
         self._load_errors: dict[str, str] = {}  # provider id -> why it could not be loaded
         self._library: list[SavedText] = []  # most recently used first
+        self._library_search = ""
         self._library_error: str | None = None  # why the Library could not be read or saved
         self._library_readable = True  # an unreadable Library file is never overwritten
         try:
@@ -85,6 +86,7 @@ class Core:
         self._queue: list[_Queued] = []  # the Narration queue; the first one is being synthesized
         # A piece's audio is saved in the Library; only one that could not be saved is kept in memory.
         self._saved_pieces = self._files.pieces()
+        self._deleted_pieces: set[str] = set()  # explicit deletion also covers a piece still under way
         self._audio: dict[str, Audio] = {}
         self._failed: dict[str, str] = {}  # audio id -> why its piece could not be synthesized
         self._durations: dict[str, float] = {}  # audio id -> seconds, for the pieces synthesized since the start
@@ -116,7 +118,8 @@ class Core:
             self._show(text)
             if self._paragraphs:
                 self._text_id = self._text_id or uuid.uuid4().hex[:12]
-                self._move_to_front(SavedText(self._text_id, text))
+                title = next((t.title for t in self._library if t.id == self._text_id), None)
+                self._move_to_front(SavedText(self._text_id, text, title))
                 self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
 
     def open_text(self, text_id: str) -> None:
@@ -135,6 +138,58 @@ class Core:
         with self._work:
             self._text_id = None
             self._show(None)
+
+    def search_library(self, query: str) -> None:
+        """Shows only the Texts whose titles contain this, ignoring letter case."""
+        with self._lock:
+            self._library_search = query
+
+    def rename_text(self, text_id: str, title: str) -> None:
+        """Gives a Text a title chosen by the teacher instead of its first words."""
+        title = title.strip()
+        if not title:
+            raise ValueError("a Text's title cannot be empty")
+        with self._lock:
+            saved = next((t for t in self._library if t.id == text_id), None)
+            if saved is None:
+                raise ValueError(f"no text {text_id} in the library")
+            self._library = [SavedText(t.id, t.content, title) if t.id == text_id else t for t in self._library]
+            self._save_library()
+
+    def delete_text(self, text_id: str) -> None:
+        """Deletes a Text and the pieces no remaining Text uses."""
+        with self._work:
+            if all(t.id != text_id for t in self._library):
+                raise ValueError(f"no text {text_id} in the library")
+            self._library = [t for t in self._library if t.id != text_id]
+            self._queue = [q for q in self._queue if q.text_id != text_id]
+            if self._text_id == text_id:
+                self._text_id = None
+                self._show(None)
+            self._save_library()
+            self._remove_unreferenced_pieces()
+
+    def delete_narration(self, text_id: str, voice_key: str, speed: float) -> None:
+        """Deletes one Voice and Speed of a Text, keeping pieces other Narrations use."""
+        voice = self._known_voice(voice_key)
+        if speed not in _SPEEDS:
+            raise ValueError(f"speed {speed} is not one of {_SPEEDS}")
+        with self._work:
+            saved = next((t for t in self._library if t.id == text_id), None)
+            if saved is None:
+                raise ValueError(f"no text {text_id} in the library")
+            narration = _Queued(text_id, voice, speed)
+            self._queue = [q for q in self._queue if q.id != narration.id]
+            current = self._current_narration()
+            if current is not None and current.id == narration.id:
+                self._stop_playback()
+            candidates = {
+                _audio_id(voice, speed, piece)
+                for paragraph in _parsed(saved.content)
+                for piece in paragraph.pieces
+            }
+            referenced = self._referenced_pieces(except_narration=narration)
+            self._delete_pieces(candidates - referenced)
 
     def set_voice(self, voice_key: str) -> None:
         """Chooses the Voice of the current Text's Narration; a Narration playing in another one stops."""
@@ -340,9 +395,20 @@ class Core:
                 "next": None if self._paragraph is None else self._readable_after(self._paragraph),
                 "start_delay": self._start_delay() if self._state == "waiting" else None,
             }
-            library = [{"id": t.id, "title": _title(t.content)} for t in self._library]
+            query = self._library_search.casefold()
+            library = [
+                {"id": t.id, "title": t.title or _title(t.content), "narrations": self._ready_narrations(t)}
+                for t in self._library
+                if query in (t.title or _title(t.content)).casefold()
+            ]
+            try:
+                library_bytes = self._files.size()
+            except OSError as error:
+                library_bytes = None
+                self._library_error = f"Не удалось определить размер Библиотеки: {error}"
             queue = self._queue_state()
             library_error = self._library_error
+            library_search = self._library_search
             voice, speed, text_size = self._voice.key, self._speed, self._text_size
             voices_loading = self._loading
         return {
@@ -357,6 +423,8 @@ class Core:
             "text_sizes": list(_TEXT_SIZES),
             "text_size": text_size,
             "library": library,
+            "library_search": library_search,
+            "library_bytes": library_bytes,
             "library_error": library_error,
             "queue": queue,
             "text": text,
@@ -386,6 +454,9 @@ class Core:
     def _move_to_front(self, text: SavedText) -> None:
         """Saves the Library with this Text as the most recently used one."""
         self._library = [text] + [t for t in self._library if t.id != text.id]
+        self._save_library()
+
+    def _save_library(self) -> None:
         if not self._library_readable:
             return
         try:
@@ -455,6 +526,49 @@ class Core:
 
     def _ready(self, audio_id: str) -> bool:
         return audio_id in self._saved_pieces or audio_id in self._audio
+
+    def _ready_narrations(self, saved: SavedText) -> list[dict[str, str | float]]:
+        ready: list[dict[str, str | float]] = []
+        for voice in self._registry.voices():
+            for speed in _SPEEDS:
+                ids = [
+                    _audio_id(voice, speed, piece)
+                    for paragraph in _parsed(saved.content)
+                    for piece in paragraph.pieces
+                ]
+                if ids and all(self._ready(audio_id) for audio_id in ids):
+                    ready.append({"voice": voice.key, "speed": speed})
+        return ready
+
+    def _referenced_pieces(self, except_narration: _Queued | None = None) -> set[str]:
+        return {
+            _audio_id(voice, speed, piece)
+            for saved in self._library
+            for voice in self._registry.voices()
+            for speed in _SPEEDS
+            if except_narration is None
+            or (saved.id, voice.key, speed)
+            != (except_narration.text_id, except_narration.voice.key, except_narration.speed)
+            for paragraph in _parsed(saved.content)
+            for piece in paragraph.pieces
+        }
+
+    def _remove_unreferenced_pieces(self) -> None:
+        referenced = self._referenced_pieces()
+        underway = {self._synthesizing} if self._synthesizing is not None else set()
+        self._delete_pieces((self._saved_pieces | set(self._audio) | underway) - referenced)
+
+    def _delete_pieces(self, audio_ids: set[str]) -> None:
+        self._deleted_pieces.update(audio_ids)
+        for audio_id in audio_ids:
+            try:
+                self._files.delete_piece(audio_id)
+            except OSError as error:
+                self._library_error = f"Не удалось удалить озвучку: {error}"
+                continue
+            self._saved_pieces.discard(audio_id)
+            self._audio.pop(audio_id, None)
+            self._durations.pop(audio_id, None)
 
     def _paragraph_state(self, paragraph: Paragraph) -> dict[str, Any]:
         state: dict[str, Any] = {"text": paragraph.text, "audio": None}
@@ -532,6 +646,7 @@ class Core:
         """Counts the next piece as under way from now on, so the Start delay and the queue's times run down."""
         piece = self._next_piece()
         if piece is not None:
+            self._deleted_pieces.discard(piece[0])
             self._synthesizing = piece[0]
             self._synthesizing_since = self._clock()
             self._synthesizing_length = len(piece[1])
@@ -588,7 +703,9 @@ class Core:
                         self._synthesis_speed, len(text), result.duration, finished - started, voice_speed
                     )
                     self._durations[audio_id] = result.duration
-                    if save_error is None:
+                    if audio_id in self._deleted_pieces:
+                        self._delete_pieces({audio_id})
+                    elif save_error is None:
                         self._saved_pieces.add(audio_id)
                     else:
                         self._audio[audio_id] = result  # it still plays until the program is closed

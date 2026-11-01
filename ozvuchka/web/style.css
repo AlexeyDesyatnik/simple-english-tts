@@ -200,15 +200,72 @@ h2 {
   font-weight: 600;
 }
 
+.library-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+#library-search {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font: inherit;
+  border: 1px solid #c8c8c2;
+  border-radius: 6px;
+}
+
+#library-size {
+  white-space: nowrap;
+}
+
 #library {
   list-style: none;
-  max-height: 200px;
+  max-height: 280px;
   overflow-y: auto;
   margin: 0 0 16px;
   padding: 0;
 }
 
-#library button {
+.library-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#library .library-action {
+  flex: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.library-narrations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 0 12px 5px;
+}
+
+.ready-narration {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#library .delete-narration {
+  padding: 0 4px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+#library .text-title {
   width: 100%;
   padding: 6px 12px;
   font-weight: 400;
@@ -218,7 +275,7 @@ h2 {
   border-radius: 6px;
 }
 
-#library button:hover {
+#library .text-title:hover {
   background: #ecece6;
 }
 
@@ -244,7 +301,7 @@ h2 {
   font-weight: 400;
 }
 
-#library button.current {
+#library .text-title.current {
   font-weight: 600;
   background: var(--current);
 }

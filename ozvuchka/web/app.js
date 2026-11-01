@@ -10,6 +10,8 @@ const voicesEl = document.getElementById("voices");
 const speedEl = document.getElementById("speed");
 const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
+const librarySearchEl = document.getElementById("library-search");
+const librarySizeEl = document.getElementById("library-size");
 const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
 const smallerEl = document.getElementById("smaller");
@@ -181,27 +183,90 @@ async function startAfterReload() {
 
 // ---------------------------------------------------------------- view
 
+function renameText(text) {
+  const title = window.prompt("Название текста", text.title);
+  if (title === null) return;
+  if (!title.trim()) return showError("Название текста не может быть пустым");
+  act({ command: "rename_text", id: text.id, title });
+}
+
+function deleteText(text) {
+  if (!window.confirm(`Удалить текст «${text.title}» и его озвучки?`)) return;
+  clearSchedule();
+  act({ command: "delete_text", id: text.id });
+}
+
+function deleteNarration(text, narration) {
+  const label = narrationLabel(narration);
+  if (!window.confirm(`Удалить озвучку «${label}» для текста «${text.title}»?`)) return;
+  clearSchedule();
+  act({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed });
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1).replace(".", ",")} КБ`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1).replace(".", ",")} МБ`;
+  return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} ГБ`;
+}
+
 function renderLibrary(library, currentId) {
+  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер неизвестен" : formatBytes(snapshot.library_bytes);
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
     shownLibrary = key;
     libraryEl.replaceChildren(
       ...library.map((t) => {
         const li = document.createElement("li");
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = t.title;
-        button.dataset.id = t.id;
-        button.addEventListener("click", () => {
+        const row = document.createElement("div");
+        row.className = "library-text";
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "text-title";
+        open.textContent = t.title;
+        open.dataset.id = t.id;
+        open.addEventListener("click", () => {
           clearSchedule();
           act({ command: "open_text", id: t.id });
         });
-        li.append(button);
+        const rename = document.createElement("button");
+        rename.type = "button";
+        rename.className = "secondary library-action";
+        rename.textContent = "Переименовать";
+        rename.addEventListener("click", () => renameText(t));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "secondary library-action";
+        remove.textContent = "Удалить";
+        remove.addEventListener("click", () => deleteText(t));
+        row.append(open, rename, remove);
+
+        const narrations = document.createElement("div");
+        narrations.className = "library-narrations";
+        for (const n of t.narrations) {
+          const label = narrationLabel(n);
+          const ready = document.createElement("span");
+          ready.className = "ready-narration";
+          ready.title = `Готовая озвучка: ${label}`;
+          const icon = document.createElement("span");
+          icon.setAttribute("aria-hidden", "true");
+          icon.textContent = "♪";
+          const removeNarration = document.createElement("button");
+          removeNarration.type = "button";
+          removeNarration.className = "delete-narration";
+          removeNarration.textContent = "×";
+          removeNarration.title = `Удалить озвучку ${label}`;
+          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
+          removeNarration.addEventListener("click", () => deleteNarration(t, n));
+          ready.append(icon, ` ${label}`, removeNarration);
+          narrations.append(ready);
+        }
+        li.append(row, narrations);
         return li;
       }),
     );
   }
-  for (const button of libraryEl.querySelectorAll("button")) {
+  for (const button of libraryEl.querySelectorAll(".text-title")) {
     button.classList.toggle("current", button.dataset.id === currentId);
   }
 }
@@ -367,6 +432,7 @@ function render(next) {
     shownTextId = textId;
     if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
   }
+  if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text);
@@ -476,9 +542,9 @@ const KEYS = {
   KeyR: () => moveParagraph("repeat_paragraph"),
 };
 
-// The text box hidden in Playback mode may still hold the focus from typing before Play.
+// Playback shortcuts must not steal keys while the teacher types in a field.
 function typing(e) {
-  return e.target === sourceEl && !document.body.classList.contains("playback");
+  return e.target === librarySearchEl || (e.target === sourceEl && !document.body.classList.contains("playback"));
 }
 
 document.addEventListener("keydown", (e) => {
@@ -493,6 +559,10 @@ document.addEventListener("keydown", (e) => {
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && !typing(e)) e.preventDefault();
+});
+
+librarySearchEl.addEventListener("input", () => {
+  act({ command: "search_library", query: librarySearchEl.value });
 });
 
 document.getElementById("new-text").addEventListener("click", () => {

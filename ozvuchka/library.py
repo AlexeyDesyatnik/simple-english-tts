@@ -18,6 +18,7 @@ _FORMAT_VERSION = 1
 class SavedText:
     id: str
     content: str
+    title: str | None = None
 
 
 class LibraryFiles:
@@ -33,11 +34,22 @@ class LibraryFiles:
         stored = json.loads(self._texts.read_text(encoding="utf-8"))
         if not isinstance(stored, dict) or stored.get("version") != _FORMAT_VERSION:
             raise ValueError("the file is damaged or saved by a newer version of the program")
-        return [SavedText(t["id"], t["content"]) for t in stored["texts"]]
+        return [SavedText(t["id"], t["content"], t.get("title")) for t in stored["texts"]]
 
     def save_texts(self, texts: list[SavedText]) -> None:
-        stored = {"version": _FORMAT_VERSION, "texts": [{"id": t.id, "content": t.content} for t in texts]}
+        stored = {
+            "version": _FORMAT_VERSION,
+            "texts": [
+                {"id": t.id, "content": t.content, **({"title": t.title} if t.title is not None else {})}
+                for t in texts
+            ],
+        }
         write_atomically(self._texts, json.dumps(stored, ensure_ascii=False, indent=1).encode())
+
+    def size(self) -> int:
+        """Bytes taken by the saved Texts and Narration pieces."""
+        texts = self._texts.stat().st_size if self._texts.exists() else 0
+        return texts + sum(path.stat().st_size for path in self._pieces.glob("*.wav"))
 
     def pieces(self) -> set[str]:
         """The audio ids of the Narration pieces already saved."""
@@ -50,6 +62,10 @@ class LibraryFiles:
 
     def piece(self, audio_id: str) -> Audio:
         return audio_from_wav((self._pieces / f"{audio_id}.wav").read_bytes())
+
+    def delete_piece(self, audio_id: str) -> None:
+        (self._pieces / f"{audio_id}.wav").unlink(missing_ok=True)
+
 
 def write_atomically(path: Path, data: bytes) -> None:
     temporary = path.with_name(path.name + ".tmp")

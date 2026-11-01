@@ -439,6 +439,135 @@ def test_the_snapshot_gives_back_the_text_as_pasted_so_a_reloaded_page_can_show_
 # ---------------------------------------------------------------- the Library
 
 
+def test_searching_the_library_finds_titles_case_insensitively(make_core):
+    core = make_core(FakeVoiceProvider())
+    for text in ["First text.", "Second text.", "Third text."]:
+        core.new_text()
+        core.set_text(text)
+
+    core.search_library("SeCoNd")
+
+    snapshot = core.snapshot()
+    assert snapshot["library_search"] == "SeCoNd"
+    assert [t["title"] for t in snapshot["library"]] == ["Second text."]
+
+
+def test_a_renamed_text_keeps_its_title_after_a_restart_and_is_found_by_it(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+    text_id = core.snapshot()["text"]["id"]
+
+    core.rename_text(text_id, "6B, Unit 3")
+    assert core.snapshot()["library"][0]["title"] == "6B, Unit 3"
+    core.close()
+
+    restarted = make_core(FakeVoiceProvider())
+    restarted.search_library("unit 3")
+    assert [t["title"] for t in restarted.snapshot()["library"]] == ["6B, Unit 3"]
+
+
+def test_editing_a_renamed_text_keeps_its_custom_title(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+    text_id = core.snapshot()["text"]["id"]
+    core.rename_text(text_id, "6B, Unit 3")
+
+    core.set_text("Tom has a dog.")
+
+    assert core.snapshot()["library"][0]["title"] == "6B, Unit 3"
+
+
+def test_each_library_text_lists_only_its_fully_ready_narrations_with_voice_and_speed(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.\nThe cat is black.")
+    core.play()
+    wait_for(core, all_ready)
+    core.set_voice("fake:george")
+    core.set_speed(0.8)
+    core.play()
+    wait_for(core, all_ready)
+
+    [saved] = core.snapshot()["library"]
+
+    assert [(n["voice"], n["speed"]) for n in saved["narrations"]] == [
+        ("fake:alice", 1.0),
+        ("fake:george", 0.8),
+    ]
+
+
+def test_the_library_size_counts_the_saved_text_and_narration_bytes(make_core):
+    core = make_core(FakeVoiceProvider())
+    assert core.snapshot()["library_bytes"] == 0
+    core.set_text("Tom has a cat.")
+    text_bytes = core.snapshot()["library_bytes"]
+    assert text_bytes > 0
+
+    core.play()
+    wait_for(core, all_ready)
+
+    # 1.4 seconds of 16-bit mono audio at 24 kHz, plus the 44-byte WAV header.
+    assert core.snapshot()["library_bytes"] - text_bytes == 67244
+
+
+def test_deleting_a_text_removes_only_pieces_not_shared_with_other_texts(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Shared line.\nOnly in the first Text.")
+    core.play()
+    first = wait_for(core, all_ready)["text"]
+    core.new_text()
+    core.set_text("Shared line.\nOnly in the second Text.")
+    core.play()
+    second = wait_for(core, all_ready)["text"]
+
+    core.delete_text(first["id"])
+
+    snapshot = core.snapshot()
+    assert [t["id"] for t in snapshot["library"]] == [second["id"]]
+    assert snapshot["text"]["id"] == second["id"]
+    shared, first_only = (p["audio"][0] for p in first["paragraphs"])
+    second_only = second["paragraphs"][1]["audio"][0]
+    assert core.audio(shared) is not None
+    assert core.audio(first_only) is None
+    assert core.audio(second_only) is not None
+
+
+def test_deleting_a_text_during_synthesis_does_not_save_an_orphaned_piece(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("A piece still being synthesized.")
+    core.play()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    text_id = core.snapshot()["text"]["id"]
+
+    core.delete_text(text_id)
+    empty_library_bytes = core.snapshot()["library_bytes"]
+    provider.finish_next()
+    core.close()
+
+    assert core.snapshot()["library"] == []
+    assert core.snapshot()["library_bytes"] == empty_library_bytes
+
+
+def test_deleting_one_narration_keeps_shared_pieces_and_other_texts_ready(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Shared line.\nOnly in the first Text.")
+    core.play()
+    first = wait_for(core, all_ready)["text"]
+    core.new_text()
+    core.set_text("Shared line.\nOnly in the second Text.")
+    core.play()
+    second = wait_for(core, all_ready)["text"]
+
+    core.delete_narration(first["id"], "fake:alice", 1.0)
+
+    texts = {t["id"]: t for t in core.snapshot()["library"]}
+    assert texts[first["id"]]["narrations"] == []
+    assert [(n["voice"], n["speed"]) for n in texts[second["id"]]["narrations"]] == [("fake:alice", 1.0)]
+    shared, first_only = (p["audio"][0] for p in first["paragraphs"])
+    assert core.audio(shared) is not None
+    assert core.audio(first_only) is None
+
+
 def ready_and_close(core, text):
     core.set_text(text)
     core.play()

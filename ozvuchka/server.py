@@ -23,6 +23,12 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
     "open_text": lambda core, body: core.open_text(str(body["id"])),
     "new_text": lambda core, body: core.new_text(),
+    "search_library": lambda core, body: core.search_library(str(body["query"])),
+    "rename_text": lambda core, body: core.rename_text(str(body["id"]), str(body["title"])),
+    "delete_text": lambda core, body: core.delete_text(str(body["id"])),
+    "delete_narration": lambda core, body: core.delete_narration(
+        str(body["id"]), str(body["voice"]), float(body["speed"])
+    ),
     "set_voice": lambda core, body: core.set_voice(str(body["voice"])),
     "set_speed": lambda core, body: core.set_speed(float(body["speed"])),
     "bigger_text": lambda core, body: core.bigger_text(),
