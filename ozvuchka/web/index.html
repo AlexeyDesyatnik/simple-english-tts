@@ -27,9 +27,10 @@
             <details id="voice-panel">
               <summary><span id="voice-summary">Голос и скорость</span><span class="voice-change">Изменить</span></summary>
               <div class="voice-options">
-                <h3>Голос</h3>
-                <ul id="voices"></ul>
-                <label>Скорость <select id="speed"></select></label>
+                <h3 id="voices-heading">Голос</h3>
+                <p class="muted voice-hint">Выберите голос или послушайте образец, не меняя выбор.</p>
+                <ul id="voices" aria-labelledby="voices-heading"></ul>
+                <label class="speed-choice">Скорость <select id="speed"></select></label>
               </div>
             </details>
           </div>

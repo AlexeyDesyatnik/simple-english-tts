@@ -156,8 +156,12 @@ select, input[type="search"] {
 }
 
 #voice-panel {
-  position: relative;
+  min-width: 0;
   max-width: 100%;
+}
+
+#voice-panel[open] {
+  flex-basis: 100%;
 }
 
 #voice-panel summary {
@@ -179,41 +183,101 @@ select, input[type="search"] {
 }
 
 .voice-options {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: 2;
-  width: max-content;
-  max-width: min(620px, calc(100vw - 80px));
-  max-height: 400px;
-  overflow: auto;
-  padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding-top: var(--space-3);
+}
+
+.voice-hint {
+  margin: var(--space-1) 0;
 }
 
 #voices {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
+  /* Fit two complete rows only when the panel itself has enough room. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: var(--space-2);
+  max-width: 860px;
   margin: var(--space-3) 0;
   padding: 0;
   list-style: none;
 }
 
 #voices li {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-right: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+#voices li.selected {
+  border-color: var(--accent);
+  background: var(--selection);
 }
 
 #voices label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-2);
   cursor: pointer;
 }
 
+#voices input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+#voices label:has(input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.voice-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.voice-state {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.voice-state:empty {
+  display: none;
+}
+
+#voices [data-availability="unavailable"] .voice-state {
+  color: var(--error);
+}
+
 #voices button {
-  padding: var(--space-1) var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-2);
+  font-size: 14px;
   font-weight: 400;
+}
+
+.speed-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.speed-choice select {
+  max-width: 100%;
 }
 
 .editor-label {

@@ -389,11 +389,11 @@ function playSample(voiceId) {
 }
 
 function renderVoices() {
-  const key = JSON.stringify([snapshot.voices, snapshot.speeds, snapshot.voices_loading]);
+  const key = JSON.stringify([snapshot.voices.map((v) => [v.id, v.label]), snapshot.speeds]);
   if (key !== shownVoices) {
     shownVoices = key;
     voicesEl.replaceChildren(
-      ...snapshot.voices.map((v) => {
+      ...snapshot.voices.map((v, i) => {
         const li = document.createElement("li");
         const label = document.createElement("label");
         const radio = document.createElement("input");
@@ -405,13 +405,26 @@ function renderVoices() {
           clearSchedule();
           act({ command: "set_voice", voice: v.id });
         });
-        // While the Voices load they are not available yet, but nothing is wrong with them.
-        const unavailable = !v.available && !snapshot.voices_loading;
-        label.append(radio, ` ${unavailable ? `${v.label} (недоступен)` : v.label}`);
+        const text = document.createElement("span");
+        text.className = "voice-text";
+        const [name, ...description] = v.label.split(" — ");
+        const title = document.createElement("strong");
+        title.textContent = name;
+        const detail = document.createElement("span");
+        detail.className = "muted";
+        detail.textContent = description.join(" — ");
+        const state = document.createElement("span");
+        state.id = `voice-state-${i}`;
+        state.className = "voice-state";
+        state.setAttribute("aria-live", "polite");
+        radio.setAttribute("aria-describedby", state.id);
+        text.append(title, detail, state);
+        label.append(radio, text);
         const listen = document.createElement("button");
         listen.type = "button";
         listen.className = "secondary";
-        listen.textContent = "Послушать";
+        listen.textContent = "Образец";
+        listen.setAttribute("aria-label", `Послушать образец: ${name}`);
         listen.addEventListener("click", () => playSample(v.id));
         li.append(label, listen);
         return li;
@@ -419,9 +432,22 @@ function renderVoices() {
     );
     speedEl.replaceChildren(...snapshot.speeds.map((s) => new Option(speedLabel(s), String(s))));
   }
-  for (const radio of voicesEl.querySelectorAll("input")) radio.checked = radio.value === snapshot.voice;
+  snapshot.voices.forEach((v, i) => {
+    const row = voicesEl.children[i];
+    const selected = v.id === snapshot.voice;
+    const availability = v.available ? "ready" : snapshot.voices_loading ? "loading" : "unavailable";
+    row.dataset.availability = availability;
+    row.classList.toggle("selected", selected);
+    row.querySelector("input").checked = selected;
+    const state = [selected && "Выбран", availability === "loading" && "Загрузка…",
+      availability === "unavailable" && "Недоступен"].filter(Boolean).join(" · ");
+    const stateEl = row.querySelector(".voice-state");
+    if (stateEl.textContent !== state) stateEl.textContent = state;
+  });
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
-  document.getElementById("voice-summary").textContent = narrationLabel(snapshot);
+  const voice = snapshot.voices.find((v) => v.id === snapshot.voice);
+  document.getElementById("voice-summary").textContent =
+    `${voice ? voice.label.split(" — ")[0] : snapshot.voice} · ${speedLabel(snapshot.speed)}`;
 }
 
 // "George, 0,8×"
@@ -692,7 +718,7 @@ function typing(e) {
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (typing(e)) return;
+  if (typing(e) || e.target.closest("#voice-panel")) return;
   // The keys also win over a focused button, radio or list, which would otherwise take them too.
   e.preventDefault();
   if (!e.repeat) key();
@@ -700,7 +726,7 @@ document.addEventListener("keydown", (e) => {
 
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && !typing(e)) e.preventDefault();
+  if (e.code === "Space" && !typing(e) && !e.target.closest("#voice-panel")) e.preventDefault();
 });
 
 librarySearchEl.addEventListener("input", () => {
