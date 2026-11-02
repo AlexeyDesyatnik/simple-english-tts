@@ -10,17 +10,19 @@
     <main>
       <h1>Озвучка</h1>
       <div class="preparation-layout">
-        <section id="library-panel">
-          <div class="library-header">
-            <h2>Библиотека</h2>
-            <button id="new-text" type="button" class="secondary">Новый текст</button>
+        <details id="library-panel" open>
+          <summary>Библиотека</summary>
+          <div class="library-content">
+            <div class="library-header">
+              <button id="new-text" type="button" class="secondary">Новый текст</button>
+            </div>
+            <div class="library-tools">
+              <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
+            </div>
+            <ul id="library"></ul>
+            <footer id="library-size" class="muted"></footer>
           </div>
-          <div class="library-tools">
-            <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
-          </div>
-          <ul id="library"></ul>
-          <footer id="library-size" class="muted"></footer>
-        </section>
+        </details>
         <section id="workspace" aria-label="Текущий текст">
           <div class="workspace-header">
             <form id="title-form" novalidate>

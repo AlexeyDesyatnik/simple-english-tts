@@ -17,3 +17,4 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 Checks the issues ask for, to be done once the work is in a release:
 
 - [ ] #16 — On the classroom projector, check the centred Text, current Paragraph's yellow highlight and blue edge, readable Paragraph counter and sticky controls from the back rows at the usual Text sizes. With the presenter remote, check previous/next Paragraph using arrows and PageUp/PageDown, including while paused and waiting.
+- [ ] #20 — On the Celeron and i5, resize between a narrow window and the usual classroom window while editing and playing a Narration: check responsiveness, comfortable control targets and no lost position. On the projector, check focus outlines, status/error contrast and Paragraph readability from the back rows; with the presenter remote, check navigation and repeat after opening and closing the Library and Voice panels.

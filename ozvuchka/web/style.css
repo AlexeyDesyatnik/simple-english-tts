@@ -8,14 +8,14 @@
   --selection: #e6effc;
   --current: #ffe58a; /* visible from the back rows on a projector */
   --error: #b3261e;
-  --border: #d7dde5;
+  --border: #7c8899;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
   --radius: 12px;
-  --control-height: 40px;
+  --control-height: 44px;
 }
 
 * {
@@ -66,8 +66,20 @@ h2, h3 {
   position: sticky;
   top: var(--space-6);
   max-height: calc(100vh - 100px);
+}
+
+#library-panel > summary {
+  min-height: var(--control-height);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  padding: var(--space-2) 0;
+}
+
+.library-content {
   display: flex;
   flex-direction: column;
+  max-height: calc(100vh - 180px);
 }
 
 .library-header {
@@ -330,9 +342,15 @@ textarea {
 }
 
 #save-status {
-  min-height: 24px;
+  height: 48px;
+  overflow: auto;
   margin: var(--space-1) 0 var(--space-2);
   overflow-wrap: anywhere;
+}
+
+#save-status.error {
+  height: auto;
+  min-height: 48px;
 }
 
 .controls, .paragraph-controls, .text-size {
@@ -490,6 +508,7 @@ dialog {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  overflow-wrap: anywhere;
 }
 dialog::backdrop {
   background: rgb(20 30 45 / 45%);
@@ -517,11 +536,15 @@ dialog::backdrop {
   padding-left: var(--space-2);
   background: var(--surface-subtle);
   border-radius: var(--radius);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 #library .delete-narration {
-  min-height: 40px;
-  min-width: 40px;
+  min-height: var(--control-height);
+  min-width: var(--control-height);
+  flex-shrink: 0;
   padding: 0 var(--space-1);
   color: var(--error);
   background: transparent;
@@ -537,6 +560,8 @@ dialog::backdrop {
 
 #playback-help summary {
   cursor: pointer;
+  min-height: var(--control-height);
+  padding: var(--space-2) 0;
 }
 
 #playback-error {
@@ -562,6 +587,7 @@ dialog::backdrop {
   padding: 0.25em var(--space-3);
   border-radius: var(--radius);
   overflow-wrap: anywhere;
+  min-height: var(--control-height);
 }
 
 #paragraphs li:not(.skipped) {
@@ -645,7 +671,12 @@ body.playback #paragraph-progress {
 
   #library-panel {
     position: static;
-    max-height: 260px;
+    max-height: none;
+  }
+
+  .library-content {
+    max-height: 50vh;
+    padding: var(--space-1);
   }
 
   .library-header {
@@ -661,7 +692,64 @@ body.playback #paragraph-progress {
 
   #library-size {
     width: auto;
-    white-space: nowrap;
   }
 
+}
+
+@media (max-width: 480px) {
+  #library-panel, #workspace {
+    padding: var(--space-3);
+  }
+
+  .workspace-header {
+    align-items: stretch;
+  }
+
+  #title-form, #voice-panel {
+    flex-basis: 100%;
+  }
+
+  #title-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  #title-actions[hidden] {
+    display: none;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  #play {
+    min-width: 0;
+  }
+
+  .paragraph-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .paragraph-controls button {
+    padding: var(--space-2) var(--space-1);
+  }
+
+  .controls .text-size {
+    grid-column: 2;
+    margin-left: 0;
+    justify-content: end;
+  }
+
+  #queue li > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  #queue li .muted {
+    flex-basis: 100%;
+  }
 }

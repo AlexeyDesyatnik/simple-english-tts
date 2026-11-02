@@ -23,10 +23,41 @@ const titleEl = document.getElementById("text-title");
 const titleActionsEl = document.getElementById("title-actions");
 const titleErrorEl = document.getElementById("title-error");
 const deleteDialogEl = document.getElementById("delete-dialog");
+const libraryPanelEl = document.getElementById("library-panel");
+const narrowWindow = matchMedia("(max-width: 900px)");
+
+// Disclosures are page presentation only; resizing never sends a Core command.
+function resizeLibrary() {
+  if (narrowWindow.matches && libraryPanelEl.contains(document.activeElement)) {
+    closeMenu(false);
+    libraryPanelEl.querySelector("summary").focus();
+  }
+  libraryPanelEl.open = !narrowWindow.matches;
+}
+narrowWindow.addEventListener("change", resizeLibrary);
 let titleDirty = false;
 let replacingText = false;
 let savingTitle = false;
 let activeMenu = null;
+resizeLibrary();
+
+function revealWorkspace() {
+  if (narrowWindow.matches) libraryPanelEl.open = false;
+  sourceEl.focus();
+}
+
+for (const panel of [libraryPanelEl, document.getElementById("voice-panel"), document.getElementById("playback-help")]) {
+  panel.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.key !== "Escape" || !panel.open || activeMenu || deleteDialogEl.open) return;
+    panel.open = false;
+    panel.querySelector("summary").focus();
+    e.preventDefault();
+    e.stopPropagation();
+  });
+}
+libraryPanelEl.addEventListener("toggle", () => {
+  if (!libraryPanelEl.open) closeMenu(false);
+});
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -345,12 +376,17 @@ async function saveTitle() {
 
 async function renameText(text) {
   if (await replaceText({ command: "open_text", id: text.id })) {
+    if (narrowWindow.matches) libraryPanelEl.open = false;
     titleEl.focus();
     titleEl.select();
   }
 }
 
 function restoreLibraryFocus(trigger, textId) {
+  if (!libraryPanelEl.open) {
+    libraryPanelEl.querySelector("summary").focus();
+    return;
+  }
   const row = [...libraryEl.querySelectorAll(".text-title")].find((el) => el.dataset.id === textId);
   const label = trigger.getAttribute("aria-label");
   const replacement = label ? [...(row?.closest("li").querySelectorAll("button") ?? [])]
@@ -486,7 +522,9 @@ function renderLibrary(library, currentId) {
         open.className = "text-title";
         open.textContent = t.title;
         open.dataset.id = t.id;
-        open.addEventListener("click", () => replaceText({ command: "open_text", id: t.id }));
+        open.addEventListener("click", async () => {
+          if (await replaceText({ command: "open_text", id: t.id })) revealWorkspace();
+        });
         const trigger = document.createElement("button");
         trigger.type = "button";
         trigger.className = "secondary menu-trigger";
@@ -654,6 +692,15 @@ function renderParagraphs(text) {
         const li = document.createElement("li");
         li.textContent = p.text;
         li.addEventListener("click", () => playFrom(i));
+        if (p.status !== "skipped") {
+          li.tabIndex = 0;
+          li.setAttribute("role", "button");
+          li.addEventListener("keydown", (e) => {
+            if (!["Enter", " "].includes(e.key)) return;
+            e.preventDefault();
+            if (!e.repeat) playFrom(i);
+          });
+        }
         return li;
       }),
     );
@@ -666,12 +713,15 @@ function renderParagraphs(text) {
     if (current && !li.classList.contains("current")) {
       // On a projector the class reads ahead, so the current Paragraph is kept in the middle of the screen.
       const block = document.body.classList.contains("playback") ? "center" : "nearest";
-      li.scrollIntoView({ block, behavior: "smooth" });
+      const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+      li.scrollIntoView({ block, behavior });
     }
     li.className = [p.status === "skipped" && "skipped", p.status === "failed" && "failed", current && "current"]
       .filter(Boolean)
       .join(" ");
     li.title = p.error ?? "";
+    if (current) li.setAttribute("aria-current", "true");
+    else li.removeAttribute("aria-current");
   });
 }
 
@@ -730,9 +780,16 @@ function renderPlayback() {
 
 function render(next) {
   const first = snapshot === null;
+  const wasPlaying = document.body.classList.contains("playback");
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
   document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
+  const isPlaying = snapshot.playback.state !== "stopped";
+  if (wasPlaying !== isPlaying) {
+    closeMenu(false);
+    if (document.activeElement.closest("#library-panel, .workspace-header, #source, #enqueue") ||
+        (!isPlaying && document.activeElement.id === "stop")) playEl.focus();
+  }
   renderVoices();
   renderTextSize();
   const textId = snapshot.text?.id ?? null;
@@ -911,10 +968,15 @@ function typing(e) {
   return textInput || field.matches("textarea") || field.isContentEditable;
 }
 
+function usesOwnKeys(e) {
+  return typing(e) || e.target.closest("select, summary, #voice-panel, #library-panel, dialog, #title-form") ||
+    (e.code === "Space" && e.target.closest("button, [role=button]")) || deleteDialogEl.open;
+}
+
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (typing(e) || e.target.closest("#voice-panel, #library, dialog, #title-form") || deleteDialogEl.open) return;
+  if (e.defaultPrevented || usesOwnKeys(e)) return;
   // The keys also win over a focused button, radio or list, which would otherwise take them too.
   e.preventDefault();
   if (!e.repeat) key();
@@ -922,7 +984,7 @@ document.addEventListener("keydown", (e) => {
 
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && !typing(e) && !e.target.closest("#voice-panel, #library, dialog, #title-form") && !deleteDialogEl.open) e.preventDefault();
+  if (e.code === "Space" && !usesOwnKeys(e)) e.preventDefault();
 });
 
 librarySearchEl.addEventListener("input", () => {
@@ -930,8 +992,7 @@ librarySearchEl.addEventListener("input", () => {
 });
 
 document.getElementById("new-text").addEventListener("click", async () => {
-  await replaceText({ command: "new_text" });
-  sourceEl.focus();
+  if (await replaceText({ command: "new_text" })) revealWorkspace();
 });
 
 document.getElementById("stop").addEventListener("click", () => {
