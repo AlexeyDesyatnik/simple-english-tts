@@ -47,6 +47,11 @@ function revealWorkspace() {
 }
 
 for (const panel of [libraryPanelEl, document.getElementById("voice-panel"), document.getElementById("playback-help")]) {
+  panel.addEventListener("toggle", () => {
+    // A closed disclosure hands control back to playback, after native Space keyup.
+    // Leave focus alone when an action inside the panel has already moved it elsewhere.
+    if (!panel.open && panel.contains(document.activeElement) && !playEl.disabled) playEl.focus();
+  });
   panel.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.key !== "Escape" || !panel.open || activeMenu || deleteDialogEl.open) return;
     panel.open = false;
