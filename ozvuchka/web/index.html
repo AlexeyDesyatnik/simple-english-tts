@@ -1,63 +1,75 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Озвучка</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <main>
-    <h1>Озвучка</h1>
-    <section id="library-panel">
-      <div class="library-header">
-        <h2>Библиотека</h2>
-        <button id="new-text" type="button" class="secondary">Новый текст</button>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Озвучка</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main>
+      <h1>Озвучка</h1>
+      <div class="preparation-layout">
+        <section id="library-panel">
+          <div class="library-header">
+            <h2>Библиотека</h2>
+            <button id="new-text" type="button" class="secondary">Новый текст</button>
+          </div>
+          <div class="library-tools">
+            <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
+            <span id="library-size" class="muted"></span>
+          </div>
+          <ul id="library"></ul>
+        </section>
+        <section id="workspace" aria-label="Текущий текст">
+          <div class="workspace-header">
+            <h2 id="text-heading">Текущий текст</h2>
+            <details id="voice-panel">
+              <summary><span id="voice-summary">Голос и скорость</span><span class="voice-change">Изменить</span></summary>
+              <div class="voice-options">
+                <h3>Голос</h3>
+                <ul id="voices"></ul>
+                <label>Скорость <select id="speed"></select></label>
+              </div>
+            </details>
+          </div>
+          <label class="editor-label" for="source">Текст · каждая строка — отдельный абзац</label>
+          <textarea id="source" rows="6" placeholder="Вставьте английский текст"></textarea>
+          <p id="save-status" class="muted" role="status" aria-live="polite"></p>
+          <div class="controls">
+            <button id="play" type="button">Воспроизвести</button>
+            <button id="stop" type="button" class="secondary">Стоп</button>
+            <span class="paragraph-controls" role="group" aria-label="Переход по абзацам">
+              <button id="previous" type="button" class="secondary" title="Предыдущий абзац (← / PageUp)">← Назад</button>
+              <button id="repeat" type="button" class="secondary" title="Повторить абзац (R / К)">Повторить</button>
+              <button id="next" type="button" class="secondary" title="Следующий абзац (→ / PageDown)">Вперёд →</button>
+            </span>
+            <button id="enqueue" type="button" class="secondary">В очередь</button>
+            <span class="text-size">
+              <button id="smaller" type="button" class="secondary" title="Мельче">A−</button>
+              <button id="bigger" type="button" class="secondary" title="Крупнее">A+</button>
+            </span>
+          </div>
+          <p id="paragraph-progress" role="status"></p>
+          <p id="status" role="status"></p>
+          <div id="playback-error" role="alert" hidden>
+            <span id="playback-error-message"></span>
+            <button id="dismiss-error" type="button" class="secondary">Скрыть сообщение</button>
+          </div>
+          <section id="queue-panel" aria-label="Очередь озвучки">
+            <h2>Очередь озвучки</h2>
+            <p id="queue-empty" class="muted">Очередь пуста</p>
+            <ol id="queue"></ol>
+          </section>
+          <details id="playback-help">
+            <summary>Как управлять воспроизведением</summary>
+            <p>Пробел — пауза или продолжение. ← / PageUp — предыдущий абзац; → / PageDown — следующий; R / К — повторить. Работает и в русской раскладке. При вводе текста сочетания не действуют.</p>
+          </details>
+          <p id="paragraph-hint" class="muted">Нажмите на абзац, чтобы читать с него.</p>
+          <ol id="paragraphs"></ol>
+        </section>
       </div>
-      <div class="library-tools">
-        <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
-        <span id="library-size" class="muted"></span>
-      </div>
-      <ul id="library"></ul>
-    </section>
-    <section id="queue-panel" hidden>
-      <h2>Очередь озвучки</h2>
-      <ol id="queue"></ol>
-    </section>
-    <fieldset id="voice-panel">
-      <legend>Голос</legend>
-      <ul id="voices"></ul>
-      <label>Скорость <select id="speed"></select></label>
-    </fieldset>
-    <textarea id="source" rows="6" placeholder="Вставьте английский текст: каждая строка — отдельный абзац"></textarea>
-    <p id="save-status" class="muted" role="status" aria-live="polite"></p>
-    <div class="controls">
-      <button id="play" type="button">Воспроизвести</button>
-      <button id="stop" type="button" class="secondary">Стоп</button>
-      <span class="paragraph-controls" role="group" aria-label="Переход по абзацам">
-        <button id="previous" type="button" class="secondary" title="Предыдущий абзац (← / PageUp)">← Назад</button>
-        <button id="repeat" type="button" class="secondary" title="Повторить абзац (R / К)">Повторить</button>
-        <button id="next" type="button" class="secondary" title="Следующий абзац (→ / PageDown)">Вперёд →</button>
-      </span>
-      <button id="enqueue" type="button" class="secondary">В очередь</button>
-      <span class="text-size">
-        <button id="smaller" type="button" class="secondary" title="Мельче">A−</button>
-        <button id="bigger" type="button" class="secondary" title="Крупнее">A+</button>
-      </span>
-    </div>
-    <p id="paragraph-progress" role="status"></p>
-    <p id="status" role="status"></p>
-    <div id="playback-error" role="alert" hidden>
-      <span id="playback-error-message"></span>
-      <button id="dismiss-error" type="button" class="secondary">Скрыть сообщение</button>
-    </div>
-    <details id="playback-help">
-      <summary>Как управлять воспроизведением</summary>
-      <p>Пробел — пауза или продолжение. ← / PageUp — предыдущий абзац; → / PageDown — следующий; R / К — повторить. Работает и в русской раскладке. При вводе текста сочетания не действуют.</p>
-    </details>
-    <p id="paragraph-hint" class="muted">Нажмите на абзац, чтобы читать с него.</p>
-    <ol id="paragraphs"></ol>
-  </main>
-  <script src="app.js"></script>
-</body>
+    </main>
+    <script src="app.js"></script>
+  </body>
 </html>

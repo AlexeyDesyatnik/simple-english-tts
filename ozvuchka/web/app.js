@@ -13,7 +13,6 @@ const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
 const librarySearchEl = document.getElementById("library-search");
 const librarySizeEl = document.getElementById("library-size");
-const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
@@ -422,6 +421,7 @@ function renderVoices() {
   }
   for (const radio of voicesEl.querySelectorAll("input")) radio.checked = radio.value === snapshot.voice;
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
+  document.getElementById("voice-summary").textContent = narrationLabel(snapshot);
 }
 
 // "George, 0,8×"
@@ -431,7 +431,7 @@ function narrationLabel(narration) {
 }
 
 function renderQueue(queue) {
-  queuePanelEl.hidden = queue.length === 0;
+  document.getElementById("queue-empty").hidden = queue.length !== 0;
   const key = JSON.stringify(queue.map((n) => n.id));
   if (key !== shownQueue) {
     shownQueue = key;
