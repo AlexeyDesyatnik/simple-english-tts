@@ -17,3 +17,12 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 ### Coding standards
 
 `CODING_STANDARDS.md` at the repo root: the checks to run (pytest, mypy, ruff) and the rules the tools don't check.
+
+### Publishing completed work
+
+After implementing a task, commit the changes, then obtain the user's permission
+to push and check CI. Once permission is granted, push the current branch and
+wait for GitHub Actions for the pushed commit to finish. Inspect any failures,
+fix issues caused by the changes, and verify CI again. Report the final result
+with a link to the run. If the user has already authorized push and CI checks
+for the current task, proceed without asking again.
