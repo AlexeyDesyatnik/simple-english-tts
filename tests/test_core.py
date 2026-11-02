@@ -734,6 +734,41 @@ def test_a_crash_while_saving_the_library_leaves_the_previous_version_readable(m
     assert saved["title"] == "Tom has a cat."
 
 
+def test_a_failed_text_save_is_reported_and_the_same_edit_can_retry_it(make_core, monkeypatch):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+
+    crash_on_every_rename(monkeypatch)
+    assert core.set_text("Tom has a dog.") is False
+    assert core.snapshot()["library_error"].startswith("Не удалось сохранить Библиотеку")
+    assert core.snapshot()["text"]["save_error"].startswith("Не удалось сохранить Библиотеку")
+
+    monkeypatch.undo()
+    assert core.set_text("Tom has a dog.") is True
+    assert core.snapshot()["text"]["save_error"] is None
+    core.close()
+
+    restarted = make_core(FakeVoiceProvider())
+    [saved] = restarted.snapshot()["library"]
+    restarted.open_text(saved["id"])
+    assert restarted.snapshot()["text"]["content"] == "Tom has a dog."
+
+
+def test_emptying_an_existing_text_is_saved_and_restored(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+    text_id = core.snapshot()["text"]["id"]
+
+    assert core.set_text("") is True
+    assert core.snapshot()["text"]["content"] == ""
+    assert core.snapshot()["library"][0]["title"] == "Пустой текст"
+    core.close()
+
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(text_id)
+    assert restarted.snapshot()["text"]["content"] == ""
+
+
 def test_every_save_records_the_data_format_version(make_core, tmp_path):
     core = make_core(FakeVoiceProvider())
 

@@ -5,6 +5,7 @@ const PARAGRAPH_PAUSE = 0.7; // seconds of silence between paragraphs
 const FADE = 0.005; // seconds; pieces fade in and out so they join without clicks
 
 const sourceEl = document.getElementById("source");
+const saveStatusEl = document.getElementById("save-status");
 const statusEl = document.getElementById("status");
 const voicesEl = document.getElementById("voices");
 const speedEl = document.getElementById("speed");
@@ -43,13 +44,14 @@ function serial(task) {
 
 let issued = 0; // commands sent so far: a snapshot fetched before the latest one may undo it, so it is dropped
 
-function command(body) {
+function command(body, keepalive = false) {
   issued++;
   return serial(async () => {
     const response = await fetch("/api/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      keepalive,
     });
     const reply = await response.json();
     if (!response.ok) throw new Error(reply.error);
@@ -61,7 +63,9 @@ function refresh() {
   return serial(async () => {
     const before = issued;
     const next = await (await fetch("/api/state")).json();
-    if (issued === before) render(next); // otherwise the refresh after that command brings a newer one
+    if (issued !== before) return false; // the refresh after that command brings a newer one
+    render(next);
+    return true;
   });
 }
 
@@ -70,6 +74,74 @@ function act(body) {
   return command(body)
     .then(refresh)
     .catch((e) => showError(e.message));
+}
+
+// ---------------------------------------------------------------- autosave
+
+const AUTOSAVE_DELAY = 700;
+let editVersion = 0;
+let savedVersion = 0;
+let saveTimer = null;
+let saveInFlight = null;
+
+function showSaveState(state, message = "") {
+  const labels = {
+    unsaved: "Изменения не сохранены",
+    saving: "Сохранение…",
+    saved: "Сохранено",
+    failed: message || "Не удалось сохранить изменения",
+  };
+  saveStatusEl.textContent = labels[state];
+  saveStatusEl.className = state === "failed" ? "error" : "muted";
+  saveStatusEl.dataset.state = state;
+}
+
+function cancelScheduledSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+}
+
+function scheduleSave() {
+  cancelScheduledSave();
+  saveTimer = setTimeout(() => saveEdits().catch(() => {}), AUTOSAVE_DELAY);
+}
+
+function saveEdits() {
+  cancelScheduledSave();
+  if (saveInFlight) return saveInFlight;
+  if (editVersion === savedVersion) {
+    showSaveState("saved");
+    return Promise.resolve();
+  }
+  const version = editVersion;
+  const text = sourceEl.value;
+  showSaveState("saving");
+  saveInFlight = (async () => {
+    try {
+      const saved = await command({ command: "set_text", text });
+      await refresh();
+      if (!saved) throw new Error(snapshot?.text?.save_error || "Не удалось сохранить Библиотеку");
+      savedVersion = version;
+      if (editVersion === version) {
+        showSaveState("saved");
+      } else {
+        showSaveState("unsaved");
+        scheduleSave();
+      }
+    } catch (e) {
+      showSaveState("failed", `Не удалось сохранить изменения: ${e.message}`);
+      if (editVersion !== version) scheduleSave();
+      throw e;
+    } finally {
+      saveInFlight = null;
+    }
+  })();
+  return saveInFlight;
+}
+
+async function flushEdits() {
+  cancelScheduledSave();
+  while (editVersion !== savedVersion || saveInFlight) await saveEdits();
 }
 
 // ---------------------------------------------------------------- player
@@ -183,24 +255,58 @@ async function startAfterReload() {
 
 // ---------------------------------------------------------------- view
 
+async function actAfterFlush(body, clear = false) {
+  try {
+    await flushEdits();
+    if (clear) clearSchedule();
+    await act(body);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+async function replaceText(body) {
+  try {
+    await flushEdits();
+  } catch (e) {
+    showError(e.message);
+    return;
+  }
+  sourceEl.disabled = true; // typing resumes only after a current snapshot has actually been rendered
+  clearSchedule();
+  try {
+    await command(body);
+  } catch (e) {
+    showError(e.message);
+  }
+  let rendered = false;
+  while (!rendered) {
+    try {
+      rendered = await refresh();
+    } catch {
+      showError("Не удалось показать текст. Повторяю…");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  sourceEl.disabled = false;
+}
+
 function renameText(text) {
   const title = window.prompt("Название текста", text.title);
   if (title === null) return;
   if (!title.trim()) return showError("Название текста не может быть пустым");
-  act({ command: "rename_text", id: text.id, title });
+  actAfterFlush({ command: "rename_text", id: text.id, title });
 }
 
 function deleteText(text) {
   if (!window.confirm(`Удалить текст «${text.title}» и его озвучки?`)) return;
-  clearSchedule();
-  act({ command: "delete_text", id: text.id });
+  replaceText({ command: "delete_text", id: text.id });
 }
 
 function deleteNarration(text, narration) {
   const label = narrationLabel(narration);
   if (!window.confirm(`Удалить озвучку «${label}» для текста «${text.title}»?`)) return;
-  clearSchedule();
-  act({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed });
+  actAfterFlush({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }, true);
 }
 
 function formatBytes(bytes) {
@@ -225,10 +331,7 @@ function renderLibrary(library, currentId) {
         open.className = "text-title";
         open.textContent = t.title;
         open.dataset.id = t.id;
-        open.addEventListener("click", () => {
-          clearSchedule();
-          act({ command: "open_text", id: t.id });
-        });
+        open.addEventListener("click", () => replaceText({ command: "open_text", id: t.id }));
         const rename = document.createElement("button");
         rename.type = "button";
         rename.className = "secondary library-action";
@@ -428,9 +531,19 @@ function render(next) {
   renderVoices();
   renderTextSize();
   const textId = snapshot.text?.id ?? null;
-  if (first || textId !== shownTextId) {
-    shownTextId = textId;
-    if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
+  const textChanged = textId !== shownTextId;
+  if ((first || textChanged) && editVersion === savedVersion) {
+    sourceEl.value = snapshot.text?.content ?? "";
+  }
+  if (first || textChanged) shownTextId = textId;
+  if (first && editVersion === savedVersion) {
+    const saveError = snapshot.text?.save_error;
+    if (saveError) {
+      savedVersion = -1; // the next edit or action retries the save that failed before the reload
+      showSaveState("failed", saveError);
+    } else {
+      showSaveState("saved");
+    }
   }
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
@@ -473,21 +586,15 @@ function playFrom(index) {
   if (snapshot.text.paragraphs[index].status === "skipped") return;
   allowSound();
   clearSchedule();
-  act({ command: "play_from", paragraph: index });
+  actOnTypedText({ command: "play_from", paragraph: index });
 }
 
-// Saves what is typed in the text box as the current Text, before a command for it.
-async function saveTypedText() {
-  if (sourceEl.value !== snapshot?.text?.content) {
-    clearSchedule();
-    await command({ command: "set_text", text: sourceEl.value });
-  }
-}
-
-async function actOnTypedText(name) {
+async function actOnTypedText(body) {
   try {
-    await saveTypedText();
-    await act({ command: name });
+    const edited = editVersion !== savedVersion;
+    await flushEdits();
+    if (edited) clearSchedule();
+    await act(body);
   } catch (e) {
     showError(e.message);
   }
@@ -495,7 +602,7 @@ async function actOnTypedText(name) {
 
 function play() {
   allowSound();
-  actOnTypedText("play");
+  actOnTypedText({ command: "play" });
 }
 
 function pause() {
@@ -508,13 +615,19 @@ function pause() {
 async function moveParagraph(name) {
   allowSound();
   try {
-    await saveTypedText();
+    await flushEdits();
     if (await command({ command: name })) clearSchedule();
     await refresh();
   } catch (e) {
     showError(e.message);
   }
 }
+
+sourceEl.addEventListener("input", () => {
+  editVersion++;
+  showSaveState("unsaved");
+  scheduleSave();
+});
 
 document.getElementById("play").addEventListener("click", play);
 
@@ -524,7 +637,7 @@ speedEl.addEventListener("change", () => {
   act({ command: "set_speed", speed: Number(speedEl.value) });
 });
 
-document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
+document.getElementById("enqueue").addEventListener("click", () => actOnTypedText({ command: "enqueue" }));
 
 document.getElementById("pause").addEventListener("click", pause);
 
@@ -565,11 +678,9 @@ librarySearchEl.addEventListener("input", () => {
   act({ command: "search_library", query: librarySearchEl.value });
 });
 
-document.getElementById("new-text").addEventListener("click", () => {
-  clearSchedule();
-  sourceEl.value = "";
+document.getElementById("new-text").addEventListener("click", async () => {
+  await replaceText({ command: "new_text" });
   sourceEl.focus();
-  act({ command: "new_text" });
 });
 
 document.getElementById("stop").addEventListener("click", () => {
@@ -587,8 +698,19 @@ function heartbeat(event) {
 function sendHeartbeat() {
   fetch("/api/command", { method: "POST", body: heartbeat("page_alive") }).catch(() => {});
 }
-window.addEventListener("pagehide", () => navigator.sendBeacon("/api/command", heartbeat("page_closing")));
-document.addEventListener("freeze", () => navigator.sendBeacon("/api/command", heartbeat("page_frozen")));
+function saveOnPageHide() {
+  if (editVersion === savedVersion && !saveInFlight) return;
+  // Keep the latest save behind any older one; an independent beacon could reach Core first and then be overwritten.
+  command({ command: "set_text", text: sourceEl.value }, true).catch(() => {});
+}
+window.addEventListener("pagehide", () => {
+  saveOnPageHide();
+  navigator.sendBeacon("/api/command", heartbeat("page_closing"));
+});
+document.addEventListener("freeze", () => {
+  saveOnPageHide();
+  navigator.sendBeacon("/api/command", heartbeat("page_frozen"));
+});
 document.addEventListener("resume", sendHeartbeat);
 setInterval(sendHeartbeat, 5000);
 sendHeartbeat();

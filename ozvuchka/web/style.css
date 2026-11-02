@@ -78,6 +78,12 @@ select {
   background: #fff;
 }
 
+#save-status {
+  min-height: 1.5em;
+  margin: 4px 12px 0;
+  font-size: 15px;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -111,7 +117,8 @@ body.playback h1,
 body.playback #library-panel,
 body.playback #queue-panel,
 body.playback #voice-panel,
-body.playback #source {
+body.playback #source,
+body.playback #save-status {
   display: none;
 }
 

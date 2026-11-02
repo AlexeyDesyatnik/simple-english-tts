@@ -55,7 +55,7 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
     assert command(base_url, command="page_alive") is None
     command(base_url, command="set_voice", voice="fake:george")
     command(base_url, command="set_speed", speed=0.9)
-    command(base_url, command="set_text", text="Good morning.\nSit down, please.")
+    assert command(base_url, command="set_text", text="Good morning.\nSit down, please.") is True
     command(base_url, command="play")
 
     deadline = time.monotonic() + 5

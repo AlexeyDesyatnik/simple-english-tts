@@ -82,6 +82,7 @@ class Core:
             self._library_error = f"Не удалось прочитать Библиотеку: {error}"
         self._text_id: str | None = None  # the current Text's place in the Library; None until it is saved
         self._text: str | None = None
+        self._text_save_error: str | None = None
         self._paragraphs: list[Paragraph] = []
         self._queue: list[_Queued] = []  # the Narration queue; the first one is being synthesized
         # A piece's audio is saved in the Library; only one that could not be saved is kept in memory.
@@ -109,18 +110,23 @@ class Core:
 
     # ---------------------------------------------------------------- commands
 
-    def set_text(self, text: str) -> None:
-        """Puts this in the current Text and saves it in the Library; the same Text again (the page after F5)
-        changes nothing. Pieces that stay the same keep their Narration."""
+    def set_text(self, text: str) -> bool:
+        """Puts this in the current Text and saves it in the Library, returning whether the save reached disk.
+        The same Text again changes nothing, except to retry a failed save. Unchanged pieces keep their Narration."""
         with self._work:
             if text == self._text:
-                return
+                saved = self._save_library() if self._text_save_error is not None else True
+                self._text_save_error = None if saved else self._library_error
+                return saved
             self._show(text)
-            if self._paragraphs:
-                self._text_id = self._text_id or uuid.uuid4().hex[:12]
-                title = next((t.title for t in self._library if t.id == self._text_id), None)
-                self._move_to_front(SavedText(self._text_id, text, title))
-                self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
+            if not text and self._text_id is None:
+                return True
+            self._text_id = self._text_id or uuid.uuid4().hex[:12]
+            title = next((t.title for t in self._library if t.id == self._text_id), None)
+            saved = self._move_to_front(SavedText(self._text_id, text, title))
+            self._text_save_error = None if saved else self._library_error
+            self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
+            return saved
 
     def open_text(self, text_id: str) -> None:
         """Makes a Text from the Library the current one."""
@@ -396,6 +402,7 @@ class Core:
             text = None if self._text is None else {
                 "id": self._text_id,
                 "content": self._text,
+                "save_error": self._text_save_error,
                 "paragraphs": [self._paragraph_state(p) for p in self._paragraphs],
             }
             playback = {
@@ -456,23 +463,26 @@ class Core:
 
     def _show(self, text: str | None) -> None:
         self._text = text
+        self._text_save_error = None
         self._paragraphs = [] if text is None else paragraphs(text)
         self._stop_playback()
         self._failed.clear()
 
-    def _move_to_front(self, text: SavedText) -> None:
+    def _move_to_front(self, text: SavedText) -> bool:
         """Saves the Library with this Text as the most recently used one."""
         self._library = [text] + [t for t in self._library if t.id != text.id]
-        self._save_library()
+        return self._save_library()
 
-    def _save_library(self) -> None:
+    def _save_library(self) -> bool:
         if not self._library_readable:
-            return
+            return False
         try:
             self._files.save_texts(self._library)
             self._library_error = None
+            return True
         except OSError as error:
             self._library_error = f"Не удалось сохранить Библиотеку: {error}"
+            return False
 
     def _readable(self, index: int) -> bool:
         return 0 <= index < len(self._paragraphs) and not self._paragraphs[index].skipped
@@ -741,6 +751,8 @@ def _parsed(content: str) -> list[Paragraph]:
 
 def _title(content: str) -> str:
     words = content.split()
+    if not words:
+        return "Пустой текст"
     if len(words) <= _TITLE_WORDS:
         return " ".join(words)
     return " ".join(words[:_TITLE_WORDS]).rstrip(",;:—–-") + "…"
