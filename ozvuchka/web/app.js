@@ -17,6 +17,9 @@ const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
+const playEl = document.getElementById("play");
+const progressEl = document.getElementById("paragraph-progress");
+const playbackErrorEl = document.getElementById("playback-error");
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -499,7 +502,7 @@ function statusText(text, playback) {
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
-  if (blocked && playback.state === "paused") return ["Нажмите Play, чтобы продолжить", ""];
+  if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы включить звук", ""];
   if (playback.state === "waiting") {
     if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
     if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
@@ -521,6 +524,22 @@ function renderTextSize() {
   const at = snapshot.text_sizes.indexOf(snapshot.text_size);
   smallerEl.disabled = at <= 0;
   biggerEl.disabled = at === snapshot.text_sizes.length - 1;
+}
+
+function renderPlayback() {
+  const { state, paragraph } = snapshot.playback;
+  const active = state === "playing" || state === "waiting";
+  playEl.textContent = active ? "Пауза" : state === "paused" ? "Продолжить" : "Воспроизвести";
+  playEl.title = active ? "Приостановить (Пробел)" : "Начать или продолжить (Пробел)";
+  const readable = (snapshot.text?.paragraphs ?? []).flatMap((p, i) => p.status === "skipped" ? [] : [i]);
+  playEl.disabled = readable.length === 0 && !sourceEl.value.trim();
+  document.getElementById("stop").disabled = state === "stopped";
+  document.getElementById("enqueue").hidden = state !== "stopped";
+  const current = readable.indexOf(lingering ?? paragraph);
+  progressEl.textContent = current < 0 ? `Абзацев для чтения: ${readable.length}` : `Абзац ${current + 1} из ${readable.length}`;
+  for (const id of ["previous", "repeat", "next"]) {
+    document.getElementById(id).disabled = readable.length === 0;
+  }
 }
 
 function render(next) {
@@ -548,6 +567,7 @@ function render(next) {
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
   renderQueue(snapshot.queue);
+  renderPlayback();
   renderParagraphs(snapshot.text);
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
@@ -560,8 +580,8 @@ function render(next) {
 }
 
 function showError(message) {
-  statusEl.textContent = message;
-  statusEl.className = "error";
+  document.getElementById("playback-error-message").textContent = message;
+  playbackErrorEl.hidden = false;
 }
 
 async function poll() {
@@ -629,7 +649,16 @@ sourceEl.addEventListener("input", () => {
   scheduleSave();
 });
 
-document.getElementById("play").addEventListener("click", play);
+function togglePlayback() {
+  if (["playing", "waiting"].includes(snapshot?.playback.state)) pause();
+  else play();
+}
+
+playEl.addEventListener("click", togglePlayback);
+document.getElementById("dismiss-error").addEventListener("click", () => { playbackErrorEl.hidden = true; });
+document.getElementById("previous").addEventListener("click", () => moveParagraph("previous_paragraph"));
+document.getElementById("repeat").addEventListener("click", () => moveParagraph("repeat_paragraph"));
+document.getElementById("next").addEventListener("click", () => moveParagraph("next_paragraph"));
 
 // Another Speed is another Narration: the core stops the one playing.
 speedEl.addEventListener("change", () => {
@@ -639,15 +668,13 @@ speedEl.addEventListener("change", () => {
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText({ command: "enqueue" }));
 
-document.getElementById("pause").addEventListener("click", pause);
-
 smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
 biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
 
 // Keys by their place on the keyboard (code), so R works in the Russian layout too.
 // Presenter remotes send the arrows or PageUp / PageDown.
 const KEYS = {
-  Space: () => (["playing", "waiting"].includes(snapshot?.playback.state) ? pause() : play()),
+  Space: togglePlayback,
   ArrowLeft: () => moveParagraph("previous_paragraph"),
   PageUp: () => moveParagraph("previous_paragraph"),
   ArrowRight: () => moveParagraph("next_paragraph"),
@@ -657,7 +684,9 @@ const KEYS = {
 
 // Playback shortcuts must not steal keys while the teacher types in a field.
 function typing(e) {
-  return e.target === librarySearchEl || (e.target === sourceEl && !document.body.classList.contains("playback"));
+  const field = e.target;
+  const textInput = field.matches("input") && !["radio", "checkbox", "button", "submit"].includes(field.type);
+  return textInput || field.matches("textarea") || field.isContentEditable;
 }
 
 document.addEventListener("keydown", (e) => {

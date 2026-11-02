@@ -15,3 +15,5 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 ## Waiting for the work
 
 Checks the issues ask for, to be done once the work is in a release:
+
+- [ ] #16 — On the classroom projector, check the centred Text, current Paragraph's yellow highlight and blue edge, readable Paragraph counter and sticky controls from the back rows at the usual Text sizes. With the presenter remote, check previous/next Paragraph using arrows and PageUp/PageDown, including while paused and waiting.

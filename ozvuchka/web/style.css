@@ -109,7 +109,7 @@ button:disabled {
 /* Playback mode: only the Text and the buttons, wide enough for a large Text size */
 
 body.playback main {
-  max-width: 1400px;
+  max-width: 1160px;
   margin-top: 16px;
 }
 
@@ -194,6 +194,49 @@ button.secondary {
 
 .error {
   color: var(--error);
+}
+
+.paragraph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paragraph-controls button {
+  padding: 10px 12px;
+}
+
+#play {
+  min-width: 190px;
+}
+
+#status {
+  min-height: 1.5em;
+  margin: 4px 0;
+}
+
+#paragraph-progress {
+  margin: 8px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+#playback-help {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+#playback-help summary {
+  cursor: pointer;
+}
+
+#playback-error {
+  color: var(--error);
+  border-left: 4px solid var(--error);
+  padding: 8px 12px;
+}
+
+#paragraph-hint {
+  margin: 8px 0;
 }
 
 .library-header {

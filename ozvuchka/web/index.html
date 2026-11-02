@@ -32,16 +32,30 @@
     <textarea id="source" rows="6" placeholder="Вставьте английский текст: каждая строка — отдельный абзац"></textarea>
     <p id="save-status" class="muted" role="status" aria-live="polite"></p>
     <div class="controls">
-      <button id="play" type="button">Play</button>
-      <button id="pause" type="button" class="secondary">Пауза</button>
+      <button id="play" type="button">Воспроизвести</button>
       <button id="stop" type="button" class="secondary">Стоп</button>
+      <span class="paragraph-controls" role="group" aria-label="Переход по абзацам">
+        <button id="previous" type="button" class="secondary" title="Предыдущий абзац (← / PageUp)">← Назад</button>
+        <button id="repeat" type="button" class="secondary" title="Повторить абзац (R / К)">Повторить</button>
+        <button id="next" type="button" class="secondary" title="Следующий абзац (→ / PageDown)">Вперёд →</button>
+      </span>
       <button id="enqueue" type="button" class="secondary">В очередь</button>
       <span class="text-size">
         <button id="smaller" type="button" class="secondary" title="Мельче">A−</button>
         <button id="bigger" type="button" class="secondary" title="Крупнее">A+</button>
       </span>
     </div>
+    <p id="paragraph-progress" role="status"></p>
     <p id="status" role="status"></p>
+    <div id="playback-error" role="alert" hidden>
+      <span id="playback-error-message"></span>
+      <button id="dismiss-error" type="button" class="secondary">Скрыть сообщение</button>
+    </div>
+    <details id="playback-help">
+      <summary>Как управлять воспроизведением</summary>
+      <p>Пробел — пауза или продолжение. ← / PageUp — предыдущий абзац; → / PageDown — следующий; R / К — повторить. Работает и в русской раскладке. При вводе текста сочетания не действуют.</p>
+    </details>
+    <p id="paragraph-hint" class="muted">Нажмите на абзац, чтобы читать с него.</p>
     <ol id="paragraphs"></ol>
   </main>
   <script src="app.js"></script>
