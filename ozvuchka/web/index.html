@@ -17,13 +17,21 @@
           </div>
           <div class="library-tools">
             <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
-            <span id="library-size" class="muted"></span>
           </div>
           <ul id="library"></ul>
+          <footer id="library-size" class="muted"></footer>
         </section>
         <section id="workspace" aria-label="Текущий текст">
           <div class="workspace-header">
-            <h2 id="text-heading">Текущий текст</h2>
+            <form id="title-form" novalidate>
+              <label for="text-title">Название текста</label>
+              <input id="text-title" type="text" aria-describedby="title-error" disabled>
+              <div id="title-actions" hidden>
+                <button type="submit">Сохранить название</button>
+                <button id="cancel-title" type="button" class="secondary">Отменить</button>
+              </div>
+              <p id="title-error" class="error" role="alert"></p>
+            </form>
             <details id="voice-panel">
               <summary><span id="voice-summary">Голос и скорость</span><span class="voice-change">Изменить</span></summary>
               <div class="voice-options">
@@ -71,6 +79,14 @@
         </section>
       </div>
     </main>
+    <dialog id="delete-dialog" aria-labelledby="delete-heading" aria-describedby="delete-consequences">
+      <h2 id="delete-heading"></h2>
+      <p id="delete-consequences"></p>
+      <form method="dialog" class="dialog-actions">
+        <button id="cancel-delete" value="cancel" class="secondary" autofocus>Отменить</button>
+        <button value="delete" class="destructive">Удалить</button>
+      </form>
+    </dialog>
     <script src="app.js"></script>
   </body>
 </html>

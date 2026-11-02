@@ -92,6 +92,9 @@ h2, h3 {
 
 #library-size {
   width: 100%;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
 }
 
 button, select, input, textarea {
@@ -149,10 +152,38 @@ select, input[type="search"] {
   margin-bottom: var(--space-4);
 }
 
-#text-heading {
+#title-form {
   min-width: 0;
   overflow-wrap: anywhere;
   flex: 1 1 180px;
+}
+
+#title-form label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#text-title {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+#title-actions {
+  margin-top: var(--space-2);
+}
+
+#title-error {
+  margin: var(--space-1) 0 0;
+}
+
+#title-error:empty {
+  display: none;
 }
 
 #voice-panel {
@@ -397,13 +428,14 @@ textarea {
 }
 
 .library-text {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
 #library .text-title {
-  flex-basis: 100%;
+  flex: 1;
   min-width: 0;
   padding: var(--space-2);
   font-weight: 400;
@@ -423,11 +455,51 @@ textarea {
   background: var(--selection);
 }
 
-#library .library-action {
-  min-height: 32px;
-  padding: var(--space-1) var(--space-2);
-  font-size: 13px;
-  font-weight: 400;
+.menu-trigger {
+  min-width: var(--control-height);
+  padding: var(--space-2);
+}
+
+.library-menu {
+  flex-basis: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+}
+.library-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+button.destructive {
+  color: var(--error);
+  background: var(--surface);
+  border-color: var(--error);
+}
+
+.library-menu .destructive {
+  margin-top: var(--space-2);
+}
+
+dialog {
+  max-width: min(480px, calc(100% - 32px));
+  padding: var(--space-6);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+dialog::backdrop {
+  background: rgb(20 30 45 / 45%);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: var(--space-3);
 }
 
 .library-narrations {
@@ -442,12 +514,16 @@ textarea {
   align-items: center;
   color: var(--muted);
   font-size: 14px;
+  padding-left: var(--space-2);
+  background: var(--surface-subtle);
+  border-radius: var(--radius);
 }
 
 #library .delete-narration {
-  min-height: 28px;
+  min-height: 40px;
+  min-width: 40px;
   padding: 0 var(--space-1);
-  color: var(--muted);
+  color: var(--error);
   background: transparent;
   border: 0;
   font-size: 18px;

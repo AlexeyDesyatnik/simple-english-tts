@@ -19,6 +19,14 @@ const biggerEl = document.getElementById("bigger");
 const playEl = document.getElementById("play");
 const progressEl = document.getElementById("paragraph-progress");
 const playbackErrorEl = document.getElementById("playback-error");
+const titleEl = document.getElementById("text-title");
+const titleActionsEl = document.getElementById("title-actions");
+const titleErrorEl = document.getElementById("title-error");
+const deleteDialogEl = document.getElementById("delete-dialog");
+let titleDirty = false;
+let replacingText = false;
+let savingTitle = false;
+let activeMenu = null;
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -260,6 +268,7 @@ async function startAfterReload() {
 async function actAfterFlush(body, clear = false) {
   try {
     await flushEdits();
+    await saveTitle();
     if (clear) clearSchedule();
     await act(body);
   } catch (e) {
@@ -268,13 +277,22 @@ async function actAfterFlush(body, clear = false) {
 }
 
 async function replaceText(body) {
+  if (replacingText) return false;
+  replacingText = true;
+  sourceEl.disabled = true;
+  titleEl.disabled = true;
   try {
     await flushEdits();
+    await saveTitle();
   } catch (e) {
+    replacingText = false;
+    sourceEl.disabled = false;
+    renderTitle();
+    if (titleErrorEl.textContent) titleEl.focus();
     showError(e.message);
-    return;
+    return false;
   }
-  sourceEl.disabled = true; // typing resumes only after a current snapshot has actually been rendered
+  // Typing resumes only after a current snapshot has actually been rendered.
   clearSchedule();
   try {
     await command(body);
@@ -290,25 +308,155 @@ async function replaceText(body) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
+  replacingText = false;
   sourceEl.disabled = false;
+  renderTitle();
+  return true;
 }
 
-function renameText(text) {
-  const title = window.prompt("Название текста", text.title);
-  if (title === null) return;
-  if (!title.trim()) return showError("Название текста не может быть пустым");
-  actAfterFlush({ command: "rename_text", id: text.id, title });
+function renderTitle() {
+  titleEl.disabled = replacingText || savingTitle || !snapshot.text?.id;
+  titleEl.placeholder = "Введите текст, чтобы дать ему название";
+  if (!titleDirty) titleEl.value = snapshot.text?.title ?? "";
+  titleActionsEl.hidden = !titleDirty;
 }
 
-function deleteText(text) {
-  if (!window.confirm(`Удалить текст «${text.title}» и его озвучки?`)) return;
-  replaceText({ command: "delete_text", id: text.id });
+async function saveTitle() {
+  if (!titleDirty) return;
+  const title = titleEl.value;
+  if (!title.trim()) {
+    titleErrorEl.textContent = "Название текста не может быть пустым";
+    titleEl.setAttribute("aria-invalid", "true");
+    titleEl.focus();
+    throw new Error(titleErrorEl.textContent);
+  }
+  savingTitle = true;
+  titleEl.disabled = true;
+  try {
+    await command({ command: "rename_text", id: snapshot.text.id, title });
+    await refresh();
+    if (snapshot.library_error) throw new Error(snapshot.library_error);
+    if (titleEl.value === title) titleDirty = false;
+  } finally {
+    savingTitle = false;
+    renderTitle();
+  }
 }
 
-function deleteNarration(text, narration) {
+async function renameText(text) {
+  if (await replaceText({ command: "open_text", id: text.id })) {
+    titleEl.focus();
+    titleEl.select();
+  }
+}
+
+function restoreLibraryFocus(trigger, textId) {
+  const row = [...libraryEl.querySelectorAll(".text-title")].find((el) => el.dataset.id === textId);
+  const label = trigger.getAttribute("aria-label");
+  const replacement = label ? [...(row?.closest("li").querySelectorAll("button") ?? [])]
+    .find((el) => el.getAttribute("aria-label") === label) ?? row : row;
+  (trigger.isConnected ? trigger : replacement ?? document.getElementById("new-text")).focus();
+}
+
+function confirmDeletion(heading, consequences, trigger, textId, remove) {
+  if (deleteDialogEl.open) return;
+  document.getElementById("delete-heading").textContent = heading;
+  document.getElementById("delete-consequences").textContent = consequences;
+  deleteDialogEl.returnValue = "cancel";
+  deleteDialogEl.addEventListener("close", async () => {
+    if (deleteDialogEl.returnValue === "delete") await remove();
+    restoreLibraryFocus(trigger, textId);
+  }, { once: true });
+  deleteDialogEl.showModal();
+  document.getElementById("cancel-delete").focus();
+}
+
+deleteDialogEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const buttons = [...deleteDialogEl.querySelectorAll("button")];
+  const first = buttons[0];
+  const last = buttons.at(-1);
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
+function deleteText(text, trigger) {
+  confirmDeletion(`Удалить текст «${text.title}»?`,
+    "Текст, его готовые озвучки и задания в очереди будут удалены из Библиотеки. Восстановить их нельзя.",
+    trigger, text.id, () => replaceText({ command: "delete_text", id: text.id }));
+}
+
+function deleteNarration(text, narration, trigger) {
   const label = narrationLabel(narration);
-  if (!window.confirm(`Удалить озвучку «${label}» для текста «${text.title}»?`)) return;
-  actAfterFlush({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }, true);
+  confirmDeletion(`Удалить озвучку «${label}»?`,
+    `Готовая озвучка текста «${text.title}» будет удалена. Сам текст останется; озвучку можно создать заново.`,
+    trigger, text.id, () => actAfterFlush(
+      { command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }, true));
+}
+
+function closeMenu(restore = true) {
+  if (!activeMenu) return;
+  const { menu, trigger } = activeMenu;
+  menu.hidden = true;
+  trigger.setAttribute("aria-expanded", "false");
+  activeMenu = null;
+  if (restore) trigger.focus();
+}
+
+function libraryMenu(text, trigger) {
+  const menu = document.createElement("div");
+  menu.id = `text-menu-${text.id}`;
+  menu.className = "library-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", `Действия с текстом «${text.title}»`);
+  menu.hidden = true;
+  trigger.setAttribute("aria-controls", menu.id);
+  const actions = [
+    ["Переименовать", () => renameText(text)],
+    ["Удалить текст…", () => deleteText(text, trigger)],
+  ];
+  for (const [label, action] of actions) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.tabIndex = -1;
+    item.setAttribute("role", "menuitem");
+    item.className = label.startsWith("Удалить") ? "secondary destructive" : "secondary";
+    item.textContent = label;
+    item.addEventListener("click", () => { closeMenu(); action(); });
+    menu.append(item);
+  }
+  function openMenu(last = false) {
+    closeMenu(false);
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    activeMenu = { menu, trigger };
+    (last ? menu.lastElementChild : menu.firstElementChild).focus();
+  }
+  trigger.addEventListener("click", () => activeMenu?.trigger === trigger ? closeMenu() : openMenu());
+  trigger.addEventListener("keydown", (e) => {
+    if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
+    e.preventDefault();
+    openMenu(e.key === "ArrowUp");
+  });
+  menu.addEventListener("keydown", (e) => {
+    const items = [...menu.children];
+    const index = items.indexOf(document.activeElement);
+    const positions = { ArrowDown: (index + 1) % items.length,
+      ArrowUp: (index + items.length - 1) % items.length, Home: 0, End: items.length - 1 };
+    if (e.key in positions) {
+      e.preventDefault();
+      items[positions[e.key]].focus();
+    } else if (e.key === "Escape" || e.key === "Tab") {
+      closeMenu();
+      if (e.key === "Escape") e.preventDefault();
+    }
+  });
+  return menu;
 }
 
 function formatBytes(bytes) {
@@ -322,6 +470,11 @@ function renderLibrary(library, currentId) {
   librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер неизвестен" : formatBytes(snapshot.library_bytes);
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
+    const focused = document.activeElement;
+    const focusedId = focused.closest("#library > li")?.querySelector(".text-title").dataset.id;
+    const menuId = activeMenu?.menu.id;
+    const menuIndex = activeMenu ? [...activeMenu.menu.children].indexOf(focused) : -1;
+    closeMenu(false);
     shownLibrary = key;
     libraryEl.replaceChildren(
       ...library.map((t) => {
@@ -334,17 +487,14 @@ function renderLibrary(library, currentId) {
         open.textContent = t.title;
         open.dataset.id = t.id;
         open.addEventListener("click", () => replaceText({ command: "open_text", id: t.id }));
-        const rename = document.createElement("button");
-        rename.type = "button";
-        rename.className = "secondary library-action";
-        rename.textContent = "Переименовать";
-        rename.addEventListener("click", () => renameText(t));
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "secondary library-action";
-        remove.textContent = "Удалить";
-        remove.addEventListener("click", () => deleteText(t));
-        row.append(open, rename, remove);
+        const trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "secondary menu-trigger";
+        trigger.textContent = "⋯";
+        trigger.setAttribute("aria-label", `Действия с текстом «${t.title}»`);
+        trigger.setAttribute("aria-haspopup", "menu");
+        trigger.setAttribute("aria-expanded", "false");
+        row.append(open, trigger, libraryMenu(t, trigger));
 
         const narrations = document.createElement("div");
         narrations.className = "library-narrations";
@@ -362,7 +512,7 @@ function renderLibrary(library, currentId) {
           removeNarration.textContent = "×";
           removeNarration.title = `Удалить озвучку ${label}`;
           removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
-          removeNarration.addEventListener("click", () => deleteNarration(t, n));
+          removeNarration.addEventListener("click", () => deleteNarration(t, n, removeNarration));
           ready.append(icon, ` ${label}`, removeNarration);
           narrations.append(ready);
         }
@@ -370,9 +520,19 @@ function renderLibrary(library, currentId) {
         return li;
       }),
     );
+    const menu = menuId ? document.getElementById(menuId) : null;
+    if (menu && !deleteDialogEl.open) {
+      const trigger = menu.previousElementSibling;
+      menu.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      activeMenu = { menu, trigger };
+      if (menuIndex >= 0) menu.children[menuIndex].focus();
+    } else if (focusedId && !deleteDialogEl.open) restoreLibraryFocus(focused, focusedId);
   }
   for (const button of libraryEl.querySelectorAll(".text-title")) {
     button.classList.toggle("current", button.dataset.id === currentId);
+    if (button.dataset.id === currentId) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
   }
 }
 
@@ -581,6 +741,7 @@ function render(next) {
     sourceEl.value = snapshot.text?.content ?? "";
   }
   if (first || textChanged) shownTextId = textId;
+  renderTitle();
   if (first && editVersion === savedVersion) {
     const saveError = snapshot.text?.save_error;
     if (saveError) {
@@ -639,6 +800,7 @@ async function actOnTypedText(body) {
   try {
     const edited = editVersion !== savedVersion;
     await flushEdits();
+    await saveTitle();
     if (edited) clearSchedule();
     await act(body);
   } catch (e) {
@@ -673,6 +835,40 @@ sourceEl.addEventListener("input", () => {
   editVersion++;
   showSaveState("unsaved");
   scheduleSave();
+});
+
+titleEl.addEventListener("input", () => {
+  titleDirty = true;
+  titleActionsEl.hidden = false;
+  titleErrorEl.textContent = "";
+  titleEl.removeAttribute("aria-invalid");
+});
+
+function cancelTitle() {
+  titleDirty = false;
+  titleErrorEl.textContent = "";
+  titleEl.removeAttribute("aria-invalid");
+  renderTitle();
+  titleEl.focus();
+}
+
+document.getElementById("cancel-title").addEventListener("click", cancelTitle);
+titleEl.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); cancelTitle(); }
+});
+document.getElementById("title-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await flushEdits();
+    await saveTitle();
+    titleEl.focus();
+  } catch (error) {
+    titleErrorEl.textContent = error.message;
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (activeMenu && !activeMenu.trigger.contains(e.target) && !activeMenu.menu.contains(e.target)) closeMenu();
 });
 
 function togglePlayback() {
@@ -718,7 +914,7 @@ function typing(e) {
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (typing(e) || e.target.closest("#voice-panel")) return;
+  if (typing(e) || e.target.closest("#voice-panel, #library, dialog, #title-form") || deleteDialogEl.open) return;
   // The keys also win over a focused button, radio or list, which would otherwise take them too.
   e.preventDefault();
   if (!e.repeat) key();
@@ -726,7 +922,7 @@ document.addEventListener("keydown", (e) => {
 
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && !typing(e) && !e.target.closest("#voice-panel")) e.preventDefault();
+  if (e.code === "Space" && !typing(e) && !e.target.closest("#voice-panel, #library, dialog, #title-form") && !deleteDialogEl.open) e.preventDefault();
 });
 
 librarySearchEl.addEventListener("input", () => {

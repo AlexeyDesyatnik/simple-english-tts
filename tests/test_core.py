@@ -466,6 +466,18 @@ def test_a_renamed_text_keeps_its_title_after_a_restart_and_is_found_by_it(make_
     assert [t["title"] for t in restarted.snapshot()["library"]] == ["6B, Unit 3"]
 
 
+def test_the_current_text_title_is_available_even_when_library_search_hides_it(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Tom has a cat.")
+    assert core.snapshot()["text"]["title"] == "Tom has a cat."
+    core.rename_text(core.snapshot()["text"]["id"], "6B, Unit 3")
+    core.search_library("absent")
+
+    snapshot = core.snapshot()
+    assert snapshot["library"] == []
+    assert snapshot["text"]["title"] == "6B, Unit 3"
+
+
 def test_editing_a_renamed_text_keeps_its_custom_title(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text("Tom has a cat.")

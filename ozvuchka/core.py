@@ -401,6 +401,10 @@ class Core:
             self._start_when_safe()
             text = None if self._text is None else {
                 "id": self._text_id,
+                "title": next(
+                    (t.title or _title(t.content) for t in self._library if t.id == self._text_id),
+                    _title(self._text),
+                ),
                 "content": self._text,
                 "save_error": self._text_save_error,
                 "paragraphs": [self._paragraph_state(p) for p in self._paragraphs],
