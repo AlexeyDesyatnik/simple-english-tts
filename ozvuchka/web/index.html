@@ -11,7 +11,10 @@
       <ul id="library"></ul>
     </details>
     <section class="working-area" aria-labelledby="text-title">
-      <header class="text-header"><p class="eyebrow">Подготовка к уроку</p><h2 id="text-title">Новый текст</h2></header>
+      <header class="text-header">
+        <div><p class="eyebrow">Подготовка к уроку</p><h2 id="text-title">Новый текст</h2></div>
+        <button id="stop" type="button" class="secondary" title="Остановить воспроизведение и вернуться к редактированию"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v16h-6M13 12H3m4-4-4 4 4 4"/></svg>К редактированию</button>
+      </header>
       <div class="preparation">
         <div class="settings">
           <details id="voice-panel"><summary>Голос · <span id="selected-voice"></span></summary><ul id="voices"></ul></details>
@@ -23,8 +26,13 @@
       </div>
       <div class="transport">
         <div class="controls">
-          <button id="play" type="button">Воспроизвести</button><button id="pause" type="button">Пауза</button><button id="stop" type="button" class="secondary">К редактированию</button><button id="enqueue" type="button" class="secondary">Подготовить озвучку</button>
-          <span class="reading-navigation"><button id="previous" type="button" class="secondary">Назад</button><button id="repeat" type="button" class="secondary">Повторить</button><button id="next" type="button" class="secondary">Вперёд</button></span>
+          <span class="playback-transport" role="group" aria-label="Воспроизведение">
+            <button id="previous" type="button" class="secondary playback-only">Назад</button>
+            <button id="play" type="button">Воспроизвести</button><button id="pause" type="button">Пауза</button>
+            <button id="next" type="button" class="secondary playback-only">Вперёд</button>
+          </span>
+          <button id="repeat" type="button" class="secondary playback-only">Повторить абзац</button>
+          <button id="enqueue" type="button" class="secondary">Подготовить озвучку</button>
           <span class="text-size"><button id="smaller" type="button" class="secondary" aria-label="Уменьшить размер текста">A−</button><button id="bigger" type="button" class="secondary" aria-label="Увеличить размер текста">A+</button></span>
         </div>
         <div class="feedback"><span id="position"></span><p id="status" role="status"></p></div>

@@ -5,8 +5,9 @@ Date: 2026-11-03. Branch: `experiment-2`. Issue: [#28](https://github.com/Alexey
 ## Review gate
 
 **Awaiting the developer's visual review. Do not begin stage 2 or close #28.**
-No direction approval has been recorded. The screenshots below are the candidate for
-that review. Incorporate bounded visual corrections here if requested. Other branches
+The developer approved the transport arrangement described below as a bounded visual
+correction; this is not approval to start stage 2 or close #28. The screenshots below
+remain the candidate for overall review. Other branches
 and their Issues are independent alternatives and are not inputs to this work.
 
 ## Scope and decisions
@@ -29,6 +30,24 @@ The reading measure is 68ch; Text size remains the existing Core setting. Curren
 Paragraph scrolling accounts for the sticky transport and tall Paragraphs. Native
 controls retain their keyboard input; readable Paragraphs support Enter/Space. Focus
 moves between the primary transport actions and returns to the editor on Stop.
+
+### Approved transport correction, 2026-11-03
+
+The developer requested a more logical button order and a distinct exit from Playback
+mode, then approved this proposal: previous Paragraph, Pause/Continue, next Paragraph
+form one group; `Повторить абзац` follows with a gap. `К редактированию` is in the Text
+header with an exit SVG, explanatory tooltip and a border below the header. On narrow
+windows the exit remains on its own row above the transport. The Text size tools wrap
+beside repeat below the navigation group. The specification now records this arrangement
+for stage 5 (#32); stage 6 (#33) still completes keyboard/focus journeys.
+
+Only HTML/CSS and documentation changed in this correction. Existing commands, primary
+action state wiring and audio behavior are unchanged. Rechecked the actual page with
+the isolated 20-Text fixture at 1280 × 720 and 390 × 844: the controls are visible in
+the agreed order, no horizontal overflow, Pause/Continue works, and exit returns the
+Text and editor focus. Updated `playback-1280.jpg` and `playback-390.jpg` accordingly.
+Correction checks: pytest with `--basetemp=.cache/pytest-issue28-transport-20261103`
+passed (109 tests, 6 slow tests deselected); mypy, ruff and `git diff --check` passed.
 
 No Core/HTTP contract, synthesis, audio scheduling, Voice catalogue, queue semantics,
 heartbeat or persistence protocol changed. Saving still happens through the existing
@@ -94,7 +113,7 @@ Screenshots are actual page captures, retained as project files:
 - [Playback mode paused, 390 × 844](playback-390.jpg)
 - [Preparation, 1440 × 900](preparation-1440.jpg)
 - [Preparation, 640 × 360 CSS viewport, full page](preparation-640.jpg)
-- [Large Text, 1280 × 720](playback-large-1280.jpg)
+- [Large Text, 1280 × 720, before the transport correction](playback-large-1280.jpg)
 
 ## Checks
 

@@ -98,7 +98,19 @@ Expose previous Paragraph, repeat, and next Paragraph through existing Core comm
 Show position such as `Абзац 2 из 8`, counting readable Paragraphs.
 
 Provide `К редактированию`, which stops through the existing command and returns to
-the prepared Text. Do not show enqueue here. Keep Text size controls near the reading
+the prepared Text. Place it beside the Text title in a separate header row, with an
+exit SVG and a tooltip explaining that it stops playback and returns to editing.
+Separate that row from the transport with spacing and a border; in narrow windows
+keep the exit on its own row above the transport.
+
+Group the transport in the order previous Paragraph, primary Pause/Continue action,
+next Paragraph. Put `Повторить абзац` beside that group with a small gap, retaining
+one filled primary action. Keep the navigation group together in narrow windows
+where it fits, with repeat and Text size tools wrapping below it.
+This arrangement was approved during the stage 1 visual review on 2026-11-03;
+stage 5 completes its behavior and integrated verification.
+
+Do not show enqueue here. Keep Text size controls near the reading
 tools and provide compact keyboard help and a hint about starting from a Paragraph.
 
 Centre reading Text and constrain line length relative to Text size, initially around
