@@ -2,6 +2,12 @@
 
 An offline program that reads English texts aloud during English lessons. See `GLOSSARY.md` for the terms and `docs/adr/` for the decisions.
 
+## Independent UI design track
+
+The `experiment-2` branch follows [the UI design specification](docs/ui-design-spec.md),
+including its ten implementation Issues. This is an independent alternative to the
+other branches' implementations; their Issues are not part of this track.
+
 ## Development
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
