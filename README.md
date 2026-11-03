@@ -2,6 +2,45 @@
 
 An offline program that reads English texts aloud during English lessons. See `GLOSSARY.md` for the terms and `docs/adr/` for the decisions.
 
+## Experimental v0.2 build for older CPUs
+
+Branch `codex/v0.2-numpy-legacy` starts at tag `v0.2` (`54702d2`) and changes NumPy
+from 2.5.4 to 2.3.5; application code and all other dependency versions stay at v0.2.
+NumPy 2.3.5's Windows x64 wheel reports SSE, SSE2 and SSE3 as its CPU baseline,
+before NumPy 2.4 raised the default to x86-64-v2
+([NumPy CPU requirements](https://numpy.org/doc/2.3/reference/simd/build-options.html#special-options)).
+Compatibility of the whole program with the Athlon II X2 250 is still to be checked
+on that computer: other native dependencies may have their own CPU requirements.
+Track the experiment in [#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26).
+
+Build a distinctly named test zip with:
+
+```bat
+tools\build.bat release -Version 0.2-numpy2.3.5
+runtime\python.exe -X utf8 tools\smoke_test.py dist\ozvuchka-0.2-numpy2.3.5.zip
+```
+
+For GitHub Actions, download `ozvuchka-zip` from a successful run of this branch,
+not from `main`. Actions uses `git describe` for the zip and `version.txt`, so its
+version includes the number of commits after v0.2 and the experimental commit hash.
+
+Unblock the zip before unpacking (below), then unpack into a **fresh folder** on
+the Athlon computer; do not overlay the original 0.2 installation. In PowerShell
+opened in the unpacked program folder, first check NumPy independently:
+
+```powershell
+.\runtime\python.exe -X utf8 -c "import numpy as np; print(np.__version__); np.show_config()"
+"Exit code: $LASTEXITCODE"
+```
+
+Expect version `2.3.5`, a baseline of SSE/SSE2/SSE3 and exit code 0. Then start
+`Озвучка.exe`, enter a new Text such as "Hello. This is a test.", synthesize and
+play its Narration, close the program, wait at least 10 seconds and reopen it.
+Check that `data\ozvuchka.log` exists and record the result in #26 and
+`docs/manual-checks.md`. If startup fails, capture the console output of
+`runtime\python.exe -X utf8 -m ozvuchka` and its exit code. Early diagnostics are
+unchanged in this experiment; their fix is tracked separately in #25.
+
 ## Development
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:

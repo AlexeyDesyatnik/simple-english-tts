@@ -15,3 +15,5 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 ## Waiting for the work
 
 Checks the issues ask for, to be done once the work is in a release:
+
+- [ ] #26 — On Windows 10 Home 22H2 x64, AMD Athlon II X2 250, 8 GB RAM, unpack the experimental `codex/v0.2-numpy-legacy` build into a fresh folder (not the build from `main`). Follow README's "Experimental v0.2 build for older CPUs": confirm NumPy 2.3.5 imports with exit code 0, start the launcher, synthesize and play a new Narration, close and reopen the program, and check `data\ozvuchka.log`. Record the build version, outcome and any errors in #26.
