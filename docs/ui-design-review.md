@@ -166,22 +166,15 @@ Next Paragraphs
 
 These diagrams express hierarchy, not final dimensions or styling.
 
-## Next step: a visual prototype
+## Visual prototype awaiting review
 
-The approved next step is a browser-checkable visual prototype, not the immediate implementation of every recommendation and not a batch of new Issues.
+The browser-checkable visual prototype was implemented in commit `ad35c09` on the `experiment` branch. It uses the existing plain HTML/CSS/JavaScript page and current state/commands; no parallel application, framework, build step or online dependency was introduced.
 
-Prototype two screens:
-
-1. **Workspace at 1280 × 800:** Library, Text editor, Voice, Speed and the primary playback action. The Text and primary action must be visible without scrolling.
-2. **Playback mode:** transport bar, status and the strongly highlighted current Paragraph.
-
-The prototype should make the layout, spacing, typography, icons and control states concrete enough for the developer to review. Use the existing plain HTML/CSS/JavaScript page and its current state/commands rather than introducing a parallel application, framework or build step. Full implementation of every stage is out of scope; keep existing interactions working where practical and state any temporary limitation explicitly.
-
-The prototype may propose answers to the open decisions below, but those answers remain subject to developer review. Do not create the implementation subtasks until that review has approved the direction.
+The prototype makes the layout, spacing, typography, icons and control states concrete. It does not implement every recommendation: native `prompt` and `confirm` dialogs remain for Rename and deletion. The open decisions below still require developer review.
 
 ## Screenshot record
 
-The screenshots captured during the original review have session-local paths and are not durable project sources. Recapture only three canonical “before” images:
+The screenshots captured during the original review have session-local paths and are not durable project sources. The three canonical “before” images are stored in:
 
 ```text
 docs/assets/ui-design-review/
@@ -190,19 +183,26 @@ docs/assets/ui-design-review/
 └── playback-before.png
 ```
 
-- `workspace-1280-before.png`: the first screen at 1280 × 800 with a populated Library.
-- `editor-before.png`: the Text editor and controls reached by scrolling.
-- `playback-before.png`: Playback mode with the current Paragraph highlighted.
+- [Workspace at 1280 × 800](assets/ui-design-review/workspace-1280-before.png): the first screen with a populated Library.
+- [Text editor and controls](assets/ui-design-review/editor-before.png): the editor and controls reached by scrolling.
+- [Playback mode](assets/ui-design-review/playback-before.png): the current Paragraph highlighted.
 
-Baseline captured on 2026-11-03:
+These baseline images were captured on 2026-11-03. Keep them stable. Put “after” and intermediate prototype screenshots in the relevant implementation Issue or pull request rather than accumulating every variant in the repository. Screenshots do not replace manual projector checks of contrast and readability from the back rows.
 
-- [Workspace at 1280 × 800](assets/ui-design-review/workspace-1280-before.png)
-- [Text editor and controls](assets/ui-design-review/editor-before.png)
-- [Playback mode](assets/ui-design-review/playback-before.png)
+## Developer review checklist
 
-One or two key images may also be attached to Issue #27 for discussion.
+Review the actual page, not only the code or baseline images:
 
-Keep the baseline images stable. Put “after” and intermediate prototype screenshots in the relevant implementation Issue or pull request rather than accumulating every variant in the repository. Screenshots do not replace manual projector checks of contrast and readability from the back rows.
+1. Check out `experiment` and start the program with `runtime\python.exe -X utf8 -m ozvuchka`.
+2. Open `http://127.0.0.1:8770` at 1280 × 800 with a populated Library.
+3. In the Workspace, check that the Text editor, Voice, Speed and «Слушать» are visible without scrolling. Review the 340 px Library column, the fluid editor column and the proposed 900 px responsive breakpoint.
+4. Review the compact Voice picker with its adjacent Listen action, the Narration chips, the per-Text overflow menu and the permanent Text save state.
+5. Start playback. Review the «Слушать» / «Пауза» / «Продолжить» toggle, the visible Previous / Repeat / Next controls, disabled Stop and navigation states, hidden Enqueue and sticky transport bar.
+6. Confirm that the blue selected Text and yellow current Paragraph are unmistakable, and that skipped Paragraphs remain clear. Check Text size controls and scrolling.
+7. Check keyboard operation and visible focus, then a narrow layout around 390 px. Include long Text titles and the complete Voice list.
+8. Decide whether each proposal under “Open decisions” is approved or needs adjustment.
+
+Record the review outcome in Issue #27. If the direction is approved, split the implementation into the three stages below. If changes are requested, adjust the prototype first. Do not create implementation Issues before that decision. The projector check remains listed in `docs/manual-checks.md`.
 
 ## Implementation stages after prototype approval
 
@@ -227,16 +227,18 @@ Do not create a separate Issue for every button: the UI is concentrated in a few
 
 ## Open decisions
 
-- Final column widths and responsive breakpoint.
-- Voice cards versus a compact picker.
-- Exact Russian labels for the primary action and Paragraph navigation.
-- Which status and save-state details belong permanently on screen.
-- Final color tokens and the extent of surface elevation.
+The prototype proposes the following answers; none is approved yet:
+
+- **Columns and breakpoint:** a 340 px Library column, a fluid editor column and a 900 px single-column breakpoint.
+- **Voice selection:** a compact picker with one adjacent Listen action rather than Voice cards.
+- **Russian labels:** «Слушать», «Пауза» and «Продолжить»; «Предыдущий абзац», «Повторить абзац» and «Следующий абзац» for Paragraph navigation.
+- **Status and save state:** a permanent Text save-state label, one stable status area and a progress indicator only while synthesis is active.
+- **Visual tokens:** white surfaces on the warm neutral background, 12 px radii, subtle borders and very light shadows.
 
 ## Handoff to a fresh session
 
 1. Read this document and Issue #27 on the `experiment` branch.
 2. Inspect the current worktree and preserve any existing work; do not modify or link the main-branch Issues.
-3. Start the visual prototype described above. Do not begin by creating more Issues or implementing all three stages.
-4. Recapture and store the three baseline screenshots if they are not already present.
-5. Run the actual page in the built-in browser and present the two prototype screens for review before splitting the implementation into subtasks.
+3. Run the actual page and use the developer review checklist above. The prototype and baseline screenshots already exist; keep the baseline stable.
+4. Record the developer's decision in Issue #27. Do not create implementation Issues or start all three stages before approval.
+5. After approval, create the three substantial implementation Issues and begin with Workspace and playback hierarchy.
