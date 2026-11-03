@@ -15,3 +15,13 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 ## Waiting for the work
 
 Checks the issues ask for, to be done once the work is in a release:
+
+## experiment-2 visual direction (#28)
+
+Use the `experiment-2` candidate after the developer has reviewed its visual direction;
+do not substitute another branch's build. Browser verification is recorded in
+`docs/design-reviews/issue-28/README.md`.
+
+- [ ] **Projector/classroom, #28:** check UI labels, blue Library selection, and yellow current Paragraph with its blue edge from the back rows at the chosen Text size.
+- [ ] **School laptops, #28:** check preparation and Playback mode responsiveness with 20 Texts and a long Text on the Celeron and i5.
+- [ ] **Presenter remote, #28:** check pause/resume, previous/next Paragraph and repeat in Playback mode, including after using the native controls and disclosures.

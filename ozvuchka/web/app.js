@@ -16,6 +16,11 @@ const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
+const libraryPanelEl = document.getElementById("library-panel");
+const narrowWindow = matchMedia("(max-width: 959px)");
+libraryPanelEl.open = !narrowWindow.matches;
+narrowWindow.addEventListener("change", (event) => { libraryPanelEl.open = !event.matches; });
+let shownTitle = "Новый текст";
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -224,6 +229,7 @@ function renderLibrary(library, currentId) {
         open.type = "button";
         open.className = "text-title";
         open.textContent = t.title;
+        open.title = t.title;
         open.dataset.id = t.id;
         open.addEventListener("click", () => {
           clearSchedule();
@@ -239,7 +245,13 @@ function renderLibrary(library, currentId) {
         remove.className = "secondary library-action";
         remove.textContent = "Удалить";
         remove.addEventListener("click", () => deleteText(t));
-        row.append(open, rename, remove);
+        const actions = document.createElement("details");
+        actions.className = "row-actions";
+        const menu = document.createElement("summary");
+        menu.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+        menu.setAttribute("aria-label", `Действия с текстом «${t.title}»`);
+        actions.append(menu, rename, remove);
+        row.append(open, actions);
 
         const narrations = document.createElement("div");
         narrations.className = "library-narrations";
@@ -248,17 +260,14 @@ function renderLibrary(library, currentId) {
           const ready = document.createElement("span");
           ready.className = "ready-narration";
           ready.title = `Готовая озвучка: ${label}`;
-          const icon = document.createElement("span");
-          icon.setAttribute("aria-hidden", "true");
-          icon.textContent = "♪";
           const removeNarration = document.createElement("button");
           removeNarration.type = "button";
           removeNarration.className = "delete-narration";
-          removeNarration.textContent = "×";
+          removeNarration.textContent = "Удалить";
           removeNarration.title = `Удалить озвучку ${label}`;
           removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
           removeNarration.addEventListener("click", () => deleteNarration(t, n));
-          ready.append(icon, ` ${label}`, removeNarration);
+          ready.append(`Готово · ${label}`, removeNarration);
           narrations.append(ready);
         }
         li.append(row, narrations);
@@ -268,6 +277,8 @@ function renderLibrary(library, currentId) {
   }
   for (const button of libraryEl.querySelectorAll(".text-title")) {
     button.classList.toggle("current", button.dataset.id === currentId);
+    if (button.dataset.id === currentId) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
   }
 }
 
@@ -284,6 +295,9 @@ function playSample(voiceId) {
 }
 
 function renderVoices() {
+  const selectedVoice = snapshot.voices.find((v) => v.id === snapshot.voice);
+  document.getElementById("selected-voice").textContent = snapshot.voices_loading
+    ? "Загрузка…" : `${selectedVoice?.label.split(" — ")[0] ?? "Не выбран"}${selectedVoice && !selectedVoice.available ? " · недоступен" : ""}`;
   const key = JSON.stringify([snapshot.voices, snapshot.speeds, snapshot.voices_loading]);
   if (key !== shownVoices) {
     shownVoices = key;
@@ -326,6 +340,7 @@ function narrationLabel(narration) {
 
 function renderQueue(queue) {
   queuePanelEl.hidden = queue.length === 0;
+  document.getElementById("queue-count").textContent = queue.length;
   const key = JSON.stringify(queue.map((n) => n.id));
   if (key !== shownQueue) {
     shownQueue = key;
@@ -354,13 +369,23 @@ function renderQueue(queue) {
   });
 }
 
-function renderParagraphs(text) {
+function renderParagraphs(text, textSizeChanged) {
   if (text?.content !== shownContent) {
     shownContent = text?.content ?? null;
     paragraphsEl.replaceChildren(
       ...(text?.paragraphs ?? []).map((p, i) => {
         const li = document.createElement("li");
         li.textContent = p.text;
+        if (p.status !== "skipped") {
+          li.tabIndex = 0;
+          li.setAttribute("role", "button");
+          li.addEventListener("keydown", (event) => {
+            if (event.code !== "Enter" && event.code !== "Space") return;
+            event.preventDefault();
+            event.stopPropagation();
+            playFrom(i);
+          });
+        }
         li.addEventListener("click", () => playFrom(i));
         return li;
       }),
@@ -371,10 +396,13 @@ function renderParagraphs(text) {
   (text?.paragraphs ?? []).forEach((p, i) => {
     const li = paragraphsEl.children[i];
     const current = highlighted === i;
-    if (current && !li.classList.contains("current")) {
+    if (current && (textSizeChanged || !li.classList.contains("current"))) {
       // On a projector the class reads ahead, so the current Paragraph is kept in the middle of the screen.
-      const block = document.body.classList.contains("playback") ? "center" : "nearest";
-      li.scrollIntoView({ block, behavior: "smooth" });
+      const transportHeight = document.querySelector(".transport").getBoundingClientRect().height;
+      li.style.scrollMarginTop = `${transportHeight + 16}px`;
+      const tall = li.getBoundingClientRect().height > innerHeight - transportHeight - 48;
+      const block = document.body.classList.contains("playback") ? (tall ? "start" : "center") : "nearest";
+      li.scrollIntoView({ block, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     }
     li.className = [p.status === "skipped" && "skipped", p.status === "failed" && "failed", current && "current"]
       .filter(Boolean)
@@ -392,11 +420,14 @@ function formatDuration(seconds) {
 
 function statusText(text, playback) {
   if (snapshot.library_error) return [snapshot.library_error, "error"];
+  if (playback.state === "stopped" && sourceEl.value !== (text?.content ?? "")) {
+    return ["Текст изменён. Будет сохранён при запуске или подготовке озвучки.", ""];
+  }
   if (!text) return ["", ""];
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
-  if (blocked && playback.state === "paused") return ["Нажмите Play, чтобы продолжить", ""];
+  if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы продолжить", ""];
   if (playback.state === "waiting") {
     if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
     if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
@@ -410,32 +441,53 @@ function statusText(text, playback) {
   if (playback.state === "paused") parts.push("Пауза");
   if (progress) parts.push(`Озвучено абзацев: ${ready} из ${readable.length}`);
   if (snapshot.voices_loading && snapshot.queue.length) parts.push("Голоса загружаются…");
+  if (readable.length && ready === readable.length) parts.push(`Озвучка готова · ${ready} из ${readable.length} абзацев`);
   return [parts.join(" · "), ""];
 }
 
 function renderTextSize() {
+  const changed = paragraphsEl.style.fontSize !== `${snapshot.text_size}px`;
   paragraphsEl.style.fontSize = `${snapshot.text_size}px`;
   const at = snapshot.text_sizes.indexOf(snapshot.text_size);
   smallerEl.disabled = at <= 0;
   biggerEl.disabled = at === snapshot.text_sizes.length - 1;
+  return changed;
 }
 
 function render(next) {
   const first = snapshot === null;
+  const transportFocus = document.activeElement?.id;
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
   document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
   renderVoices();
-  renderTextSize();
+  const textSizeChanged = renderTextSize();
   const textId = snapshot.text?.id ?? null;
+  const previousTextId = shownTextId;
   if (first || textId !== shownTextId) {
     shownTextId = textId;
     if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
   }
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
+  const currentText = snapshot.library.find((t) => t.id === textId);
+  if (currentText) shownTitle = currentText.title;
+  else if (!textId) shownTitle = "Новый текст";
+  else if (textId !== previousTextId) shownTitle = snapshot.text.content.split("\n")[0];
+  document.getElementById("text-title").textContent = shownTitle;
+  const playing = ["playing", "waiting"].includes(snapshot.playback.state);
+  document.getElementById("play").hidden = playing;
+  document.getElementById("play").textContent = snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
+  document.getElementById("pause").hidden = !playing;
+  if (transportFocus === (playing ? "play" : "pause")) {
+    document.getElementById(playing ? "pause" : "play").focus({ preventScroll: true });
+  }
+  const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
+  const current = snapshot.text?.paragraphs[snapshot.playback.paragraph];
+  document.getElementById("position").textContent = snapshot.playback.state === "stopped" ? ""
+    : `Абзац ${Math.max(1, readable.indexOf(current) + 1)} из ${readable.length}`;
   renderQueue(snapshot.queue);
-  renderParagraphs(snapshot.text);
+  renderParagraphs(snapshot.text, textSizeChanged);
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
   statusEl.className = className;
@@ -517,6 +569,9 @@ async function moveParagraph(name) {
 }
 
 document.getElementById("play").addEventListener("click", play);
+for (const [id, name] of [["previous", "previous_paragraph"], ["repeat", "repeat_paragraph"], ["next", "next_paragraph"]]) {
+  document.getElementById(id).addEventListener("click", () => moveParagraph(name));
+}
 
 // Another Speed is another Narration: the core stops the one playing.
 speedEl.addEventListener("change", () => {
@@ -544,14 +599,14 @@ const KEYS = {
 
 // Playback shortcuts must not steal keys while the teacher types in a field.
 function typing(e) {
-  return e.target === librarySearchEl || (e.target === sourceEl && !document.body.classList.contains("playback"));
+  return e.target.closest("input, textarea, select, button, summary, [role=button], [contenteditable=true]");
 }
 
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (typing(e)) return;
-  // The keys also win over a focused button, radio or list, which would otherwise take them too.
+  // Native controls keep their own keys; the reading background handles playback shortcuts.
   e.preventDefault();
   if (!e.repeat) key();
 });
@@ -572,9 +627,10 @@ document.getElementById("new-text").addEventListener("click", () => {
   act({ command: "new_text" });
 });
 
-document.getElementById("stop").addEventListener("click", () => {
+document.getElementById("stop").addEventListener("click", async () => {
   clearSchedule();
-  act({ command: "stop" });
+  await act({ command: "stop" });
+  sourceEl.focus({ preventScroll: true });
 });
 
 // ---------------------------------------------------------------- heartbeat
