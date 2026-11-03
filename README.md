@@ -2,6 +2,15 @@
 
 An offline program that reads English texts aloud during English lessons. See `GLOSSARY.md` for the terms and `docs/adr/` for the decisions.
 
+NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
+Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
+([release notes](https://numpy.org/doc/stable/release/2.4.0-notes.html#modulate-dispatched-x86-cpu-features)).
+The isolated v0.2 build with 2.3.5 was tested successfully on the Athlon and an
+11th-generation Core i5 laptop. The developer accepted these checks as sufficient;
+the perceived speed difference was minimal, without timed measurements
+([#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)).
+Review older-CPU support before upgrading this dependency.
+
 ## Development
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
