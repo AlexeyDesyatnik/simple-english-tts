@@ -15,3 +15,5 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 ## Waiting for the work
 
 Checks the issues ask for, to be done once the work is in a release:
+
+- [ ] #27: On the projector from the back rows, check the current-Paragraph highlight, skipped and error states, and the largest Text size.

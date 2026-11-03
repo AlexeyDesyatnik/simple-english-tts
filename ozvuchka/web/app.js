@@ -16,6 +16,11 @@ const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
+const playEl = document.getElementById("play");
+const stopEl = document.getElementById("stop");
+const listenVoiceEl = document.getElementById("listen-voice");
+const saveStateEl = document.getElementById("save-state");
+const progressEl = document.getElementById("synthesis-progress");
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
@@ -211,7 +216,9 @@ function formatBytes(bytes) {
 }
 
 function renderLibrary(library, currentId) {
-  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер неизвестен" : formatBytes(snapshot.library_bytes);
+  librarySizeEl.textContent = snapshot.library_bytes === null
+    ? "На диске: неизвестно"
+    : `На диске: ${formatBytes(snapshot.library_bytes)}`;
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
     shownLibrary = key;
@@ -224,22 +231,38 @@ function renderLibrary(library, currentId) {
         open.type = "button";
         open.className = "text-title";
         open.textContent = t.title;
+        open.title = t.title;
         open.dataset.id = t.id;
         open.addEventListener("click", () => {
           clearSchedule();
           act({ command: "open_text", id: t.id });
         });
+        const menu = document.createElement("details");
+        menu.className = "row-menu";
+        const summary = document.createElement("summary");
+        summary.textContent = "⋯";
+        summary.title = "Действия с текстом";
+        summary.setAttribute("aria-label", `Действия с текстом ${t.title}`);
+        const actions = document.createElement("div");
+        actions.className = "menu-popover";
         const rename = document.createElement("button");
         rename.type = "button";
-        rename.className = "secondary library-action";
         rename.textContent = "Переименовать";
-        rename.addEventListener("click", () => renameText(t));
+        rename.addEventListener("click", () => {
+          menu.open = false;
+          renameText(t);
+        });
         const remove = document.createElement("button");
         remove.type = "button";
-        remove.className = "secondary library-action";
-        remove.textContent = "Удалить";
-        remove.addEventListener("click", () => deleteText(t));
-        row.append(open, rename, remove);
+        remove.className = "danger";
+        remove.textContent = "Удалить текст…";
+        remove.addEventListener("click", () => {
+          menu.open = false;
+          deleteText(t);
+        });
+        actions.append(rename, remove);
+        menu.append(summary, actions);
+        row.append(open, menu);
 
         const narrations = document.createElement("div");
         narrations.className = "library-narrations";
@@ -258,7 +281,7 @@ function renderLibrary(library, currentId) {
           removeNarration.title = `Удалить озвучку ${label}`;
           removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
           removeNarration.addEventListener("click", () => deleteNarration(t, n));
-          ready.append(icon, ` ${label}`, removeNarration);
+          ready.append(icon, label, removeNarration);
           narrations.append(ready);
         }
         li.append(row, narrations);
@@ -267,7 +290,10 @@ function renderLibrary(library, currentId) {
     );
   }
   for (const button of libraryEl.querySelectorAll(".text-title")) {
-    button.classList.toggle("current", button.dataset.id === currentId);
+    const current = button.dataset.id === currentId;
+    button.classList.toggle("current", current);
+    if (current) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
   }
 }
 
@@ -289,33 +315,17 @@ function renderVoices() {
     shownVoices = key;
     voicesEl.replaceChildren(
       ...snapshot.voices.map((v) => {
-        const li = document.createElement("li");
-        const label = document.createElement("label");
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "voice";
-        radio.value = v.id;
-        // Another Voice is another Narration: the core stops the one playing.
-        radio.addEventListener("change", () => {
-          clearSchedule();
-          act({ command: "set_voice", voice: v.id });
-        });
-        // While the Voices load they are not available yet, but nothing is wrong with them.
         const unavailable = !v.available && !snapshot.voices_loading;
-        label.append(radio, ` ${unavailable ? `${v.label} (недоступен)` : v.label}`);
-        const listen = document.createElement("button");
-        listen.type = "button";
-        listen.className = "secondary";
-        listen.textContent = "Послушать";
-        listen.addEventListener("click", () => playSample(v.id));
-        li.append(label, listen);
-        return li;
+        const option = new Option(unavailable ? `${v.label} (недоступен)` : v.label, v.id);
+        option.disabled = unavailable;
+        return option;
       }),
     );
     speedEl.replaceChildren(...snapshot.speeds.map((s) => new Option(speedLabel(s), String(s))));
   }
-  for (const radio of voicesEl.querySelectorAll("input")) radio.checked = radio.value === snapshot.voice;
+  if (voicesEl.value !== snapshot.voice) voicesEl.value = snapshot.voice;
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
+  listenVoiceEl.disabled = !snapshot.voice;
 }
 
 // "George, 0,8×"
@@ -360,8 +370,14 @@ function renderParagraphs(text) {
     paragraphsEl.replaceChildren(
       ...(text?.paragraphs ?? []).map((p, i) => {
         const li = document.createElement("li");
-        li.textContent = p.text;
-        li.addEventListener("click", () => playFrom(i));
+        const content = document.createElement(p.status === "skipped" ? "span" : "button");
+        content.className = p.status === "skipped" ? "paragraph-static" : "paragraph-button";
+        content.textContent = p.text;
+        if (p.status !== "skipped") {
+          content.type = "button";
+          content.addEventListener("click", () => playFrom(i));
+        }
+        li.append(content);
         return li;
       }),
     );
@@ -380,6 +396,8 @@ function renderParagraphs(text) {
       .filter(Boolean)
       .join(" ");
     li.title = p.error ?? "";
+    if (current) li.setAttribute("aria-current", "true");
+    else li.removeAttribute("aria-current");
   });
 }
 
@@ -396,7 +414,7 @@ function statusText(text, playback) {
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
-  if (blocked && playback.state === "paused") return ["Нажмите Play, чтобы продолжить", ""];
+  if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы возобновить", ""];
   if (playback.state === "waiting") {
     if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
     if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
@@ -420,6 +438,40 @@ function renderTextSize() {
   biggerEl.disabled = at === snapshot.text_sizes.length - 1;
 }
 
+function renderTransport() {
+  const state = snapshot.playback.state;
+  const active = state === "playing" || state === "waiting";
+  const label = active ? "Пауза" : state === "paused" ? "Продолжить" : "Слушать";
+  playEl.querySelector("span").textContent = label;
+  playEl.querySelector("use").setAttribute("href", active ? "#icon-pause" : "#icon-play");
+  playEl.disabled = !snapshot.text;
+  stopEl.disabled = state === "stopped";
+  const readable = (snapshot.text?.paragraphs ?? [])
+    .map((p, i) => p.status === "skipped" ? null : i)
+    .filter((i) => i !== null);
+  const position = readable.indexOf(snapshot.playback.paragraph);
+  document.getElementById("previous").disabled = position <= 0;
+  document.getElementById("repeat").disabled = position < 0;
+  document.getElementById("next").disabled = position < 0 || position === readable.length - 1;
+}
+
+function renderSaveState() {
+  const saved = sourceEl.value === (snapshot.text?.content ?? "");
+  saveStateEl.textContent = saved ? (snapshot.text ? "Сохранено" : "Новый текст") : "Не сохранено";
+  saveStateEl.classList.toggle("unsaved", !saved);
+}
+
+function renderStatus() {
+  const [message, className] = statusText(snapshot.text, snapshot.playback);
+  statusEl.textContent = message;
+  statusEl.className = className;
+  const readable = (snapshot.text?.paragraphs ?? []).filter((p) => p.status !== "skipped");
+  const ready = readable.filter((p) => p.status === "ready").length;
+  progressEl.hidden = !readable.some((p) => p.status === "synthesizing");
+  progressEl.max = readable.length;
+  progressEl.value = ready;
+}
+
 function render(next) {
   const first = snapshot === null;
   snapshot = next;
@@ -427,6 +479,7 @@ function render(next) {
   document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
   renderVoices();
   renderTextSize();
+  renderTransport();
   const textId = snapshot.text?.id ?? null;
   if (first || textId !== shownTextId) {
     shownTextId = textId;
@@ -436,9 +489,8 @@ function render(next) {
   renderLibrary(snapshot.library, textId);
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text);
-  const [message, className] = statusText(snapshot.text, snapshot.playback);
-  statusEl.textContent = message;
-  statusEl.className = className;
+  renderSaveState();
+  renderStatus();
   if (first && ["playing", "waiting"].includes(snapshot.playback.state)) {
     startAfterReload().then(sync);
   } else {
@@ -480,6 +532,7 @@ function playFrom(index) {
 async function saveTypedText() {
   if (sourceEl.value !== snapshot?.text?.content) {
     clearSchedule();
+    saveStateEl.textContent = "Сохранение…";
     await command({ command: "set_text", text: sourceEl.value });
   }
 }
@@ -490,6 +543,7 @@ async function actOnTypedText(name) {
     await act({ command: name });
   } catch (e) {
     showError(e.message);
+    renderSaveState();
   }
 }
 
@@ -516,7 +570,16 @@ async function moveParagraph(name) {
   }
 }
 
-document.getElementById("play").addEventListener("click", play);
+playEl.addEventListener("click", () => {
+  if (["playing", "waiting"].includes(snapshot?.playback.state)) pause();
+  else play();
+});
+
+voicesEl.addEventListener("change", () => {
+  clearSchedule();
+  act({ command: "set_voice", voice: voicesEl.value });
+});
+listenVoiceEl.addEventListener("click", () => playSample(voicesEl.value));
 
 // Another Speed is another Narration: the core stops the one playing.
 speedEl.addEventListener("change", () => {
@@ -525,8 +588,13 @@ speedEl.addEventListener("change", () => {
 });
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
+document.getElementById("previous").addEventListener("click", () => moveParagraph("previous_paragraph"));
+document.getElementById("repeat").addEventListener("click", () => moveParagraph("repeat_paragraph"));
+document.getElementById("next").addEventListener("click", () => moveParagraph("next_paragraph"));
 
-document.getElementById("pause").addEventListener("click", pause);
+sourceEl.addEventListener("input", () => {
+  if (snapshot) renderSaveState();
+});
 
 smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
 biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
@@ -542,16 +610,17 @@ const KEYS = {
   KeyR: () => moveParagraph("repeat_paragraph"),
 };
 
-// Playback shortcuts must not steal keys while the teacher types in a field.
+// Playback shortcuts must not steal keys while the teacher types or uses a picker.
 function typing(e) {
-  return e.target === librarySearchEl || (e.target === sourceEl && !document.body.classList.contains("playback"));
+  return e.target === librarySearchEl || e.target === voicesEl || e.target === speedEl
+    || (e.target === sourceEl && !document.body.classList.contains("playback"));
 }
 
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (typing(e)) return;
-  // The keys also win over a focused button, radio or list, which would otherwise take them too.
+  // The keys also win over a focused button or Paragraph, which would otherwise take them too.
   e.preventDefault();
   if (!e.repeat) key();
 });
@@ -572,7 +641,7 @@ document.getElementById("new-text").addEventListener("click", () => {
   act({ command: "new_text" });
 });
 
-document.getElementById("stop").addEventListener("click", () => {
+stopEl.addEventListener("click", () => {
   clearSchedule();
   act({ command: "stop" });
 });

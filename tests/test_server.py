@@ -46,7 +46,7 @@ def command(base_url, **body):
 def test_commands_events_snapshot_and_audio_pass_through(base_url):
     content_type, page = get(base_url + "/")
     assert content_type == "text/html"
-    assert b"Play" in page
+    assert "Слушать".encode() in page
 
     content_type, sample = get(base_url + "/api/sample/fake%3Ageorge")
     assert content_type == "audio/wav"
