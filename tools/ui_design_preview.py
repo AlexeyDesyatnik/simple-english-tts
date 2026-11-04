@@ -1,7 +1,7 @@
 """Serve the real UI with an isolated disposable Library for the experiment-2 design review.
 
 Run with runtime/python.exe -X utf8 tools/ui_design_preview.py; Ctrl+C closes the server
-and removes only its temporary Library. FakeVoiceProvider produces silence, not real speech.
+and removes only its temporary Library. The default fake produces silence; --real-voice uses real Kokoro speech.
 """
 
 import argparse
@@ -12,8 +12,9 @@ from pathlib import Path
 
 from ozvuchka.audio import Audio
 from ozvuchka.core import Core
+from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
 from ozvuchka.server import make_server
-from ozvuchka.voices import VoiceRegistry, check_cancelled
+from ozvuchka.voices import VoiceProvider, VoiceRegistry, check_cancelled
 from tests.fakes import FakeVoiceProvider
 
 _TEXT = "\n".join([
@@ -52,8 +53,8 @@ class _PreviewVoiceProvider(FakeVoiceProvider):
         return super().synthesize(text, voice, speed, cancel)
 
 
-def _wait_until_ready(core: Core) -> None:
-    deadline = time.monotonic() + 20
+def _wait_until_ready(core: Core, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
     while core.snapshot()["queue"]:
         if time.monotonic() > deadline:
             raise TimeoutError("Preview Narrations did not become ready")
@@ -70,15 +71,26 @@ def main() -> None:
     parser.add_argument("--unavailable", action="store_true", help="Show unavailable Voices")
     parser.add_argument("--no-ready", action="store_true", help="Skip seeding ready Narrations")
     parser.add_argument("--fail-text", default="", help="Fail synthesis containing this text (use with --no-ready)")
+    parser.add_argument(
+        "--real-voice", action="store_true", help="Use installed Kokoro for audible review",
+    )
     args = parser.parse_args()
+    if args.real_voice and (args.load_seconds or args.piece_seconds or args.unavailable or args.fail_text):
+        parser.error("--real-voice cannot be combined with fake loading, pacing, availability or failure options")
+    root = Path(__file__).resolve().parents[1]
+    provider: VoiceProvider
+    if args.real_voice:
+        provider = KokoroProvider(root / "models" / "kokoro")
+        alice, george = DEFAULT_VOICE, "kokoro:bm_george"
+    else:
+        provider = _PreviewVoiceProvider(args.load_seconds, args.piece_seconds, args.unavailable, args.fail_text)
+        alice, george = "fake:alice", "fake:george"
+
     preview_root = Path(__file__).resolve().parents[1] / ".cache" / "ui-design-preview"
     preview_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="issue-28-", dir=preview_root) as temporary:
         core = Core(
-            VoiceRegistry([_PreviewVoiceProvider(
-                args.load_seconds, args.piece_seconds, args.unavailable, args.fail_text,
-            )]),
-            "fake:alice", clock=time.monotonic,
+            VoiceRegistry([provider]), alice, clock=time.monotonic,
             data_dir=Path(temporary), computer="isolated-design-review",
         )
         try:
@@ -98,14 +110,15 @@ def main() -> None:
                 core.rename_text(text_id, title)
                 if not args.no_ready:
                     core.enqueue()
-                    _wait_until_ready(core)
-                    core.set_voice("fake:george")
+                    _wait_until_ready(core, 300 if args.real_voice else 20)
+                    core.set_voice(george)
                     core.enqueue()
-                    _wait_until_ready(core)
-                    core.set_voice("fake:alice")
+                    _wait_until_ready(core, 300 if args.real_voice else 20)
+                    core.set_voice(alice)
             server = make_server(core, port=args.port)
             print(f"Isolated design preview: http://127.0.0.1:{server.server_address[1]}", flush=True)
             print(f"Disposable Library: {temporary}", flush=True)
+            print(f"Voice provider: {provider.id}", flush=True)
             try:
                 server.serve_forever()
             except KeyboardInterrupt:

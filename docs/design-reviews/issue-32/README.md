@@ -117,3 +117,41 @@ zoom check, and confirm stage 5. Hardware checks stay exclusively in
 limitations, application dialogs and save/transition guarantees are outside #32.
 Do not close #32 or start stage 6 before acceptance. Ask separately before push and
 CI inspection. Preserve the immediate synthesis interruption in ADR-0004/f2d2109.
+
+## Audible acceptance correction
+
+The developer correctly noted that silent fake speech cannot establish that heard
+speech actually pauses, resumes or starts/repeats at the correct Paragraph. Earlier
+fake/browser checks establish UI/command behaviour only; full stage acceptance is
+still pending audible review.
+
+A fresh real-provider preview is now running at http://127.0.0.1:8783 with its own
+new disposable Library, 20 Texts and ready Alice/George Narrations. It was stopped
+back in preparation for the developer to press Play. The user Library is untouched.
+Reproduce from the repository root:
+
+```powershell
+New-Item -ItemType Directory -Force .cache/real-preview-temp | Out-Null
+$env:TEMP = (Resolve-Path .cache/real-preview-temp).Path
+$env:TMP = $env:TEMP
+runtime/python.exe -X utf8 tools/ui_design_preview.py --real-voice --long-title --port 8783
+```
+
+`--real-voice` selects the unmodified installed KokoroProvider and its real Voice
+identifiers; no fake delays, failures or availability overrides can be combined with
+it. Initial seeding waits up to 300 seconds per Narration. All data still goes into
+the preview's TemporaryDirectory; production launch/data handling is unchanged.
+
+The real provider loaded and synthesized both Narrations successfully. An HTTP read
+of the first Alice piece confirmed 4.523 seconds of PCM speech, peak 30890 and
+107725 nonzero samples (not a silent fake WAV). In-app browser Play entered playing
+and advanced among Paragraphs; Return stopped and focused the editor. This does not
+claim an agent listening judgment or that the user's output device is working.
+[Ready real-provider page](real-voice-ready.jpg).
+
+Audible developer acceptance: pause stops sound; Continue resumes the same position;
+Previous/Next switch to the corresponding spoken Paragraph; Repeat starts it again;
+clicking a Paragraph starts that Paragraph; Return immediately stops sound; natural
+completion has no extra speech or overlap and replay starts at the first readable
+Paragraph. Verify the highlight/position against what is actually heard. The Russian
+instruction remains unspoken. Genuine 200% zoom and hardware checks remain pending.
