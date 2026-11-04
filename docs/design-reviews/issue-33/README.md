@@ -4,7 +4,7 @@ Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#33](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/33).
 Baseline: `c84d1a5`, clean tree, tracking `origin/experiment-2` with no divergence.
 Status: implementation ready for developer acceptance; #33 remains open.
-Implementation commit: recorded below after the implementation commit is created.
+Implementation and browser evidence: `bc5a4a4` (local, not pushed).
 
 ## Changes and boundaries
 
