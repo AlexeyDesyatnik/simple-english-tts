@@ -3,6 +3,7 @@
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#32](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/32).
 Baseline: `d3d0e35`, clean working tree on the existing branch.
+Implementation and browser evidence: `d0d4fab` (local, not pushed).
 Status: implementation ready for developer acceptance; #32 remains open.
 No push or CI inspection has been performed. Both require separate permission.
 
@@ -101,7 +102,7 @@ Retained screenshots (some native browser captures are visibly soft):
 
 ## Checks and acceptance
 
-- `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue32`: **114 passed,
+- `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue32-final`: **114 passed,
   8 slow tests deselected**. Default pytest initially failed at temporary-directory
   fixture setup under the sandbox; a writable repository basetemp resolved it.
 - `runtime/python.exe -m mypy`: passed, 23 source files.
