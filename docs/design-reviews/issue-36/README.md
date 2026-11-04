@@ -145,38 +145,24 @@ No new hardware-only criterion was introduced; the existing items in
 
 ## Developer acceptance
 
-1. Start the fresh isolated real-voice preview and optional proxy above. Verify
-   the printed disposable directory and free ports. Open `http://127.0.0.1:18737`.
-   Never obstruct or edit the user's `data/` Library for these checks.
-2. Type and immediately F5; repeat with navigation away/back. Verify the exact
-   last characters and confirmed saving. Repeat for a newly created draft and
-   after clearing an existing Text to empty. Separately wait for `Сохранено`,
-   close/reopen within ten seconds and verify confirmed content survives.
-3. To delay the next ordinary save, configure its sequence before typing:
+Developer scope correction, 2026-11-04: ordinary autosave is sufficient for this
+application. Texts are normally copied from another source; rare loss of the latest
+unconfirmed edits in edge cases is acceptable. Do not pursue editor-grade recovery
+or require the developer to repeat fault injection and delayed-request scenarios.
+The detailed record above remains evidence of checks already performed by the agent,
+not a required developer acceptance matrix. No further product changes follow from
+this correction.
 
-   ```powershell
-   $state = Invoke-RestMethod http://127.0.0.1:18736/api/state
-   @{mode='request'; sequence=($state.save.sequence+1); seconds=12} |
-     ConvertTo-Json | Set-Content .cache/issue36-network.json -Encoding utf8
-   ```
+For a fresh disposable preview, use the preview command above and open
+`http://127.0.0.1:18736` directly. No proxy or extra network setup is needed.
 
-   Type an older revision, wait for `Сохранение…`, then type a newer revision and
-   immediately F5. Require the latest content; the proxy should log the older
-   result as `stale` after release. Repeat with `mode='response'` and navigation
-   away/reopen. Verify the latest disk content after the delay. To test initial
-   snapshot reconciliation, delay the next sequence and reload immediately after
-   its first input, without waiting for autosave. Wait for the later revision.
-4. Reset delays with `Set-Content .cache/issue36-network.json '{}'`. Create an
-   empty `library.json.tmp` directory only in the printed disposable Library.
-   Type and immediately F5. Require retained input, persistent error, retry and
-   old disk content. Remove only the empty directory, then retry; require
-   `Сохранено`. Repeat with an older successful response pending if desired.
-5. Use actual window minimize/background/freeze and restore in the target Edge
-   app window as an additional lifecycle check. The keepalive limits above still
-   apply. In the real application, verify closing/reopening within ten seconds
-   keeps the process, while a later launch restores confirmed disk content.
-6. Play a short edited English Text with the real Voice, return to editing, F5
-   and verify the saved Text. Review evidence and limitations before accepting
-   #36. Stop proxy/preview with Ctrl+C and reset any network/viewport overrides.
+1. Paste a short Text, change a few words, pause and check that `Сохранено` appears.
+2. Press F5 and check that the Text remains. Optionally try F5 immediately after
+   typing a few more characters; this is a quick smoke check, not a durability audit.
+3. Press Play and check that the edited Text is read. Return to editing and check
+   that it remains available.
+
+The developer reports that autosave generally works. No additional exhaustive
+manual verification is requested. Stop a disposable preview with Ctrl+C when done.
 
 Do not close #36 before acceptance and do not begin stage 10 / #37 here.

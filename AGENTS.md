@@ -22,6 +22,13 @@ developer. A link to a handoff or checklist supplements these instructions; it d
 replace them. This applies to browser acceptance as well as hardware-only checks;
 keep hardware-only items in `docs/manual-checks.md` as required above.
 
+Keep implementation and manual acceptance proportional to this simple playback
+application. Texts are normally copied from another source; rare loss of the latest
+unconfirmed edits in an edge case is acceptable. Reliable ordinary autosave is enough;
+do not expand this into a crash-proof editor or add recovery machinery without a
+concrete need. Give the developer a short everyday-use check. Agent-run delay proxies,
+fault injection and exhaustive lifecycle matrices are not routine developer acceptance.
+
 ### Coding standards
 
 `CODING_STANDARDS.md` at the repo root: the checks to run (pytest, mypy, ruff) and the rules the tools don't check.
