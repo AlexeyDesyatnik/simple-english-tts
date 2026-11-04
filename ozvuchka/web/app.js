@@ -14,6 +14,8 @@ const librarySearchEl = document.getElementById("library-search");
 const librarySizeEl = document.getElementById("library-size");
 const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
+const voicePanelEl = document.getElementById("voice-panel");
+const sampleStatusEl = document.getElementById("sample-status");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
 const libraryPanelEl = document.getElementById("library-panel");
@@ -358,15 +360,45 @@ function speedLabel(speed) {
 // A Voice sample is ready-made: the core hands it over without synthesizing anything.
 function playSample(voiceId) {
   sample?.pause();
-  sample = new Audio(`/api/sample/${encodeURIComponent(voiceId)}`);
-  sample.play().catch(() => showError("Не получилось проиграть образец голоса"));
+  const clip = new Audio(`/api/sample/${encodeURIComponent(voiceId)}`);
+  sample = clip;
+  const name = snapshot.voices.find((v) => v.id === voiceId)?.label.split(" — ")[0] ?? voiceId;
+  sampleStatusEl.textContent = `Загрузка образца · ${name}…`;
+  clip.addEventListener("ended", () => {
+    if (sample === clip) sampleStatusEl.textContent = `Образец прослушан · ${name}`;
+  });
+  clip.play().then(() => {
+    if (sample === clip) sampleStatusEl.textContent = `Звучит образец · ${name}`;
+  }).catch(() => {
+    if (sample === clip) sampleStatusEl.textContent = `Не получилось проиграть образец · ${name}. Попробуйте ещё раз.`;
+  });
 }
+
+voicePanelEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !voicePanelEl.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  voicePanelEl.open = false;
+  voicePanelEl.querySelector("summary").focus({ preventScroll: true });
+});
+voicePanelEl.addEventListener("focusout", (event) => {
+  if (event.relatedTarget && !voicePanelEl.contains(event.relatedTarget)) voicePanelEl.open = false;
+});
+document.addEventListener("click", (event) => {
+  if (!voicePanelEl.contains(event.target)) voicePanelEl.open = false;
+});
 
 function renderVoices() {
   const selectedVoice = snapshot.voices.find((v) => v.id === snapshot.voice);
-  document.getElementById("selected-voice").textContent = snapshot.voices_loading
-    ? "Загрузка…" : `${selectedVoice?.label.split(" — ")[0] ?? "Не выбран"}${selectedVoice && !selectedVoice.available ? " · недоступен" : ""}`;
-  const key = JSON.stringify([snapshot.voices, snapshot.speeds, snapshot.voices_loading]);
+  const availability = snapshot.voices_loading ? "загрузка…" : selectedVoice?.available ? "доступен" : "недоступен";
+  document.getElementById("selected-voice").textContent = `${selectedVoice?.label.split(" — ")[0] ?? "Не выбран"} · ${availability}`;
+  document.getElementById("voice-availability").textContent = snapshot.voices_loading
+    ? "Голоса загружаются. Готовые озвучки и образцы можно слушать."
+    : snapshot.voices.some((v) => !v.available)
+      ? "Недоступный голос сейчас не может подготовить новую озвучку. Готовые озвучки и образцы можно слушать."
+      : "Голоса доступны для подготовки озвучки.";
+  // Availability changes update existing rows, preserving keyboard focus during loading.
+  const key = JSON.stringify([snapshot.voices.map((v) => [v.id, v.label]), snapshot.speeds]);
   if (key !== shownVoices) {
     shownVoices = key;
     voicesEl.replaceChildren(
@@ -382,13 +414,16 @@ function renderVoices() {
           clearSchedule();
           act({ command: "set_voice", voice: v.id });
         });
-        // While the Voices load they are not available yet, but nothing is wrong with them.
-        const unavailable = !v.available && !snapshot.voices_loading;
-        label.append(radio, ` ${unavailable ? `${v.label} (недоступен)` : v.label}`);
+        const description = document.createElement("span");
+        description.textContent = v.label;
+        const availability = document.createElement("span");
+        availability.className = "voice-state muted";
+        label.append(radio, description, availability);
         const listen = document.createElement("button");
         listen.type = "button";
         listen.className = "secondary";
         listen.textContent = "Послушать";
+        listen.setAttribute("aria-label", `Послушать образец · ${v.label.split(" — ")[0]}`);
         listen.addEventListener("click", () => playSample(v.id));
         li.append(label, listen);
         return li;
@@ -396,7 +431,11 @@ function renderVoices() {
     );
     speedEl.replaceChildren(...snapshot.speeds.map((s) => new Option(speedLabel(s), String(s))));
   }
-  for (const radio of voicesEl.querySelectorAll("input")) radio.checked = radio.value === snapshot.voice;
+  snapshot.voices.forEach((v, i) => {
+    const row = voicesEl.children[i];
+    row.querySelector("input").checked = v.id === snapshot.voice;
+    row.querySelector(".voice-state").textContent = snapshot.voices_loading ? "Загрузка…" : v.available ? "Доступен" : "Недоступен";
+  });
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
 }
 
@@ -407,14 +446,18 @@ function narrationLabel(narration) {
 }
 
 function renderQueue(queue) {
-  queuePanelEl.hidden = queue.length === 0;
-  document.getElementById("queue-count").textContent = queue.length;
+  const active = queue.filter((n) => n.synthesizing).length;
+  document.getElementById("queue-count").textContent = queue.length
+    ? `${queue.length} · ${active ? "готовится" : "ожидает подготовки"}` : "пуста";
+  document.getElementById("queue-empty").hidden = queue.length > 0;
   const key = JSON.stringify(queue.map((n) => n.id));
   if (key !== shownQueue) {
+    const focusedId = document.activeElement?.closest("#queue > li")?.dataset.id;
     shownQueue = key;
     queueEl.replaceChildren(
       ...queue.map((n) => {
         const li = document.createElement("li");
+        li.dataset.id = n.id;
         const title = document.createElement("span");
         title.className = "title";
         title.textContent = `${n.title} · ${narrationLabel(n)}`;
@@ -424,15 +467,20 @@ function renderQueue(queue) {
         cancel.type = "button";
         cancel.className = "secondary";
         cancel.textContent = "Отменить";
+        cancel.setAttribute("aria-label", `Отменить подготовку · ${n.title} · ${narrationLabel(n)}`);
         cancel.addEventListener("click", () => act({ command: "cancel", narration: n.id }));
         li.append(title, left, cancel);
         return li;
       }),
     );
+    if (focusedId) {
+      const replacement = [...queueEl.children].find((li) => li.dataset.id === focusedId);
+      (replacement?.querySelector("button") ?? queuePanelEl.querySelector("summary")).focus({ preventScroll: true });
+    }
   }
   queue.forEach((n, i) => {
-    const state = n.synthesizing ? "озвучивается" : "ждёт";
-    const left = n.ready_in === null ? "" : ` · готово через ${formatDuration(n.ready_in)}`;
+    const state = n.synthesizing ? "Готовится" : "В очереди";
+    const left = n.ready_in === null ? " · время пока неизвестно" : ` · готово через ${formatDuration(n.ready_in)}`;
     queueEl.children[i].querySelector(".muted").textContent = state + left;
   });
 }

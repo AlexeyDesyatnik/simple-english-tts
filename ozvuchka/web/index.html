@@ -20,7 +20,7 @@
       </header>
       <div class="preparation">
         <div class="settings">
-          <details id="voice-panel"><summary>Голос · <span id="selected-voice"></span></summary><ul id="voices"></ul></details>
+          <details id="voice-panel"><summary>Голос · <span id="selected-voice"></span></summary><div class="voice-choices"><p id="voice-availability" class="muted" role="status"></p><p class="muted">Выбор голоса и прослушивание образца — отдельные действия.</p><ul id="voices" aria-label="Голоса"></ul><p id="sample-status" class="muted" role="status"></p></div></details>
           <label class="speed-label">Скорость <select id="speed"></select></label>
         </div>
         <div class="editor-label"><label for="source">Текст</label><span id="save-hint" class="muted">Сохранение при запуске или подготовке озвучки</span></div>
@@ -41,7 +41,7 @@
         <div class="feedback"><span id="position"></span><p id="status" role="status"></p></div>
         <details class="keyboard-help"><summary>Управление с клавиатуры</summary><p>Пробел — пауза или продолжение. ← / →, PageUp / PageDown — соседний абзац. R (К) — повторить. Нажмите на абзац, чтобы начать с него.</p></details>
       </div>
-      <details id="queue-panel" hidden><summary>Очередь озвучки · <span id="queue-count"></span></summary><ol id="queue"></ol></details>
+      <details id="queue-panel"><summary>Очередь озвучки · <span id="queue-count">пуста</span></summary><p id="queue-empty" class="muted">Нет озвучек, ожидающих подготовки.</p><ol id="queue" aria-label="Озвучки в порядке подготовки"></ol></details>
       <ol id="paragraphs" aria-label="Текст для чтения"></ol>
     </section>
   </div>

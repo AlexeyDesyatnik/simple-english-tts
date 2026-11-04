@@ -33,3 +33,7 @@ do not substitute another branch's build. Browser verification is recorded in
 ## experiment-2 Library (#30)
 
 - [ ] **School laptops, #30:** with 20 Texts and several ready Narrations, check Library search and row menus on the Celeron and i5: opening a Text, keyboard navigation, and removing a disposable Narration stay responsive. Use a test Library for deletion.
+
+## experiment-2 Voice choice and Narration queue (#31)
+
+- [ ] **School laptops, #31:** check Voice chooser opening, independent Voice samples and selection, and queue progress/cancellation on the Celeron and i5 with a disposable Library. Check responsiveness while the real offline Voice provider loads and synthesizes; silent browser fixtures do not verify real Voice samples or device performance.
