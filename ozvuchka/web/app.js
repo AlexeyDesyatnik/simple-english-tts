@@ -51,7 +51,6 @@ let shownTitle = "Новый текст";
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
-let shownTextId = null; // the Text put in the text box; another one replaces what is typed there
 let shownLibrary = null; // the Library the list was built for
 let shownQueue = null; // the Narration queue the list was built for
 let shownVoices = null; // the Voices and Speeds the pickers were built for
@@ -307,9 +306,15 @@ function deleteText(text) {
   openTextDialog(text, "Удалить текст?",
     `Текст «${text.title}» и его озвучки будут удалены из Библиотеки. Его озвучки будут убраны из очереди озвучки. Если этот текст открыт, воспроизведение остановится. Отменить удаление нельзя.`,
     async () => {
+      if (transitionBusy) throw new Error("Дождитесь сохранения текста.");
+      // Deletion explicitly discards this Text; wait for any dispatched write
+      // before expiring its context so its reply cannot affect the next editor.
+      if (snapshot.text?.id === text.id) {
+        clearTimeout(saveTimer);
+        while (saving) await saving.catch(() => {});
+      }
       clearSchedule();
       await command({ command: "delete_text", id: text.id });
-      if (shownTextId === text.id) sourceEl.value = "";
     });
 }
 
@@ -335,7 +340,7 @@ function renderLibrary(library, currentId) {
   document.getElementById("library-empty-title").textContent = searching ? "Ничего не найдено" : "В Библиотеке пока нет текстов";
   document.getElementById("library-empty-help").textContent = searching
     ? "Измените запрос или очистите поле поиска."
-    : "Нажмите «Новый текст», вставьте текст и запустите воспроизведение или подготовку озвучки.";
+    : "Нажмите «Новый текст» и вставьте текст. Он сохранится автоматически.";
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
     const focusedRow = document.activeElement?.closest("#library > li");
@@ -345,6 +350,7 @@ function renderLibrary(library, currentId) {
     shownLibrary = key;
     libraryEl.replaceChildren(
       ...library.map((t) => {
+        const title = t.title || "Текст без названия";
         const li = document.createElement("li");
         li.dataset.id = t.id;
         const row = document.createElement("div");
@@ -354,13 +360,12 @@ function renderLibrary(library, currentId) {
         open.className = "text-title";
         const titleLabel = document.createElement("span");
         titleLabel.className = "library-title-label";
-        titleLabel.textContent = t.title;
+        titleLabel.textContent = title;
         open.append(titleLabel);
-        open.title = t.title;
+        open.title = title;
         open.dataset.id = t.id;
         open.addEventListener("click", async () => {
-          clearSchedule();
-          await act({ command: "open_text", id: t.id });
+          await transition({ command: "open_text", id: t.id });
         });
         const rename = document.createElement("button");
         rename.type = "button";
@@ -377,7 +382,7 @@ function renderLibrary(library, currentId) {
         actions.open = t.id === openId;
         const menu = document.createElement("summary");
         menu.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
-        menu.setAttribute("aria-label", `Действия с текстом «${t.title}»`);
+        menu.setAttribute("aria-label", `Действия с текстом «${title}»`);
         actions.append(menu, rename, remove);
         actions.addEventListener("toggle", () => {
           if (actions.open) {
@@ -412,7 +417,7 @@ function renderLibrary(library, currentId) {
           removeNarration.className = "secondary library-action destructive";
           removeNarration.textContent = `Удалить озвучку · ${label}`;
           removeNarration.title = `Удалить озвучку ${label}`;
-          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label} текста «${t.title}»`);
+          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label} текста «${title}»`);
           removeNarration.addEventListener("click", () => deleteNarration(t, n));
           ready.textContent = `Готово · ${label}`;
           narrations.append(ready);
@@ -669,9 +674,6 @@ function formatDuration(seconds) {
 
 function statusText(text, playback) {
   if (snapshot.library_error) return [snapshot.library_error, "error"];
-  if (playback.state === "stopped" && sourceEl.value !== (text?.content ?? "")) {
-    return ["Текст изменён. Будет сохранён при запуске или подготовке озвучки.", ""];
-  }
   if (!text) return ["", ""];
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
@@ -715,13 +717,10 @@ function render(next) {
   renderVoices();
   const textSizeChanged = renderTextSize();
   const textId = snapshot.text?.id ?? null;
-  if (first || textId !== shownTextId) {
-    shownTextId = textId;
-    if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
-  }
+  adoptEditor(snapshot);
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
-  shownTitle = snapshot.text?.title ?? "Новый текст";
+  shownTitle = snapshot.text ? snapshot.text.title || "Текст без названия" : "Новый текст";
   renameTitleEl.hidden = !textId;
   document.getElementById("text-title").textContent = shownTitle;
   document.getElementById("text-title").title = shownTitle;
@@ -777,21 +776,116 @@ function playFrom(index) {
   act({ command: "play_from", paragraph: index });
 }
 
-// Saves what is typed in the text box as the current Text, before a command for it.
+// Only a matching acknowledgement can confirm the latest local edit. Polling never
+// replaces the editor inside an editing context, including its first Library ID.
+const saveHintEl = document.getElementById("save-hint");
+const saveRetryEl = document.getElementById("save-retry");
+let editContext = null;
+let editSequence = 0;
+let savedSequence = 0;
+let saveError = null;
+let saveTimer = null;
+let saving = null;
+let savingSequence = null;
+let transitionBusy = false;
+
+function renderSave() {
+  saveHintEl.textContent = saveError ? `Не удалось сохранить текст. ${saveError}`
+    : savingSequence === editSequence ? "Сохранение…"
+    : editSequence !== savedSequence ? "Изменения не сохранены"
+    : editSequence > 0 ? "Сохранено" : "Автосохранение после ввода";
+  saveHintEl.className = saveError ? "error" : "muted";
+  saveRetryEl.hidden = !saveError;
+  saveRetryEl.disabled = Boolean(saving) || transitionBusy;
+}
+
+function adoptEditor(next) {
+  if (next.save.context !== editContext) {
+    clearTimeout(saveTimer);
+    editContext = next.save.context;
+    editSequence = next.save.sequence;
+    savedSequence = next.save.status === "failed" ? -1 : editSequence;
+    saveError = next.save.status === "failed" ? next.save.error : null;
+    sourceEl.value = next.text?.content ?? "";
+  }
+  renderSave();
+}
+
+sourceEl.addEventListener("input", () => {
+  editSequence++;
+  clearTimeout(saveTimer);
+  renderSave();
+  // Do not save an unfinished IME composition or write on every keystroke.
+  if (!composing) saveTimer = setTimeout(() => saveTypedText().catch(() => {}), 600);
+});
+let composing = false;
+sourceEl.addEventListener("compositionstart", () => {
+  composing = true;
+  clearTimeout(saveTimer);
+});
+sourceEl.addEventListener("compositionend", () => {
+  composing = false;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveTypedText().catch(() => {}), 600);
+});
+
 async function saveTypedText() {
-  if (sourceEl.value !== snapshot?.text?.content) {
-    clearSchedule();
-    await command({ command: "set_text", text: sourceEl.value });
+  clearTimeout(saveTimer);
+  while (saving) await saving;
+  if (editSequence === savedSequence && !saveError) return;
+  const context = editContext;
+  const sequence = editSequence;
+  const text = sourceEl.value;
+  savingSequence = sequence;
+  saving = (async () => {
+    try {
+      const result = await command({ command: "save_text", context, sequence, text });
+      if (context !== editContext) throw new Error("Текст изменился в другом окне. Скопируйте правки перед обновлением страницы.");
+      if (result.context !== context || result.sequence !== sequence || result.status !== "saved") {
+        throw new Error(result.error || "Программа не подтвердила сохранение. Повторите попытку.");
+      }
+      savedSequence = sequence;
+      saveError = null;
+    } catch (error) {
+      if (context === editContext) saveError = error.message || "Нет связи с программой.";
+      throw error;
+    } finally {
+      saving = null;
+      savingSequence = null;
+      renderSave();
+    }
+  })();
+  renderSave();
+  await saving;
+  // Typing during an older request is a different revision, even before dispatch.
+  if (context === editContext && editSequence !== savedSequence) await saveTypedText();
+}
+
+saveRetryEl.addEventListener("click", () => saveTypedText().then(refresh).catch(() => {}));
+
+async function transition(body) {
+  if (transitionBusy || !snapshot) return;
+  transitionBusy = true;
+  sourceEl.readOnly = true;
+  sourceEl.setAttribute("aria-busy", "true");
+  renderSave();
+  try {
+    await saveTypedText();
+    if (["open_text", "new_text"].includes(body.command)) clearSchedule();
+    await command(body);
+    await refresh();
+  } catch (error) {
+    if (!saveError) showError(error.message);
+  } finally {
+    transitionBusy = false;
+    sourceEl.readOnly = false;
+    sourceEl.removeAttribute("aria-busy");
+    renderSave();
   }
 }
 
-async function actOnTypedText(name) {
-  try {
-    await saveTypedText();
-    await act({ command: name });
-  } catch (e) {
-    showError(e.message);
-  }
+function actOnTypedText(name) {
+  return transition({ command: name });
 }
 
 function play() {
@@ -879,10 +973,9 @@ librarySearchEl.addEventListener("input", () => {
 });
 
 document.getElementById("new-text").addEventListener("click", () => {
-  clearSchedule();
-  sourceEl.value = "";
-  if (!narrowWindow.matches) sourceEl.focus();
-  act({ command: "new_text" });
+  transition({ command: "new_text" }).then(() => {
+    if (!narrowWindow.matches) sourceEl.focus();
+  });
 });
 
 document.getElementById("stop").addEventListener("click", async () => {

@@ -23,7 +23,7 @@
           <details id="voice-panel"><summary>Голос · <span id="selected-voice"></span></summary><div class="voice-choices"><p id="voice-availability" class="muted" role="status"></p><p class="muted">Стрелки — переход между голосами, Enter или пробел — выбор. «Послушать» не меняет выбранный голос.</p><ul id="voices" aria-label="Голоса"></ul><p id="sample-status" class="muted" role="status"></p></div></details>
           <label class="speed-label">Скорость <select id="speed"></select></label>
         </div>
-        <div class="editor-label"><label for="source">Текст</label><span id="save-hint" class="muted">Сохранение при запуске или подготовке озвучки</span></div>
+        <div class="editor-label"><label for="source">Текст</label><span class="save-feedback"><span id="save-hint" class="muted" role="status" aria-live="polite">Автосохранение после ввода</span><button id="save-retry" type="button" class="secondary" hidden>Повторить сохранение</button></span></div>
         <p id="source-help" class="muted">Каждая непустая строка — отдельный абзац.</p>
         <textarea id="source" rows="7" aria-describedby="source-help save-hint" placeholder="Вставьте английский текст"></textarea>
       </div>

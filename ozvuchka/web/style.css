@@ -161,3 +161,6 @@ dialog h2 { font-size: 24px; }
 .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); }
 #dialog-submit.destructive { background: var(--error); border-color: var(--error); }
 #dialog-submit.destructive:hover { background: #8f201d; }
+
+.save-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: 44px; min-width: 0; overflow-wrap: anywhere; }
+#save-hint { font-size: 14px; }
