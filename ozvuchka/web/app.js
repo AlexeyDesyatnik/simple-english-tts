@@ -41,12 +41,15 @@ libraryPanelEl.addEventListener("keydown", (event) => {
 });
 const transportEl = document.querySelector(".transport");
 const helpEl = document.querySelector(".keyboard-help");
-helpEl.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || !helpEl.open) return;
-  event.preventDefault();
-  helpEl.open = false;
-  helpEl.querySelector("summary").focus({ preventScroll: true });
-});
+for (const panel of [helpEl, queuePanelEl]) {
+  panel.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !panel.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    panel.open = false;
+    panel.querySelector("summary").focus({ preventScroll: true });
+  });
+}
 // Wrapping tools, expanded help and browser zoom all change the sticky panel's height.
 new ResizeObserver(() => {
   paragraphsEl.style.setProperty("--transport-offset", `${transportEl.getBoundingClientRect().height + 16}px`);
@@ -222,25 +225,111 @@ async function startAfterReload() {
 
 // ---------------------------------------------------------------- view
 
+const dialogEl = document.getElementById("text-dialog");
+const dialogNameEl = document.getElementById("dialog-name");
+const dialogErrorEl = document.getElementById("dialog-error");
+const dialogSubmitEl = document.getElementById("dialog-submit");
+const dialogCancelEl = document.getElementById("dialog-cancel");
+const renameTitleEl = document.getElementById("rename-title");
+let dialogAction = null;
+let dialogOrigin = null;
+let dialogRowId = null;
+let dialogBusy = false;
+
+function openTextDialog(text, title, description, action, rename = false) {
+  dialogOrigin = document.activeElement;
+  dialogRowId = dialogOrigin.closest("#library > li")?.dataset.id;
+  dialogAction = action;
+  dialogBusy = false;
+  document.getElementById("dialog-title").textContent = title;
+  document.getElementById("dialog-description").textContent = description;
+  document.getElementById("rename-field").hidden = !rename;
+  dialogNameEl.value = text.title;
+  dialogNameEl.removeAttribute("aria-invalid");
+  dialogErrorEl.textContent = "";
+  dialogSubmitEl.textContent = rename ? "Сохранить" : "Удалить";
+  dialogSubmitEl.classList.toggle("destructive", !rename);
+  dialogSubmitEl.disabled = false;
+  dialogCancelEl.disabled = false;
+  dialogEl.showModal();
+  if (rename) { dialogNameEl.focus(); dialogNameEl.select(); }
+  else dialogCancelEl.focus();
+}
+
+// Rows can disappear after deletion or a rename that no longer matches the search.
+dialogEl.addEventListener("close", () => {
+  let target = dialogOrigin;
+  if (dialogRowId) {
+    const row = [...libraryEl.children].find((li) => li.dataset.id === dialogRowId);
+    target = row?.querySelector("summary") ?? libraryEl.querySelector(".text-title") ?? librarySearchEl;
+    if (!libraryPanelEl.open) target = libraryPanelEl.querySelector("summary");
+  }
+  if (!target?.isConnected || !target.getClientRects().length || target.disabled) target = sourceEl;
+  target.focus();
+  dialogAction = null;
+});
+dialogCancelEl.addEventListener("click", () => dialogEl.close());
+dialogEl.addEventListener("cancel", (event) => {
+  if (dialogBusy) event.preventDefault();
+});
+dialogEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const controls = [...dialogEl.querySelectorAll("input, button")].filter((el) => !el.disabled && el.getClientRects().length);
+  if (!controls.length) { event.preventDefault(); return; }
+  const first = controls[0], last = controls.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+document.getElementById("dialog-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (dialogBusy) return;
+  const rename = !document.getElementById("rename-field").hidden;
+  if (rename && !dialogNameEl.value.trim()) {
+    dialogErrorEl.textContent = "Введите название текста. Название не может быть пустым.";
+    dialogNameEl.setAttribute("aria-invalid", "true");
+    dialogNameEl.focus();
+    return;
+  }
+  dialogBusy = true;
+  dialogSubmitEl.disabled = true;
+  dialogCancelEl.disabled = true;
+  dialogEl.setAttribute("aria-busy", "true");
+  try {
+    await dialogAction(dialogNameEl.value);
+    await refresh();
+    dialogEl.close();
+  } catch (error) {
+    dialogErrorEl.textContent = `Не удалось выполнить действие. ${error.message}`;
+  } finally {
+    dialogBusy = false;
+    dialogSubmitEl.disabled = false;
+    dialogCancelEl.disabled = false;
+    dialogEl.removeAttribute("aria-busy");
+  }
+});
+
 function renameText(text) {
-  const title = window.prompt("Название текста", text.title);
-  if (title === null) return;
-  if (!title.trim()) return showError("Название текста не может быть пустым");
-  act({ command: "rename_text", id: text.id, title });
+  openTextDialog(text, "Изменить название", "Название поможет найти текст в Библиотеке.",
+    (title) => command({ command: "rename_text", id: text.id, title }), true);
 }
 
 function deleteText(text) {
-  if (!window.confirm(`Удалить текст «${text.title}» и его озвучки?`)) return;
-  clearSchedule();
-  act({ command: "delete_text", id: text.id });
+  openTextDialog(text, "Удалить текст?",
+    `Текст «${text.title}» и его озвучки будут удалены из Библиотеки. Его озвучки будут убраны из очереди озвучки. Если этот текст открыт, воспроизведение остановится. Отменить удаление нельзя.`,
+    async () => {
+      clearSchedule();
+      await command({ command: "delete_text", id: text.id });
+      if (shownTextId === text.id) sourceEl.value = "";
+    });
 }
 
 function deleteNarration(text, narration) {
-  const label = narrationLabel(narration);
-  if (!window.confirm(`Удалить озвучку «${label}» для текста «${text.title}»?`)) return;
-  clearSchedule();
-  act({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed });
+  openTextDialog(text, "Удалить озвучку?",
+    `Озвучка «${narrationLabel(narration)}» текста «${text.title}» будет удалена и убрана из очереди озвучки. Если она воспроизводится, воспроизведение остановится. Сам текст останется в Библиотеке; озвучку можно подготовить заново.`,
+    () => { clearSchedule(); return command({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }); });
 }
+
+renameTitleEl.addEventListener("click", () => renameText({ id: snapshot.text.id, title: shownTitle }));
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} Б`;
@@ -638,17 +727,14 @@ function render(next) {
   renderVoices();
   const textSizeChanged = renderTextSize();
   const textId = snapshot.text?.id ?? null;
-  const previousTextId = shownTextId;
   if (first || textId !== shownTextId) {
     shownTextId = textId;
     if (first || textId !== null) sourceEl.value = snapshot.text?.content ?? "";
   }
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
-  const currentText = snapshot.library.find((t) => t.id === textId);
-  if (currentText) shownTitle = currentText.title;
-  else if (!textId) shownTitle = "Новый текст";
-  else if (textId !== previousTextId) shownTitle = snapshot.text.content.split("\n")[0];
+  shownTitle = snapshot.text?.title ?? "Новый текст";
+  renameTitleEl.hidden = !textId;
   document.getElementById("text-title").textContent = shownTitle;
   document.getElementById("text-title").title = shownTitle;
   const playing = ["playing", "waiting"].includes(snapshot.playback.state);
@@ -770,15 +856,21 @@ const KEYS = {
   KeyR: () => moveParagraph("repeat_paragraph"),
 };
 
-// Playback shortcuts must not steal keys while the teacher types in a field.
+// Native controls and custom interactive widgets own their keyboard input.
+const INTERACTIVE = [
+  "input", "textarea", "select", "button", "summary", "a[href]", "audio[controls]", "video[controls]",
+  "[role=button]", "[role=checkbox]", "[role=radio]", "[role=combobox]", "[role=listbox]", "[role=option]",
+  "[role=menu]", "[role=menuitem]", "[role=slider]", "[role=spinbutton]", "[role=switch]", "[role=tab]",
+  "[role=tree]", "[role=treeitem]", "[role=textbox]", "[contenteditable]:not([contenteditable=false])", "[tabindex]",
+].join(", ");
 function typing(e) {
-  return e.target.closest("input, textarea, select, button, summary, [role=button], [contenteditable=true]");
+  return e.target.closest(INTERACTIVE) || e.target.isContentEditable;
 }
 
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (typing(e)) return;
+  if (e.defaultPrevented || e.isComposing || dialogEl.open || typing(e)) return;
   // Native controls keep their own keys; the reading background handles playback shortcuts.
   e.preventDefault();
   if (!e.repeat) key();
@@ -786,7 +878,7 @@ document.addEventListener("keydown", (e) => {
 
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && !typing(e)) e.preventDefault();
+  if (e.code === "Space" && !dialogEl.open && !typing(e)) e.preventDefault();
 });
 
 librarySearchEl.addEventListener("input", () => {

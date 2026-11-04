@@ -520,6 +520,18 @@ def test_a_renamed_text_keeps_its_title_after_a_restart_and_is_found_by_it(make_
     assert [t["title"] for t in restarted.snapshot()["library"]] == ["6B, Unit 3"]
 
 
+def test_the_open_text_exposes_its_renamed_title_even_when_library_search_hides_it(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Hello world.")
+    text_id = core.snapshot()["text"]["id"]
+    core.search_library("Hello")
+    core.rename_text(text_id, "6B, Unit 3")
+
+    assert core.snapshot()["library"] == []
+    assert core.snapshot()["text"]["title"] == "6B, Unit 3"
+    assert core.snapshot()["text"]["content"] == "Hello world."
+
+
 def test_editing_a_renamed_text_keeps_its_custom_title(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text("Tom has a cat.")

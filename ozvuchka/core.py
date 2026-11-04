@@ -399,8 +399,10 @@ class Core:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             self._start_when_safe()
+            current = next((t for t in self._library if t.id == self._text_id), None)
             text = None if self._text is None else {
                 "id": self._text_id,
+                "title": (current.title or _title(current.content)) if current else _title(self._text),
                 "content": self._text,
                 "paragraphs": [self._paragraph_state(p) for p in self._paragraphs],
             }

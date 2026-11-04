@@ -44,3 +44,8 @@ do not substitute another branch's build. Browser verification is recorded in
 - [ ] **Projector/classroom, #32:** check the centred reading Text, yellow current Paragraph with blue edge, position among readable Paragraphs and Text sizes 18–80 from the back rows. Verify that the current Paragraph starts below the sticky controls, including after opening keyboard help.
 - [ ] **Presenter remote, #32:** check pause/resume, previous/next and repeat, including after the natural end and after using reading tools; verify return to editing stops playback. Browser key simulation does not establish the real remote's mappings.
 - [ ] **School laptops, #32:** check Playback mode responsiveness and automatic Paragraph scrolling on Celeron/i5 with a long Text, waiting synthesis, large Text and 200% browser zoom. Use the experiment-2 candidate and a disposable Library.
+
+## experiment-2 application dialogs and keyboard (#33)
+
+- [ ] **School laptops, #33:** check rename/delete dialogs, readable consequences for long Text titles, Tab/Shift+Tab containment, Escape and visible return focus on Celeron/i5. Delete only disposable Texts/Narrations in a test Library.
+- [ ] **Presenter remote, #33:** after Library/Voice/help/dialog use, focus the reading background and check Space, arrows, PageUp/PageDown and repeat; check physical R in the Russian layout. Native controls must retain their own keys while focused. Verify heard speech against the highlighted Paragraph with real Kokoro.
