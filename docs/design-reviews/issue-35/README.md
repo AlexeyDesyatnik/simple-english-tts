@@ -204,3 +204,12 @@ a save error, a Text switch retains the visible edits, and removing the obstruct
 then retrying saves successfully. Together with the earlier four chat checks,
 the developer has now confirmed the ordinary and failure/retry scenarios.
 No Issue state, push or CI operation was performed as part of recording this result.
+
+### Handoff to stage 9 — 2026-11-04
+
+After the successful developer checks, the developer authorized pushing all local
+`experiment-2` commits and requested a prompt for stage 9. This supersedes the
+earlier push deferral. The developer will check CI separately: do not inspect or
+wait for CI in this session. #35 has not been closed in this session. Stage 9 is
+#36, with immediate reload/page-hide protection and documented lifecycle limits;
+read its current body before implementation.
