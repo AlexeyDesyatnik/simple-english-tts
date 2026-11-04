@@ -6,13 +6,14 @@ and removes only its temporary Library. FakeVoiceProvider produces silence, not 
 
 import argparse
 import tempfile
+import threading
 import time
 from pathlib import Path
 
 from ozvuchka.audio import Audio
 from ozvuchka.core import Core
 from ozvuchka.server import make_server
-from ozvuchka.voices import VoiceRegistry
+from ozvuchka.voices import VoiceRegistry, check_cancelled
 from tests.fakes import FakeVoiceProvider
 
 _TEXT = "\n".join([
@@ -39,9 +40,13 @@ class _PreviewVoiceProvider(FakeVoiceProvider):
         self.finish_loading()
         super().load()
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Audio:
-        time.sleep(self._piece_seconds)
-        return super().synthesize(text, voice, speed)
+    def synthesize(self, text: str, voice: str, speed: float, cancel: threading.Event | None = None) -> Audio:
+        if cancel is None:
+            time.sleep(self._piece_seconds)
+        else:
+            cancel.wait(self._piece_seconds)
+        check_cancelled(cancel)
+        return super().synthesize(text, voice, speed, cancel)
 
 
 def _wait_until_ready(core: Core) -> None:

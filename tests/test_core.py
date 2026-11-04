@@ -1009,10 +1009,10 @@ def test_a_cancelled_narration_keeps_the_pieces_already_synthesized_and_the_queu
     wait_for(core, lambda s: s["queue"] == [])
     assert [r[0] for r in provider.requests] == ["Apple one.", "Apple two.", "Cherry one."]
     core.open_text(apple["text_id"])
-    assert statuses(core.snapshot()) == ["ready", "ready", "waiting"]
+    assert statuses(core.snapshot()) == ["ready", "waiting", "waiting"]
 
 
-def test_cancelling_alice_starts_queued_george_after_the_alice_piece_under_way_finishes(make_core):
+def test_cancelling_alice_interrupts_its_piece_and_starts_queued_george_without_finishing_alice(make_core):
     provider = FakeVoiceProvider(manual=True)
     core = make_core(provider)
     core.set_text("Hello, class.\nGood morning.")
@@ -1026,12 +1026,11 @@ def test_cancelling_alice_starts_queued_george_after_the_alice_piece_under_way_f
 
     remaining = core.snapshot()["queue"]
     assert [n["id"] for n in remaining] == [george["id"]]
-    assert [n["synthesizing"] for n in remaining] == [False]
-    assert provider.requests == [("Hello, class.", "alice", 1.0)]
-    provider.finish_next()
-    snapshot = wait_for(core, lambda s: len(provider.requests) == 2)
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2, timeout=1)
     assert [(n["voice"], n["synthesizing"]) for n in snapshot["queue"]] == [("fake:george", True)]
     assert provider.requests == [("Hello, class.", "alice", 1.0), ("Hello, class.", "george", 1.0)]
+    core.cancel(alice["id"])  # a repeated old cancellation must not interrupt George
+    assert [(n["voice"], n["synthesizing"]) for n in core.snapshot()["queue"]] == [("fake:george", True)]
     provider.finish_all()
     wait_for(core, lambda s: s["queue"] == [])
     assert provider.requests == [
@@ -1039,6 +1038,68 @@ def test_cancelling_alice_starts_queued_george_after_the_alice_piece_under_way_f
         ("Hello, class.", "george", 1.0),
         ("Good morning.", "george", 1.0),
     ]
+    core.set_voice("fake:alice")
+    assert statuses(core.snapshot()) == ["waiting", "waiting"]
+
+
+def test_cancelling_a_waiting_narration_does_not_interrupt_the_active_voice(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    core.set_voice("fake:george")
+    core.enqueue()
+    alice, george = core.snapshot()["queue"]
+
+    core.cancel(george["id"])
+    assert [(n["id"], n["synthesizing"]) for n in core.snapshot()["queue"]] == [(alice["id"], True)]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    core.set_voice("fake:alice")
+    assert statuses(core.snapshot()) == ["ready"]
+    assert provider.requests == [("Hello, class.", "alice", 1.0)]
+
+
+def test_a_cancelled_voice_can_be_enqueued_again_without_reusing_its_cancel_signal(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    narration = wait_for(core, lambda s: len(provider.requests) == 1)["queue"][0]
+
+    core.cancel(narration["id"])
+    core.enqueue()
+
+    wait_for(core, lambda s: len(provider.requests) == 2, timeout=1)
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert statuses(core.snapshot()) == ["ready"]
+    assert provider.requests == [("Hello, class.", "alice", 1.0), ("Hello, class.", "alice", 1.0)]
+
+
+def test_a_result_finishing_concurrently_with_cancellation_does_not_complete_the_requeued_narration(make_core):
+    class FinishingProvider(FakeVoiceProvider):
+        def synthesize(self, text, voice, speed, cancel=None):
+            # A result can already be returning when the cancellation signal is set.
+            return super().synthesize(text, voice, speed)
+
+    provider = FinishingProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    narration = wait_for(core, lambda s: len(provider.requests) == 1)["queue"][0]
+
+    core.cancel(narration["id"])
+    core.enqueue()
+    provider.finish_next()
+
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2)
+    assert snapshot["library"][0]["narrations"] == []
+    assert statuses(snapshot) == ["synthesizing"]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert statuses(core.snapshot()) == ["ready"]
 
 
 def test_cancelling_the_narration_waiting_to_play_stops_playback(make_core):

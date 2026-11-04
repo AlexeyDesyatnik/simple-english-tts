@@ -37,3 +37,4 @@ do not substitute another branch's build. Browser verification is recorded in
 ## experiment-2 Voice choice and Narration queue (#31)
 
 - [ ] **School laptops, #31:** check Voice chooser opening, independent Voice samples and selection, and queue progress/cancellation on the Celeron and i5 with a disposable Library. Check responsiveness while the real offline Voice provider loads and synthesizes; silent browser fixtures do not verify real Voice samples or device performance.
+- [ ] **School laptops, #31 immediate cancellation (ADR-0004):** while real Alice is synthesizing a long Text and George is queued, cancel Alice and record the time until George starts. Repeat cancellation and re-enqueue; verify no old computation continues for minutes, no cancellation error appears, and previously completed Paragraphs remain usable. Use disposable data; browser/fake timings do not establish native cancellation latency on the Celeron/i5.

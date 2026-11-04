@@ -8,7 +8,74 @@ identifier only; the implementation has not been published and CI has not been q
 Stage 3 was accepted; its Library implementation and visual direction are preserved.
 Stage 4 is awaiting developer acceptance. Do not close #31 or start stage 5 yet.
 
-## Result and scope
+## Current revision: interrupt active synthesis
+
+The developer explicitly rejected waiting for the active piece to finish and requested
+real cancellation. This supersedes the original UI-only scope and the older cancellation
+explanation retained below as history. ADR-0004 records the bounded authorization,
+implementation and latency limits. Stage 5 remains untouched and #31 remains open.
+
+Core now sets a fresh per-call cancellation Event belonging to the cancelled Narration.
+The fake/preview stop their waits; real Kokoro interrupts its ONNX inference through
+per-run termination options while keeping the model loaded. No synthesis is left running
+behind a second parallel worker. Completed pieces stay saved; interrupted or late results
+are discarded without creating an error or influencing Synthesis speed. Cancellation of
+a waiting Narration, repeated old cancellation and re-enqueue have independent signals.
+Snapshot and HTTP shapes are unchanged. `VoiceProvider.synthesize` adds optional
+`cancel: threading.Event | None`; providers raise `SynthesisCancelled` when interrupted.
+
+Latest changed files additionally include `ozvuchka/core.py`, `kokoro.py`, `voices.py`,
+`tests/fakes.py`, `tests/test_voice_provider_contract.py`, `pyproject.toml` (untyped
+onnxruntime import configuration), `CODING_STANDARDS.md` and ADR-0004. Production
+provider/build dependencies are unchanged. Earlier statements below about no Core or
+provider changes describe the original UI candidate, not this authorized extension.
+
+Verification:
+
+- The updated Alice-to-George test first failed against the old implementation, then
+  passed without releasing Alice's manual synthesis gate.
+- Active cancellation, queued cancellation, preservation of completed pieces, repeated
+  old cancellation, re-enqueue and a late-returning result are covered through Core's
+  public seam. Provider contracts cover pre-cancelled calls and subsequent reuse.
+- Real Kokoro's native `InferenceSession.run` boundary is observed in the slow test;
+  cancellation occurs during a long running call and the same provider then synthesizes
+  George. All **8 slow tests passed**. In the final native-boundary run the measured
+  return time rounded to 0.000 s at three decimal places; an earlier test including
+  text preparation measured 0.546 s. These are development-PC observations, not guarantees.
+- In-app browser, Windows, 1280 × 720: enqueue Alice then George on :8780's 60-second
+  fixture, cancel Alice, observe George as `Готовится` after approximately 414 ms including
+  browser control/refresh. Cancelling George empties the queue. No minute-long wait,
+  re-enqueue or reload was needed. [Screenshot](cancel-immediate-1280.jpg).
+- Latest ordinary suite: **114 passed, 8 slow tests deselected**; mypy, ruff and
+  `git diff --check` passed before the commit. The slow suite passed with the native test temp folder
+  set below; build/launcher changes and a new ZIP are outside this extension.
+
+The first slow attempt hit sandbox denial when phonemizer copied its DLL to the default
+temporary directory. Using a writable repository temp folder resolved it without
+changing production code or dependencies:
+
+```powershell
+New-Item -ItemType Directory -Force .cache/native-test-temp | Out-Null
+$env:TEMP = (Resolve-Path .cache/native-test-temp).Path
+$env:TMP = $env:TEMP
+runtime/python.exe -X utf8 -m pytest -m slow -s --basetemp=.cache/pytest-cancel-native-final
+```
+
+The updated review page runs on :8780 (older servers contain the pre-interruption Core
+and must not be used to accept the new cancellation behaviour):
+
+```powershell
+runtime/python.exe -X utf8 tools/ui_design_preview.py --long-title --no-ready --piece-seconds 60 --port 8780
+```
+
+Select Alice and enqueue, then select George and enqueue. Cancel Alice; George should
+start promptly, without finishing Alice's artificial wait. The agent cancelled both
+before they produced ready pieces, so the current Text is available for another check.
+If it later becomes ready, use a New Text or another Speed. School-laptop native latency
+is explicitly tracked in `docs/manual-checks.md`; initial model loading and synchronous
+text preparation bounds are documented in ADR-0004.
+
+## Original UI result and scope (historical)
 
 Selected Voice, its availability and the native Speed picker remain visible beside the
 editor. Normal Speed remains explicitly named `1× — обычная`. The Voice disclosure
@@ -166,7 +233,7 @@ for the developer. If a combination later becomes ready, create a New Text or ch
 Speed before retesting: enqueue deliberately does not regenerate a ready Narration.
 This only changes fixture invocation; production timing/queue semantics are unchanged.
 
-## Cancellation follow-up (2026-11-04)
+## Original cancellation follow-up (2026-11-04, superseded by ADR-0004)
 
 The developer accepted revised Voice keyboard/pointer selection and successfully
 created active Alice plus queued George. They reported that cancelling Alice left
@@ -204,7 +271,7 @@ clarification and evidence are in the commit introducing this section; use
 
 ## Next session
 
-Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0002/0003,
+Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0002/0003/0004,
 `docs/ui-design-spec.md`, this handoff and live #31. Present stage 4 for acceptance;
 keep #31 open until accepted. Stage 5 (#32) is not started. Publication and CI need the
 developer's permission; neither is implied by this local handoff.

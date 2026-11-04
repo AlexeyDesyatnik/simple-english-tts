@@ -34,7 +34,8 @@ and storage within the portable application's data folder.
 
 The scope excludes porting the launcher to Linux/macOS, changing the Voice provider,
 Voice catalogue, synthesis algorithm, audio scheduling, Speed values, queue semantics,
-or Start delay calculation. It also excludes dark mode, import/export, cloud features,
+or Start delay calculation, except for the developer-authorized immediate cancellation
+extension to stage 4 (ADR-0004). It also excludes dark mode, import/export, cloud features,
 new branding, and a separate mobile application. Platform-neutral UI is not a claim
 that the whole application already runs on every OS. ADR-0003's current Windows launch
 mechanism remains in place; no ADR change is needed for the font and layout changes.
@@ -104,8 +105,12 @@ Speed. No options may be clipped.
 Show a compact Narration queue summary with expandable details. Keep existing estimates,
 ready Paragraph counts, and cancellation. The queue's appearance must not displace the
 primary action or editor. Do not invent progress precision or new timing calculations.
-Explain the existing cancellation boundary: a piece already being synthesized finishes
-before the next queued Narration starts. Cancellation does not interrupt that provider call.
+Cancellation interrupts the active synthesis call and releases the worker for the next
+Narration; do not wait for the whole cancelled piece. Keep previously completed pieces,
+discard the interrupted result and do not treat cancellation as a failure. Use a separate
+cancellation signal per call so a late cancellation cannot stop the following Narration.
+This explicit developer-requested extension supersedes the original finish-current-piece
+boundary; queue ordering, other scheduling decisions and estimates remain unchanged.
 
 ## Playback mode
 

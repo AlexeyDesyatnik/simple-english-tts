@@ -1,9 +1,10 @@
 """Test doubles for the application core's seam: a Voice provider and a clock."""
 
 import threading
+import time
 
 from ozvuchka.audio import Audio, wav_from_samples
-from ozvuchka.voices import Voice
+from ozvuchka.voices import Voice, check_cancelled
 
 SAMPLE_RATE = 24000
 
@@ -62,10 +63,16 @@ class FakeVoiceProvider:
     def set_available(self, available: bool) -> None:
         self._available = available
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Audio:
+    def synthesize(self, text: str, voice: str, speed: float, cancel: threading.Event | None = None) -> Audio:
+        check_cancelled(cancel)
         self.requests.append((text, voice, speed))
-        if self._manual and not self._go.acquire(timeout=5):
-            raise TimeoutError("the test never called finish_next()")
+        if self._manual:
+            deadline = time.monotonic() + 5
+            while not self._go.acquire(timeout=0.01):
+                check_cancelled(cancel)
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("the test never called finish_next()")
+        check_cancelled(cancel)
         seconds = 0.1 * len(text) / speed
         if self._clock is not None:
             self._clock.advance(seconds / self.speed)

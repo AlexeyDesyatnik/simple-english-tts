@@ -19,7 +19,7 @@ from ozvuchka.library import LibraryFiles, SavedText
 from ozvuchka.scheduling import PlannedPiece, SpeedRecords, SynthesisSpeed, measured, start_delay
 from ozvuchka.settings import Settings, SettingsFile
 from ozvuchka.text import Paragraph, paragraphs
-from ozvuchka.voices import Voice, VoiceRegistry
+from ozvuchka.voices import SynthesisCancelled, Voice, VoiceRegistry
 
 _log = logging.getLogger(__name__)
 
@@ -94,6 +94,8 @@ class Core:
         self._speeds = SpeedRecords(data_dir)
         self._synthesis_speed = self._speeds.speed(computer)
         self._synthesizing: str | None = None
+        self._synthesizing_narration: str | None = None
+        self._synthesis_cancel = threading.Event()
         self._synthesizing_since = 0.0
         self._synthesizing_length = 0  # characters
         # The playback position: the page plays, but the core decides what (ADR-0003).
@@ -250,10 +252,14 @@ class Core:
                 self._work.notify()
 
     def cancel(self, narration_id: str) -> None:
-        """Takes a Narration out of the Narration queue; its pieces already synthesized are kept, and a piece under
-        way is finished. Playback of a cancelled Narration stops."""
+        """Removes a Narration and interrupts its active piece, keeping completed pieces.
+
+        Playback of a cancelled Narration stops. The next Narration starts when interruption unwinds.
+        """
         with self._lock:
             self._queue = [q for q in self._queue if q.id != narration_id]
+            if self._synthesizing_narration == narration_id:
+                self._synthesis_cancel.set()
             current = self._current_narration()
             if current is not None and current.id == narration_id:
                 self._stop_playback()
@@ -657,6 +663,10 @@ class Core:
         if piece is not None:
             self._deleted_pieces.discard(piece[0])
             self._synthesizing = piece[0]
+            self._synthesizing_narration = next(
+                q.id for q in self._queue if any(audio_id == piece[0] for audio_id, _ in self._queued_pieces(q))
+            )
+            self._synthesis_cancel = threading.Event()
             self._synthesizing_since = self._clock()
             self._synthesizing_length = len(piece[1])
         return piece
@@ -688,26 +698,38 @@ class Core:
                 audio_id, text, voice, voice_speed = piece
                 started = self._synthesizing_since
                 load_error = self._load_errors.get(voice.provider)
-            result: Audio | str  # the audio, or why there is none
+                cancel = self._synthesis_cancel
+            result: Audio | str | None  # None means cancellation, not a synthesis error
             try:
                 if not self._registry.available(voice):
                     raise RuntimeError(load_error or f"{voice.label}: голос недоступен")
-                result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed)
+                result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed, cancel)
+            except SynthesisCancelled:
+                result = None
             except Exception as error:
-                _log.exception("Could not synthesize %r in %s", text, voice.key)
-                result = str(error)
+                if cancel.is_set():
+                    result = None
+                else:
+                    _log.exception("Could not synthesize %r in %s", text, voice.key)
+                    result = str(error)
             finished = self._clock()
             save_error = None
-            if isinstance(result, Audio):
+            if isinstance(result, Audio) and not cancel.is_set():
                 try:
                     self._files.save_piece(audio_id, result)
                 except OSError as error:
                     save_error = f"Не удалось сохранить озвучку: {error}"
             with self._lock:
                 self._synthesizing = None
-                if not isinstance(result, Audio):
+                self._synthesizing_narration = None
+                if cancel.is_set():
+                    if isinstance(result, Audio):
+                        # Cancellation may race the atomic disk write above; do not revive its partial Narration.
+                        self._delete_pieces({audio_id})
+                    result = None
+                elif isinstance(result, str):
                     self._failed[audio_id] = result
-                else:
+                elif isinstance(result, Audio):
                     self._synthesis_speed = measured(
                         self._synthesis_speed, len(text), result.duration, finished - started, voice_speed
                     )
