@@ -2,11 +2,11 @@
 
 Date: 2026-11-04. Branch: `experiment-2`. Starting tree was clean at `b3b212c`,
 five commits ahead of its upstream. Authenticated host GitHub CLI confirmed #36
-closed and #37 open. Stages 1–9 were already accepted. #37 remains open for
-developer acceptance; no push, CI inspection or Issue mutation was performed.
+closed and #37 open. Stages 1–9 were already accepted. At implementation handoff,
+#37 remained open for developer acceptance; no push, CI inspection or Issue
+mutation was performed. See the subsequent developer acceptance below.
 
-Implementation commit: the commit introducing this handoff; resolve with
-`git log -1 -- docs/design-reviews/issue-37/README.md`.
+Implementation commit: `e0403a0`.
 
 ## Scope and corrections
 
@@ -72,7 +72,7 @@ returned to 20 Texts. No substantial new defect requiring a separate Issue emerg
 | 1440 × 900 and 1280 × 720 | With 20 Texts, long current title and Alice/George ready labels, editor and Play remain initially visible. At 1280, editor bottom 628.75 and Play bottom 688.75 CSS px. Editor height 205.16 px accommodates six lines; Library growth remains in its scroll area. |
 | 390 × 844 | Preparation, Voice/Speed, Library disclosure/scroll, long-title delete dialog, transport, help and reading tools remain usable without horizontal page overflow. Long preparation title and editor/actions may require vertical scrolling, as allowed. Library stays open after selection/New Text/dialog cancellation until explicit close or Escape. |
 | 640 × 360 reflow proxy | Checked preparation, Voice disclosure and Playback layout at the CSS space corresponding to a 1280 × 720 window at 200%. Vertical scrolling is required; no horizontal page overflow. This is **not an actual browser zoom test**. |
-| Browser zoom 200% | **Pending developer check.** Built-in-browser Ctrl+plus did not change `innerWidth` or `devicePixelRatio`; available capabilities expose viewport sizing but no zoom setter. Do not treat the half-size proxy as completion of this criterion. |
+| Browser zoom 200% | **Passed by developer report, 2026-11-04.** The developer explicitly confirmed actual 200% zoom works. The agent's earlier half-size proxy remains separate evidence: built-in-browser Ctrl+plus did not change `innerWidth` or `devicePixelRatio`. |
 | Library/search | Empty Library and no-match search have distinct explanations; no-match search preserves current editor. Long row/title names remain fully accessible; two ready Narration labels remain readable. |
 | Voice/sample | Real George sample reached browser's playing state while Alice remained selected. Arrows moved focus to Fable without selecting it; Escape restored Voice-summary focus. Confirming George with Enter closed the chooser and updated selection. Unavailable/loading states explain their meaning in text. Human listening quality is not claimed. |
 | Editing/save/reload | New three-Paragraph Text showed unsaved then saved. F5 restored it. Appending `They smiled.` and immediately pressing Play saved/synthesized the exact latest Paragraph; disposable `library.json` independently confirmed it. Routine snapshots preserved the editable Text. No delay proxy or crash audit was repeated. |
@@ -142,9 +142,19 @@ Developer's short everyday-use acceptance, using the fresh real preview above:
    Expect Library to remain open, no clipped controls and visible returned focus.
 4. In the normal Edge/Chrome browser set **actual 200% zoom**. Check editor/Play,
    Library, Voice chooser, dialog and reading tools: vertical scroll is allowed,
-   horizontal clipping is not. This is the remaining browser criterion.
+   horizontal clipping is not. The developer has now confirmed this criterion.
 
 School hardware acceptance is the consolidated checklist in `docs/manual-checks.md`:
 projector/back-row readability, real presenter remote and Celeron/i5 performance
 (including real cancellation latency). No browser simulation marks those passed.
-Accept stage 10 before closing #37; push and CI still need explicit permission.
+## Developer acceptance — 2026-11-04
+
+The developer confirmed that all requested acceptance checks work, explicitly
+including actual 200% browser zoom. Stage 10 is accepted; the ten-stage UI track
+is complete. Close #37 on that basis. No further everyday-use or zoom check is
+required for this delivery.
+
+The confirmation does not provide device-specific results or cancellation
+timings for the projector, presenter remote or Celeron/i5 checklist. Keep those
+entries as unrecorded hardware checks rather than inventing measurements or
+claiming particular devices were tested. No push or CI inspection is authorized.

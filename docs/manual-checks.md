@@ -22,8 +22,10 @@ Stage 10 consolidates the outstanding stage checks below without marking any of
 those checks passed. Use the `experiment-2` candidate, never another branch's
 build, and a disposable Library with 20 Texts, a long title and several ready
 Narrations. Browser evidence and the short everyday-use acceptance are in
-`docs/design-reviews/issue-37/README.md`. Actual 200% browser zoom remains a
-separate browser acceptance step there; the half-size viewport is only a proxy.
+`docs/design-reviews/issue-37/README.md`. The developer accepted stage 10 on
+2026-11-04, explicitly confirming actual 200% browser zoom. Device-specific
+results and cancellation timings below have not been recorded; browser acceptance
+does not supply those measurements.
 Record device, date and observations when checking these items.
 
 - [ ] **Projector/classroom, #37 (preserves #28 and #32):** from the back rows, check UI labels, blue Library selection, centred reading Text and yellow current Paragraph with its blue edge. Try Text sizes 18-80, readable-Paragraph position, skipped instructions and expanded keyboard help; the current Paragraph must start below sticky controls.
