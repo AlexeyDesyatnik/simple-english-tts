@@ -4,9 +4,8 @@ Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#32](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/32).
 Baseline: `d3d0e35`, clean working tree on the existing branch.
 Implementation and browser evidence: `d0d4fab` (local, not pushed).
-Status: audible transport and genuine 200% accepted by the developer; the requested
-completion-view correction below is ready for review. #32 remains open.
-No push or CI inspection has been performed. Both require separate permission.
+Status: stage 5, including the completion-view correction, accepted by the developer
+on 2026-11-04. Push and waiting for CI were explicitly authorized. #32 remains open.
 
 ## Changes and boundaries
 
@@ -192,5 +191,6 @@ The page is left on the completed reading screen for developer review.
 
 The developer's sound and 200% acceptance is recorded here, not as a hardware result.
 All school/projector/remote items in the single manual checklist remain outstanding.
-The new completion-view correction awaits review; #32 is not closed, stage 6 has not
-started, and push/CI inspection still require separate permission.
+The developer subsequently confirmed the correction works and authorized push and
+waiting for CI. The accepted correction is `148f206`; stage 6 has not started.
+Publication and Build results are reported in the delivery chat.
