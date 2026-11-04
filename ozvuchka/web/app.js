@@ -788,10 +788,11 @@ let saveTimer = null;
 let saving = null;
 let savingSequence = null;
 let transitionBusy = false;
+const lifecycleSaves = new Map();
 
 function renderSave() {
   saveHintEl.textContent = saveError ? `Не удалось сохранить текст. ${saveError}`
-    : savingSequence === editSequence ? "Сохранение…"
+    : savingSequence === editSequence || lifecycleSaves.has(`${editContext}:${editSequence}`) ? "Сохранение…"
     : editSequence !== savedSequence ? "Изменения не сохранены"
     : editSequence > 0 ? "Сохранено" : "Автосохранение после ввода";
   saveHintEl.className = saveError ? "error" : "muted";
@@ -800,7 +801,12 @@ function renderSave() {
 }
 
 function adoptEditor(next) {
-  if (next.save.context !== editContext) {
+  // A reload's first snapshot can precede the departing page's keepalive write.
+  // Follow a later Core revision only while this page has no edits of its own.
+  if (next.save.context !== editContext || (
+    editSequence === savedSequence && !saveError && !saving
+    && next.save.sequence > editSequence
+  )) {
     clearTimeout(saveTimer);
     editContext = next.save.context;
     editSequence = next.save.sequence;
@@ -808,6 +814,58 @@ function adoptEditor(next) {
     saveError = next.save.status === "failed" ? next.save.error : null;
     sourceEl.value = next.text?.content ?? "";
   }
+  renderSave();
+}
+
+function acknowledgeSave(result, context, sequence) {
+  if (context !== editContext) {
+    throw new Error("Текст изменился в другом окне. Скопируйте правки перед обновлением страницы.");
+  }
+  if (sequence < savedSequence) return;
+  if (result.context !== context || result.sequence !== sequence || result.status !== "saved") {
+    throw new Error(result.error || "Программа не подтвердила сохранение. Повторите попытку.");
+  }
+  savedSequence = sequence;
+  if (sequence === editSequence) saveError = null;
+}
+
+function rememberSaveError(error, context, sequence) {
+  // A response (including a transport error) for an older save cannot undo a
+  // newer confirmed write sent independently by the lifecycle handler.
+  if (context === editContext && sequence > savedSequence) {
+    saveError = error.message || "Нет связи с программой.";
+  }
+}
+
+function saveOnPageHide() {
+  clearTimeout(saveTimer);
+  if (!editContext || (editSequence === savedSequence && !saveError)) return;
+  const context = editContext;
+  const sequence = editSequence;
+  const key = `${context}:${sequence}`;
+  if (lifecycleSaves.has(key)) return;
+  // Do not join serial(): an older request/response must not block the last edit.
+  // keepalive is best effort and subject to the browser's shared body-size quota.
+  issued++;
+  const pending = (async () => {
+    try {
+      const response = await fetch("/api/command", {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: "save_text", context, sequence, text: sourceEl.value }),
+      });
+      const reply = await response.json();
+      if (!response.ok) throw new Error(reply.error);
+      acknowledgeSave(reply.result, context, sequence);
+    } catch (error) {
+      rememberSaveError(error, context, sequence);
+    } finally {
+      lifecycleSaves.delete(key);
+      renderSave();
+    }
+  })();
+  lifecycleSaves.set(key, pending);
+  // Dispatching a keepalive is not a disk acknowledgement.
   renderSave();
 }
 
@@ -840,14 +898,10 @@ async function saveTypedText() {
   saving = (async () => {
     try {
       const result = await command({ command: "save_text", context, sequence, text });
-      if (context !== editContext) throw new Error("Текст изменился в другом окне. Скопируйте правки перед обновлением страницы.");
-      if (result.context !== context || result.sequence !== sequence || result.status !== "saved") {
-        throw new Error(result.error || "Программа не подтвердила сохранение. Повторите попытку.");
-      }
-      savedSequence = sequence;
-      saveError = null;
+      acknowledgeSave(result, context, sequence);
     } catch (error) {
-      if (context === editContext) saveError = error.message || "Нет связи с программой.";
+      rememberSaveError(error, context, sequence);
+      if (context === editContext && sequence <= savedSequence) return;
       throw error;
     } finally {
       saving = null;
@@ -994,8 +1048,17 @@ function heartbeat(event) {
 function sendHeartbeat() {
   fetch("/api/command", { method: "POST", body: heartbeat("page_alive") }).catch(() => {});
 }
-window.addEventListener("pagehide", () => navigator.sendBeacon("/api/command", heartbeat("page_closing")));
-document.addEventListener("freeze", () => navigator.sendBeacon("/api/command", heartbeat("page_frozen")));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveOnPageHide();
+});
+window.addEventListener("pagehide", () => {
+  saveOnPageHide();
+  navigator.sendBeacon("/api/command", heartbeat("page_closing"));
+});
+document.addEventListener("freeze", () => {
+  saveOnPageHide();
+  navigator.sendBeacon("/api/command", heartbeat("page_frozen"));
+});
 document.addEventListener("resume", sendHeartbeat);
 setInterval(sendHeartbeat, 5000);
 sendHeartbeat();
