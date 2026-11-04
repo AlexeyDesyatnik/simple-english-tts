@@ -63,5 +63,5 @@ How large the teacher has chosen to show a Text's Paragraphs, so they can be rea
 _Avoid_: Font size, zoom, scale
 
 **Playback mode**:
-How the screen looks while a Narration is being played, paused or waited for: only the Text and the buttons, with the Library and the settings put away.
+How the screen looks while a Narration is being played, paused, waited for, or has finished: only the Text and the buttons, with the Library and the settings put away. After completion it stays open until the teacher returns to editing.
 _Avoid_: Presentation mode, full screen, projector mode

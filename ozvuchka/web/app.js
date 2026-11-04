@@ -555,7 +555,7 @@ function renderParagraphs(text, textSizeChanged) {
     );
   }
   const playback = snapshot.playback;
-  const highlighted = lingering ?? (playback.state === "stopped" ? null : playback.paragraph);
+  const highlighted = lingering ?? playback.paragraph ?? playback.ended_at;
   (text?.paragraphs ?? []).forEach((p, i) => {
     const li = paragraphsEl.children[i];
     const current = highlighted === i;
@@ -601,6 +601,7 @@ function statusText(text, playback) {
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
+  if (playback.ended_at != null) return ["Текст прочитан", ""];
   if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы продолжить", ""];
   if (playback.state === "waiting") {
     if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
@@ -633,7 +634,7 @@ function render(next) {
   const first = snapshot === null;
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
-  document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
+  document.body.classList.toggle("playback", snapshot.playback.state !== "stopped" || snapshot.playback.ended_at != null);
   renderVoices();
   const textSizeChanged = renderTextSize();
   const textId = snapshot.text?.id ?? null;
@@ -654,8 +655,8 @@ function render(next) {
   document.getElementById("play").textContent = playing ? "Пауза"
     : snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
   const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
-  const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph];
-  document.getElementById("position").textContent = snapshot.playback.state === "stopped" || !current || !readable.length ? ""
+  const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph ?? snapshot.playback.ended_at];
+  document.getElementById("position").textContent = !current || !readable.length ? ""
     : `Абзац ${readable.indexOf(current) + 1} из ${readable.length}`;
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text, textSizeChanged);

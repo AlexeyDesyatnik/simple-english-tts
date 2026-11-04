@@ -140,7 +140,11 @@ Centre reading Text and constrain line length relative to Text size, initially a
 60–75 characters at ordinary size. Large Text must retain useful margins and accessible
 controls. Preserve yellow highlighting with a blue edge, distinguish skipped and failed
 Paragraphs, and keep the current Paragraph visible without hiding it behind the sticky
-transport. Do not introduce new end-of-playback semantics as a styling change.
+transport. Developer acceptance correction on 2026-11-04: after natural completion, remain in
+Playback mode with `Воспроизвести`, `Текст прочитан`, and the last readable Paragraph
+highlighted. Only `К редактированию` returns to preparation. Expose Core's existing
+last-heard position in the snapshot so reload preserves this view; do not change audio
+scheduling or the existing Play/repeat/previous/next command semantics.
 
 ## Saving and feedback
 

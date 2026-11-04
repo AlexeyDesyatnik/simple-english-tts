@@ -4,7 +4,8 @@ Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#32](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/32).
 Baseline: `d3d0e35`, clean working tree on the existing branch.
 Implementation and browser evidence: `d0d4fab` (local, not pushed).
-Status: implementation ready for developer acceptance; #32 remains open.
+Status: audible transport and genuine 200% accepted by the developer; the requested
+completion-view correction below is ready for review. #32 remains open.
 No push or CI inspection has been performed. Both require separate permission.
 
 ## Changes and boundaries
@@ -155,3 +156,41 @@ clicking a Paragraph starts that Paragraph; Return immediately stops sound; natu
 completion has no extra speech or overlap and replay starts at the first readable
 Paragraph. Verify the highlight/position against what is actually heard. The Russian
 instruction remains unspoken. Genuine 200% zoom and hardware checks remain pending.
+
+## Developer acceptance: keep Playback mode after completion
+
+On 2026-11-04 the developer confirmed real speech behaviour and acceptable genuine
+200% zoom. They requested one correction: finishing the Text must not automatically
+return to editing; the teacher chooses when to leave Playback mode. This explicit
+request supersedes earlier natural-end UI expectations in this handoff and the
+original styling-only end boundary in the specification.
+
+Core's existing last-heard `_ended_at` is now exposed as nullable
+`playback.ended_at` in the snapshot. No command, audio scheduling, event processing
+or stopped/playing state transition changed. The UI retains Playback mode when that
+position exists, keeps the last readable Paragraph highlighted and counted, shows
+`Текст прочитан`, and offers `Воспроизвести`. Explicit stop clears that position and
+returns to editing. Play still restarts from the first readable Paragraph; repeat
+and previous retain their existing semantics after the end. Since Core owns the
+position, F5 retains the completed reading screen without page-only mode state.
+GLOSSARY.md and the Playback mode specification now describe this accepted direction.
+
+The new public-seam test first failed with a missing snapshot field, then passed.
+Existing exact playback snapshot assertions include the additive field. Latest
+checks: **115 passed, 8 slow tests deselected**, mypy and ruff passed; diff check passed.
+No production provider/build change; no additional slow suite is required.
+
+A fresh real-Kokoro process serves the correction on http://127.0.0.1:8784 using a
+new disposable Library. Earlier ports contain older Core instances; use :8784.
+Reproduce the real-provider command above with `--port 8784`.
+
+Actual IAB verification: let the last spoken Paragraph finish naturally; observe
+Playback mode, Play, `Абзац 6 из 6` and `Текст прочитан`; reload and retain that view;
+Repeat starts 6/6; Return explicitly exposes/focuses the editor; Play starts 1/6.
+The page is left on the completed reading screen for developer review.
+[Completed reading screen](completed-1280.jpg).
+
+The developer's sound and 200% acceptance is recorded here, not as a hardware result.
+All school/projector/remote items in the single manual checklist remain outstanding.
+The new completion-view correction awaits review; #32 is not closed, stage 6 has not
+started, and push/CI inspection still require separate permission.

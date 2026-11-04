@@ -406,6 +406,7 @@ class Core:
             }
             playback = {
                 "state": self._state,
+                "ended_at": self._ended_at,
                 "paragraph": self._paragraph,
                 "next": None if self._paragraph is None else self._readable_after(self._paragraph),
                 "start_delay": self._start_delay() if self._state == "waiting" else None,

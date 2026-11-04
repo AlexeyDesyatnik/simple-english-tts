@@ -213,20 +213,50 @@ TEXT_WITH_A_TASK = "Упражнение 1. Послушайте.\nTom has a cat
 def test_paragraphs_play_in_order_skipping_skipped_paragraphs(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
     play_when_ready(core)
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_started(1)
     core.paragraph_finished(1)
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_started(3)
     core.paragraph_finished(3)
     core.paragraph_started(4)
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(4)
 
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": 4,
+    }
+
+
+def test_natural_completion_remains_distinguishable_from_return_to_editing(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+    core.play_from(4)
+    core.paragraph_finished(4)
+
+    # This snapshot also drives a freshly reloaded page; the page need not remember the end.
+    assert core.snapshot()["playback"]["ended_at"] == 4
+    assert core.snapshot()["playback"]["state"] == "stopped"
+    assert core.next_paragraph() is False
+    core.play()
+    assert core.snapshot()["playback"]["ended_at"] is None
+    assert core.snapshot()["playback"]["paragraph"] == 1
+    core.play_from(4)
+    core.paragraph_finished(4)
+    core.stop()
+    assert core.snapshot()["playback"]["ended_at"] is None
 
 
 def test_the_page_can_start_the_next_paragraph_before_reporting_the_end_of_the_previous_one(make_core):
@@ -237,7 +267,9 @@ def test_the_page_can_start_the_next_paragraph_before_reporting_the_end_of_the_p
     core.paragraph_started(3)
     core.paragraph_finished(1)  # late: the position has already moved on
 
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_a_text_with_nothing_to_read_does_not_start_playing(make_core):
@@ -256,12 +288,16 @@ def test_pause_keeps_the_position_and_play_resumes_it(make_core):
     core.paragraph_finished(1)
 
     core.pause()
-    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(3)  # the page may still report what was playing as it paused
     assert playback(core)["paragraph"] == 3
 
     core.play()
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_stop_returns_to_the_start_of_the_text(make_core):
@@ -271,7 +307,9 @@ def test_stop_returns_to_the_start_of_the_text(make_core):
     core.paragraph_finished(1)
 
     core.stop()
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
     core.play()
     assert playback(core)["paragraph"] == 1
@@ -297,9 +335,13 @@ def test_next_and_previous_paragraph_play_the_neighbouring_one_passing_over_skip
     play_when_ready(core)
 
     assert core.next_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     assert core.previous_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_previous_at_the_first_paragraph_and_next_at_the_last_leave_playback_as_it_is(make_core):
@@ -308,11 +350,15 @@ def test_previous_at_the_first_paragraph_and_next_at_the_last_leave_playback_as_
     play_when_ready(core)
 
     assert core.previous_paragraph() is False
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
     core.next_paragraph()
     core.next_paragraph()
     assert core.next_paragraph() is False
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_repeat_plays_the_current_paragraph_again_even_when_paused(make_core):
@@ -324,7 +370,9 @@ def test_repeat_plays_the_current_paragraph_again_even_when_paused(make_core):
 
     assert core.repeat_paragraph() is True
 
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_after_the_end_of_the_text_repeat_and_previous_go_back_from_the_last_paragraph(make_core):
@@ -338,10 +386,14 @@ def test_after_the_end_of_the_text_repeat_and_previous_go_back_from_the_last_par
     assert core.next_paragraph() is False
     assert playback(core)["state"] == "stopped"
     assert core.repeat_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(4)
     assert core.previous_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_after_stop_next_plays_the_first_paragraph_while_previous_and_repeat_do_nothing(make_core):
@@ -355,7 +407,9 @@ def test_after_stop_next_plays_the_first_paragraph_while_previous_and_repeat_do_
     assert core.repeat_paragraph() is False
     assert playback(core)["state"] == "stopped"
     assert core.next_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_next_previous_and_repeat_do_nothing_without_a_text(make_core):
@@ -777,7 +831,9 @@ def test_play_on_a_narration_slower_than_speech_waits_out_a_start_delay_that_cou
     core.set_text(FOUR_PARAGRAPHS_OF_10_S)
 
     core.play()
-    assert playback(core) == {"state": "waiting", "paragraph": 0, "next": 1, "start_delay": None}  # not measured yet
+    assert playback(core) == {"state": "waiting", "paragraph": 0, "next": 1, "start_delay": None,
+        "ended_at": None,
+    }  # not measured yet
 
     provider.finish_next()  # 20 s for 10 s of speech: this computer synthesizes at half the pace of speech
     snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
@@ -825,7 +881,9 @@ def test_on_a_computer_faster_than_speech_playback_starts_as_soon_as_the_first_p
 
     snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
     assert statuses(snapshot)[1:] != ["ready"] * 3
-    assert snapshot["playback"] == {"state": "playing", "paragraph": 0, "next": 1, "start_delay": None}
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 0, "next": 1, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_the_start_delay_is_recalculated_when_synthesis_slows_down_along_the_way(make_core):
@@ -913,7 +971,9 @@ def test_play_from_a_paragraph_that_is_not_ready_synthesizes_from_it_then_the_on
 
     snapshot = wait_for(core, all_ready)
     assert said(provider) == ["C", "D", "A", "B"]
-    assert snapshot["playback"] == {"state": "playing", "paragraph": 2, "next": 3, "start_delay": None}
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 2, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_play_from_a_paragraph_while_another_is_synthesizing_switches_to_it_after_that_piece(make_core):
@@ -1282,7 +1342,9 @@ def test_choosing_another_voice_or_speed_stops_the_narration_playing(make_core, 
 
     getattr(core, command)(value)
 
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 @pytest.mark.parametrize("command, value", [("set_voice", "fake:bob"), ("set_speed", 1.5)])
