@@ -660,7 +660,9 @@ function keepCurrentVisible(center = false) {
   const top = panelHeight + 16;
   const rect = current.getBoundingClientRect();
   const available = Math.max(0, innerHeight - top - 16);
-  if (!center && rect.top >= top && (rect.bottom <= innerHeight - 16 || rect.height > available)) return;
+  if (!center && rect.top >= top && (
+    rect.height > available ? rect.top <= top + 16 : rect.bottom <= innerHeight - 16
+  )) return;
   const offset = rect.height < available ? (available - rect.height) / 2 : 0;
   window.scrollBy({ top: rect.top - top - offset, behavior: "instant" });
 }
@@ -747,9 +749,15 @@ function render(next) {
 }
 
 function showError(message) {
-  statusEl.textContent = message;
-  statusEl.className = "error";
+  // Polling updates routine status independently; an actionable error stays readable.
+  document.getElementById("action-error-message").textContent = message;
+  document.getElementById("action-error").hidden = false;
 }
+
+document.getElementById("dismiss-error").addEventListener("click", () => {
+  document.getElementById("action-error").hidden = true;
+  (document.body.classList.contains("playback") ? workspaceEl : sourceEl).focus({ preventScroll: true });
+});
 
 async function poll() {
   try {
@@ -919,6 +927,10 @@ saveRetryEl.addEventListener("click", () => saveTypedText().then(refresh).catch(
 
 async function transition(body) {
   if (transitionBusy || !snapshot) return;
+  if (["play", "enqueue"].includes(body.command) && !sourceEl.value.trim()) {
+    showError("Сначала вставьте английский текст в поле «Текст», затем повторите действие.");
+    return;
+  }
   transitionBusy = true;
   sourceEl.readOnly = true;
   sourceEl.setAttribute("aria-busy", "true");
