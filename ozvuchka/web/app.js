@@ -20,6 +20,23 @@ const libraryPanelEl = document.getElementById("library-panel");
 const narrowWindow = matchMedia("(max-width: 959px)");
 libraryPanelEl.open = !narrowWindow.matches;
 narrowWindow.addEventListener("change", (event) => { libraryPanelEl.open = !event.matches; });
+function closeNarrowLibrary() {
+  if (narrowWindow.matches) libraryPanelEl.open = false;
+}
+
+document.addEventListener("pointerdown", (event) => {
+  if (!libraryPanelEl.contains(event.target)) closeNarrowLibrary();
+});
+libraryPanelEl.addEventListener("focusout", (event) => {
+  if (event.relatedTarget && !libraryPanelEl.contains(event.relatedTarget)) closeNarrowLibrary();
+});
+libraryPanelEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !narrowWindow.matches || !libraryPanelEl.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeNarrowLibrary();
+  libraryPanelEl.querySelector("summary").focus({ preventScroll: true });
+});
 let shownTitle = "Новый текст";
 
 let snapshot = null;
@@ -231,9 +248,13 @@ function renderLibrary(library, currentId) {
         open.textContent = t.title;
         open.title = t.title;
         open.dataset.id = t.id;
-        open.addEventListener("click", () => {
+        open.addEventListener("click", async () => {
           clearSchedule();
-          act({ command: "open_text", id: t.id });
+          await act({ command: "open_text", id: t.id });
+          if (narrowWindow.matches) {
+            closeNarrowLibrary();
+            sourceEl.focus({ preventScroll: true });
+          }
         });
         const rename = document.createElement("button");
         rename.type = "button";
@@ -475,6 +496,7 @@ function render(next) {
   else if (!textId) shownTitle = "Новый текст";
   else if (textId !== previousTextId) shownTitle = snapshot.text.content.split("\n")[0];
   document.getElementById("text-title").textContent = shownTitle;
+  document.getElementById("text-title").title = shownTitle;
   const playing = ["playing", "waiting"].includes(snapshot.playback.state);
   document.getElementById("play").hidden = playing;
   document.getElementById("play").textContent = snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
@@ -622,6 +644,7 @@ librarySearchEl.addEventListener("input", () => {
 
 document.getElementById("new-text").addEventListener("click", () => {
   clearSchedule();
+  closeNarrowLibrary();
   sourceEl.value = "";
   sourceEl.focus();
   act({ command: "new_text" });

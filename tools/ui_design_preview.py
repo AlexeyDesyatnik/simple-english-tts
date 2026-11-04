@@ -37,6 +37,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8771)
     parser.add_argument("--texts", type=int, choices=(0, 1, 20), default=20)
+    parser.add_argument("--long-title", action="store_true", help="Seed a multi-line title for layout checks")
     args = parser.parse_args()
     preview_root = Path(__file__).resolve().parents[1] / ".cache" / "ui-design-preview"
     preview_root.mkdir(parents=True, exist_ok=True)
@@ -52,7 +53,14 @@ def main() -> None:
             if args.texts:
                 core.set_text(_TEXT)
                 text_id = str(core.snapshot()["text"]["id"])
-                core.rename_text(text_id, "A Saturday discovery — история о прогулке по старому городу")
+                title = "A Saturday discovery — история о прогулке по старому городу"
+                if args.long_title:
+                    title = (
+                        "A Saturday discovery — an English reading activity about exploring the old town, "
+                        "finding unexpected places, sharing observations with classmates and writing "
+                        "a story together after the lesson"
+                    )
+                core.rename_text(text_id, title)
                 core.enqueue()
                 _wait_until_ready(core)
                 core.set_voice("fake:george")

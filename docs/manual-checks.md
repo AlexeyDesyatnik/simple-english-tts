@@ -25,3 +25,7 @@ do not substitute another branch's build. Browser verification is recorded in
 - [ ] **Projector/classroom, #28:** check UI labels, blue Library selection, and yellow current Paragraph with its blue edge from the back rows at the chosen Text size.
 - [ ] **School laptops, #28:** check preparation and Playback mode responsiveness with 20 Texts and a long Text on the Celeron and i5.
 - [ ] **Presenter remote, #28:** check pause/resume, previous/next Paragraph and repeat in Playback mode, including after using the native controls and disclosures.
+
+## experiment-2 preparation workspace (#29)
+
+- [ ] **School laptops, #29:** check narrow Library opening/scrolling/closing and switching back to the editor with 20 Texts on the Celeron and i5. Verify that controls stay responsive and typed input remains intact.

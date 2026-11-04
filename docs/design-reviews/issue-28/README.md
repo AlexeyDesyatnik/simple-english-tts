@@ -4,10 +4,10 @@ Date: 2026-11-03. Branch: `experiment-2`. Issue: [#28](https://github.com/Alexey
 
 ## Review gate
 
-**Awaiting the developer's visual review. Do not begin stage 2 or close #28.**
-The developer approved the transport arrangement described below as a bounded visual
-correction; this is not approval to start stage 2 or close #28. The screenshots below
-remain the candidate for overall review. Other branches
+**Visual direction accepted by the developer on 2026-11-03.**
+The developer explicitly confirmed acceptance after the transport correction in
+`aca9918` (initial implementation: `289ea5b`). Stage 2 may now proceed under #29.
+The screenshots below record that accepted direction. Other branches
 and their Issues are independent alternatives and are not inputs to this work.
 
 ## Scope and decisions
@@ -144,6 +144,6 @@ Provider/build behavior is unchanged, so slow/release checks do not apply.
 The implementation commit includes this handoff and its artifacts; resolve its hash
 with `git log -1 --format=%H -- docs/design-reviews/issue-28/README.md` (also reported in
 the session delivery). Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0003,
-`docs/ui-design-spec.md`, #28 and this handoff. First obtain/record the developer's
-visual review. Only after direction approval should a fresh bounded session read #29
-and start stage 2. Do not close #28 before that confirmation.
+`docs/ui-design-spec.md`, #28 and this handoff. The developer's visual review is
+recorded above; read #29 to continue with stage 2. The stage 1 approval
+gate is satisfied; hardware-only checks remain pending in the manual checklist.

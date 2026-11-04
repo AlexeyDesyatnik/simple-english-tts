@@ -53,6 +53,12 @@ information without shifting the editor or primary control during routine update
 Below approximately 960 pixels, expose the Library through a disclosure and keep the
 current Text central. Opening or closing it must preserve edits and work position.
 The exact breakpoint is adjustable to fit real content and font metrics.
+The narrow Library disclosure opens above the working area without moving the editor.
+Bound its height and scroll its contents as one panel; close it on Escape, outside
+pointer input, focus leaving the panel, or choosing/creating a Text. It is a non-modal
+disclosure, so preserve the native Tab order and return focus appropriately.
+On desktop, constrain the working title to two lines with its full title accessible,
+so an unusually long title does not displace the editor and primary action.
 
 Give the editor a permanent `Текст` label and a separate short explanation that each
 line is a Paragraph. Remove the duplicate rendered Paragraph list from preparation;

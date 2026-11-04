@@ -30,10 +30,12 @@ summary { cursor: pointer; min-height: var(--control); padding: var(--space-2); 
 .muted { color: var(--muted); font-size: 14px; }
 .error { color: var(--error); }
 #library-panel > summary { font-size: 20px; }
+#library-panel { position: sticky; top: var(--space-6); min-width: 0; }
+.library-content { display: flex; flex-direction: column; max-height: calc(100dvh - 160px); }
 .library-tools { display: grid; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
 #library-search { width: 100%; min-width: 0; padding: var(--space-2) var(--space-3); background: var(--surface); color: var(--fg); }
 #library, #queue, #voices { list-style: none; padding: 0; margin: 0; }
-#library { max-height: calc(100dvh - 320px); overflow-y: auto; scrollbar-gutter: stable; }
+#library { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
 #library > li { border-bottom: 1px solid var(--divider); padding: var(--space-2) 0; }
 .library-text { display: flex; align-items: start; gap: var(--space-1); }
 #library .text-title { min-width: 0; flex: 1; background: transparent; color: var(--fg); text-align: left; font-weight: 400; border-color: transparent; overflow-wrap: anywhere; padding: var(--space-2); }
@@ -102,7 +104,10 @@ body.playback .controls { padding-top: var(--space-2); }
   .app-header { margin-bottom: var(--space-4); }
   .app-header .muted { display: none; }
   .workspace { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
-  #library { max-height: 300px; }
+  #library-panel { position: relative; top: auto; z-index: 2; }
+  #library-panel[open] > summary { background: var(--selected); }
+  .library-content { position: absolute; top: 100%; left: 0; width: 100%; max-height: calc(100dvh - 144px); padding: var(--space-3); overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px #242b3520; }
+  #library { flex: none; overflow: visible; scrollbar-gutter: auto; }
   .working-area { padding: var(--space-4); }
   .settings { display: grid; grid-template-columns: minmax(0, 1fr); }
   #voice-panel { min-width: 0; }
@@ -112,5 +117,8 @@ body.playback .controls { padding-top: var(--space-2); }
   body.playback .playback-transport { width: 100%; }
   body.playback #repeat { margin-left: 0; }
   #paragraphs li { padding: var(--space-3); }
+}
+@media (min-width: 960px) {
+  body:not(.playback) #text-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
