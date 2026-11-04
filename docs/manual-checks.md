@@ -47,5 +47,5 @@ do not substitute another branch's build. Browser verification is recorded in
 
 ## experiment-2 application dialogs and keyboard (#33)
 
-- [ ] **School laptops, #33:** check rename/delete dialogs, readable consequences for long Text titles, Tab/Shift+Tab containment, Escape and visible return focus on Celeron/i5. Delete only disposable Texts/Narrations in a test Library.
-- [ ] **Presenter remote, #33:** after Library/Voice/help/dialog use, focus the reading background and check Space, arrows, PageUp/PageDown and repeat; check physical R in the Russian layout. Native controls must retain their own keys while focused. Verify heard speech against the highlighted Paragraph with real Kokoro.
+- [ ] **School laptops, #33:** check rename/delete dialogs, readable consequences for long Text titles, Tab/Shift+Tab containment, Escape and visible return focus on Celeron/i5. In narrow/zoomed windows, the Library must stay open across actions and dialog cancellation until explicitly closed. Delete only disposable Texts/Narrations in a test Library.
+- [ ] **Presenter remote, #33:** immediately after starting Playback mode, without an extra pointer action, check Space, arrows, PageUp/PageDown and repeat; check physical R in the Russian layout. Repeat after Library/Voice/help/dialog use. Native controls must retain their own keys while focused. Verify heard speech against the highlighted Paragraph with real Kokoro.

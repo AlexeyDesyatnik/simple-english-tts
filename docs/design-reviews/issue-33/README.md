@@ -6,6 +6,11 @@ Baseline: `c84d1a5`, clean tree, tracking `origin/experiment-2` with no divergen
 Status: implementation ready for developer acceptance; #33 remains open.
 Implementation and browser evidence: `bc5a4a4` (local, not pushed).
 
+**Current review:** see "Developer acceptance corrections" below. The current isolated
+real-Kokoro preview is [127.0.0.1:8789](http://127.0.0.1:8789/). Earlier automatic Library
+closing expectations and the requirement to click the reading background after Play
+are superseded by the developer's acceptance feedback.
+
 ## Changes and boundaries
 
 - `ozvuchka/web/index.html`, `app.js`, `style.css`: replace native prompt/confirm with
@@ -172,3 +177,69 @@ Developer acceptance on :8788:
 Hardware-only checks remain in `docs/manual-checks.md`; none were marked complete.
 Do not close #33 or start stage 7 before developer acceptance. Ask separately before
 push and CI. After acceptance and an authorized successful push/CI, close #33.
+
+## Developer acceptance corrections
+
+Date: 2026-11-04. The developer confirmed rename/delete flows and keyboard behaviour
+work, and that the appearance at genuine 200% zoom is acceptable. They requested two
+usability corrections before accepting stage 6. These supersede the earlier automatic
+Library-closing and click-background instructions above, and the stage 2 specification.
+This correction is committed with this section after `f25769c`; its hash is in the
+current delivery chat. No push or CI inspection has been authorized.
+
+1. On entering Playback mode, the transport retained focus on Pause, preventing the
+   intended playback shortcuts. The workspace is now a labelled, programmatically
+   focusable reading surface (`tabindex=-1`, absent from the sequential Tab order).
+   On entry, reload into reading, or a fresh start after completion, focus moves there.
+   Space/arrows/PageUp/PageDown/physical R immediately apply; native controls retain
+   their own keys after the teacher deliberately focuses them. Routine polling and
+   Pause/Continue do not repeatedly move focus. Audio/player/Core are unchanged.
+2. The Library previously closed when focus moved into a dialog, on outside input,
+   and after Text selection/creation. These automatic closures are removed, including
+   resets at responsive breakpoints. Once open, it stays open across Library actions,
+   dialog cancellation/confirmation, selection and creation until the teacher closes
+   it using its summary or Escape. Dialog return focus now reaches the still-visible
+   row action summary, a remaining Text or search, as appropriate. Narrow New Text
+   retains its button focus rather than moving underneath the open overlay.
+
+Updated `docs/ui-design-spec.md` and the existing #33 hardware checklist accordingly.
+No save/autosave/reload protection work or other stage was started.
+
+### Correction browser verification
+
+Fresh detached real-Kokoro preview: [127.0.0.1:8789](http://127.0.0.1:8789/), launched
+with the existing `--real-voice --long-title --port 8789`. All data is disposable.
+The server runs independently of the tool command; stdout/stderr logs are in
+`.cache/issue33-correction.*.log`. Older ports have older Core instances; use :8789.
+The new page is left in preparation, with real Alice and George Narrations ready.
+
+- Pointer Play → focus `text-workspace` at 1/6 → Space (no pointer/focus operation)
+  paused → Right moved to 2/6. The same entry worked with Enter on Play.
+- Playing the final Paragraph, letting it finish, then clicking Play again focused
+  `text-workspace`; immediate Space paused the restarted speech. Native transport
+  buttons continue to receive their own key input when explicitly focused.
+- At 640 CSS px width, open Library → another row's Delete → Cancel kept Library open
+  and returned focus to that same row's summary. Confirmed disposable Text deletion
+  kept the Library open with 19 rows and focus on a remaining Text.
+- Selecting a Text and creating New Text both kept the Library open. Narrow New Text
+  retained focus on `new-text`. Selected the original real-ready Text again afterwards.
+- At 390×844, row Rename → Escape retained the open Library and focused its summary
+  for the same Text; no horizontal page overflow. Clicking Library summary explicitly
+  closed it. Open/closed state was retained across 640/390/1280 breakpoint changes.
+- Genuine 200% appearance is developer-confirmed for the preceding implementation.
+  The corrected Library behaviour was verified at narrow CSS widths in IAB; repeat
+  the user's actual 200% usability scenario for final acceptance of these corrections.
+
+Evidence: [immediate playback shortcuts](immediate-shortcuts.jpg),
+[Library after Cancel at 640px](library-after-cancel-640.jpg),
+[Library still open after Rename/Escape at 390px](library-kept-open-390.jpg).
+
+Checks before the correction commit: pytest **116 passed, 8 slow deselected**; strict
+mypy and ruff passed; `git diff --check` passed. No provider/build changes or new test
+framework. Hardware-only items remain unticked in the single manual checklist.
+
+Developer recheck: open :8789, press Play then immediately Space/arrows/R without
+clicking the background. At genuine 200%, open Library, cancel deletion of the wrong
+Text, then act on the intended Text without reopening/searching the panel. Close the
+Library explicitly when finished. #33 stays open until these corrections are accepted
+and push/CI are separately authorized and successful.

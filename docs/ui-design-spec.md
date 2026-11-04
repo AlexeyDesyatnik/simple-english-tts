@@ -55,9 +55,11 @@ Below approximately 960 pixels, expose the Library through a disclosure and keep
 current Text central. Opening or closing it must preserve edits and work position.
 The exact breakpoint is adjustable to fit real content and font metrics.
 The narrow Library disclosure opens above the working area without moving the editor.
-Bound its height and scroll its contents as one panel; close it on Escape, outside
-pointer input, focus leaving the panel, or choosing/creating a Text. It is a non-modal
-disclosure, so preserve the native Tab order and return focus appropriately.
+Bound its height and scroll its contents as one panel. Developer acceptance correction
+for #33: once opened, keep it open across actions, dialogs, focus changes and Text
+selection/creation until the teacher closes it with its summary or Escape. Retain its
+open state across responsive breakpoint changes. It is a non-modal disclosure, so
+preserve the native Tab order and return focus appropriately.
 On desktop, constrain the working title to two lines with its full title accessible,
 so an unusually long title does not displace the editor and primary action.
 
@@ -199,6 +201,9 @@ Every control needs an accessible name and visible focus. Clickable Paragraphs m
 be keyboard operable. Do not let playback shortcuts capture normal input in fields,
 native controls, menus, or dialogs. Preserve Space, arrows, PageUp/PageDown, and R,
 including physical-key R in Russian layout, when playback shortcuts apply.
+On entering Playback mode, focus the reading workspace rather than the transport
+button, so these shortcuts work immediately without an extra pointer action. Polling
+must not repeatedly steal focus from controls the teacher subsequently chooses.
 
 Replace native rename/delete prompts with application dialogs with labelled input or
 clear Russian consequences. Support cancel/Escape, focus containment where modal, and

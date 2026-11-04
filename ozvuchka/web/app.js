@@ -19,24 +19,14 @@ const sampleStatusEl = document.getElementById("sample-status");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
 const libraryPanelEl = document.getElementById("library-panel");
+const workspaceEl = document.getElementById("text-workspace");
 const narrowWindow = matchMedia("(max-width: 959px)");
 libraryPanelEl.open = !narrowWindow.matches;
-narrowWindow.addEventListener("change", (event) => { libraryPanelEl.open = !event.matches; });
-function closeNarrowLibrary() {
-  if (narrowWindow.matches) libraryPanelEl.open = false;
-}
-
-document.addEventListener("pointerdown", (event) => {
-  if (!libraryPanelEl.contains(event.target)) closeNarrowLibrary();
-});
-libraryPanelEl.addEventListener("focusout", (event) => {
-  if (event.relatedTarget && !libraryPanelEl.contains(event.relatedTarget)) closeNarrowLibrary();
-});
 libraryPanelEl.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !narrowWindow.matches || !libraryPanelEl.open) return;
   event.preventDefault();
   event.stopPropagation();
-  closeNarrowLibrary();
+  libraryPanelEl.open = false;
   libraryPanelEl.querySelector("summary").focus({ preventScroll: true });
 });
 const transportEl = document.querySelector(".transport");
@@ -371,10 +361,6 @@ function renderLibrary(library, currentId) {
         open.addEventListener("click", async () => {
           clearSchedule();
           await act({ command: "open_text", id: t.id });
-          if (narrowWindow.matches) {
-            closeNarrowLibrary();
-            sourceEl.focus({ preventScroll: true });
-          }
         });
         const rename = document.createElement("button");
         rename.type = "button";
@@ -721,6 +707,8 @@ function renderTextSize() {
 
 function render(next) {
   const first = snapshot === null;
+  const wasReading = document.body.classList.contains("playback");
+  const startingPlayback = snapshot?.playback.state === "stopped" && next.playback.state !== "stopped";
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
   document.body.classList.toggle("playback", snapshot.playback.state !== "stopped" || snapshot.playback.ended_at != null);
@@ -746,6 +734,9 @@ function render(next) {
     : `Абзац ${readable.indexOf(current) + 1} из ${readable.length}`;
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text, textSizeChanged);
+  if (document.body.classList.contains("playback") && (!wasReading || startingPlayback)) {
+    workspaceEl.focus({ preventScroll: true });
+  }
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
   statusEl.className = className;
@@ -864,6 +855,8 @@ const INTERACTIVE = [
   "[role=tree]", "[role=treeitem]", "[role=textbox]", "[contenteditable]:not([contenteditable=false])", "[tabindex]",
 ].join(", ");
 function typing(e) {
+  // The reading surface receives shortcuts; its interactive descendants keep their own keys.
+  if (e.target === workspaceEl) return false;
   return e.target.closest(INTERACTIVE) || e.target.isContentEditable;
 }
 
@@ -887,9 +880,8 @@ librarySearchEl.addEventListener("input", () => {
 
 document.getElementById("new-text").addEventListener("click", () => {
   clearSchedule();
-  closeNarrowLibrary();
   sourceEl.value = "";
-  sourceEl.focus();
+  if (!narrowWindow.matches) sourceEl.focus();
   act({ command: "new_text" });
 });
 
