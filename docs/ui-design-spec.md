@@ -2,6 +2,13 @@
 
 ## Authority and scope
 
+Adoption update, 2026-11-04: the developer accepted all ten stages and selected
+this implementation as the new `main`. The branch isolation rules below describe
+the completed design experiment. Future work starts from the adopted `main`;
+the retired alternatives are not sources of further design changes. The previous
+`main` contributes only its NumPy 2.3.5 compatibility pin and explanation.
+See [the adoption record](design-reviews/main-adoption/README.md).
+
 This specification defines the independent UI design implementation on `experiment-2`.
 The developer treats the work on this branch and the two other implementation tracks as
 three alternatives. Existing Issues and implementations on other branches are not

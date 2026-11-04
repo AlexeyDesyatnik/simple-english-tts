@@ -35,7 +35,7 @@ murmurhash==1.0.15
 mypy==2.4.0
 mypy_extensions==1.1.0
 num2words==0.5.14
-numpy==2.5.4
+numpy==2.3.5
 onnxruntime==1.31.0
 packaging==26.3
 pathspec==1.1.1

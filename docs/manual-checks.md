@@ -16,11 +16,20 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 
 Checks the issues ask for, to be done once the work is in a release:
 
-## experiment-2 integrated acceptance (#37; stages #28-33)
+## Adopted main with NumPy 2.3.5 (#26, #37)
+
+The older NumPy was previously accepted on Athlon II X2 250 and an 11th-generation
+Core i5 with the isolated v0.2 build (#26). The adopted main combines that pin
+with the accepted experiment-2 UI. Local/CI checks on a modern CPU do not verify
+the new combined archive on the old computer.
+
+- [ ] **Older CPU, #26 / #37 integration:** unpack the adopted main archive into a fresh folder on the Athlon II X2 250 (or the target old computer). Start the launcher, paste a short English Text, prepare and play a new Narration, then close/reopen and check that the Text remains and `data/ozvuchka.log` exists. Expect no NumPy import/startup error and correct speech. Use a disposable Library; no speed benchmark is required.
+
+## Adopted UI integrated acceptance (#37; stages #28-33)
 
 Stage 10 consolidates the outstanding stage checks below without marking any of
-those checks passed. Use the `experiment-2` candidate, never another branch's
-build, and a disposable Library with 20 Texts, a long title and several ready
+those checks passed. Use the adopted `main` (the accepted `experiment-2` design)
+and a disposable Library with 20 Texts, a long title and several ready
 Narrations. Browser evidence and the short everyday-use acceptance are in
 `docs/design-reviews/issue-37/README.md`. The developer accepted stage 10 on
 2026-11-04, explicitly confirming actual 200% browser zoom. Device-specific

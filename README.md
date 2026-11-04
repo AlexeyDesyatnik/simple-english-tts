@@ -2,11 +2,24 @@
 
 An offline program that reads English texts aloud during English lessons. See `GLOSSARY.md` for the terms and `docs/adr/` for the decisions.
 
-## Independent UI design track
+NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
+Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
+([release notes](https://numpy.org/doc/stable/release/2.4.0-notes.html#modulate-dispatched-x86-cpu-features)).
+The isolated v0.2 build with 2.3.5 was tested successfully on the Athlon and an
+11th-generation Core i5 laptop. The developer accepted these checks as sufficient;
+the perceived speed difference was minimal, without timed measurements
+([#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)).
+Review older-CPU support before upgrading this dependency.
 
-The `experiment-2` branch follows [the UI design specification](docs/ui-design-spec.md),
-including its ten implementation Issues. This is an independent alternative to the
-other branches' implementations; their Issues are not part of this track.
+## UI design
+
+The accepted ten-stage `experiment-2` implementation is now the basis of `main`.
+Its [UI design specification](docs/ui-design-spec.md) and
+[integrated acceptance record](docs/design-reviews/issue-37/README.md) describe
+the current design. The other design alternatives are retired; only the NumPy
+compatibility change from the previous `main` was retained. See the
+[adoption record](docs/design-reviews/main-adoption/README.md) for source commits
+and archived branch states.
 
 ## Development
 
