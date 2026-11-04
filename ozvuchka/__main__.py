@@ -16,13 +16,12 @@ import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ozvuchka.core import Core
-from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
 from ozvuchka.log import start_log
-from ozvuchka.server import make_server
-from ozvuchka.voices import VoiceRegistry
-from ozvuchka.window import open_window
+
+if TYPE_CHECKING:  # imported in _run(), after start_log
+    from ozvuchka.core import Core
 
 ROOT = Path(__file__).resolve().parent.parent  # the program folder (ADR-0001)
 _log = logging.getLogger("ozvuchka")
@@ -39,6 +38,8 @@ def main() -> None:
 
     os.chdir(ROOT)  # as from Озвучка.exe; eSpeak NG needs a path relative to it (kokoro.py)
     start_log(ROOT / "data")
+    from ozvuchka.window import open_window  # after start_log, so an error here reaches the log
+
     version_file = ROOT / "version.txt"  # written by the release build
     version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
     open_page = args.app and not args.no_window
@@ -96,6 +97,13 @@ def _page_opening(url: str) -> bool:
 
 
 def _run(port: int, app: bool, open_page: bool) -> None:
+    # Imported here, after start_log: numpy and Kokoro load native code, and an error there must reach the log.
+    from ozvuchka.core import Core
+    from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
+    from ozvuchka.server import make_server
+    from ozvuchka.voices import VoiceRegistry
+    from ozvuchka.window import open_window
+
     core = Core(
         VoiceRegistry([KokoroProvider(ROOT / "models" / "kokoro")]),
         DEFAULT_VOICE,
@@ -119,7 +127,7 @@ def _run(port: int, app: bool, open_page: bool) -> None:
         core.close()
 
 
-def _end_when_closed(core: Core, server: ThreadingHTTPServer) -> None:
+def _end_when_closed(core: "Core", server: ThreadingHTTPServer) -> None:
     while not core.page_gone():
         time.sleep(1)
     _log.info("The window is closed")

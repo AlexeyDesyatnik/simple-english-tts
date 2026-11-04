@@ -16,6 +16,11 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 
 Checks the issues ask for, to be done once the work is in a release:
 
+## Startup failure messages (#25)
+
+- [ ] **Launcher failure messages, #25:** on a Windows PC (a school laptop is best), with a disposable unzipped copy of the adopted main zip: (1) start Озвучка.exe normally: the window opens and `data\ozvuchka.log` appears. (2) Close it, then rename the `data` folder to `data-old` and create a plain empty *file* named `data` in its place; start Озвучка.exe again. Expect a Russian message with the exit code saying that the `data\` folder cannot be created or written, and that no log was written. It must not mention `data\ozvuchka.log`. Then delete the file `data` and rename `data-old` back. Record the Windows version and the message text.
+- [ ] **Early startup output, #25:** on the same kind of disposable unzipped copy: rename its `ozvuchka` folder (the program package) to `ozvuchka-off`, delete `data` if present, then start Озвучка.exe. Expect the Russian message saying the program closed before its log started and that the output is in `data\startup-output.txt`, and that file to contain `No module named ozvuchka` (the exact text may differ). Then rename `ozvuchka-off` back. Record the Windows version and the message text.
+
 ## Adopted main with NumPy 2.3.5 (#26, #37)
 
 The older NumPy was previously accepted on Athlon II X2 250 and an 11th-generation
