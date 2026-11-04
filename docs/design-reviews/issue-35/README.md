@@ -182,3 +182,16 @@ be guaranteed after process termination or a crash. One current editing workspac
 is assumed; concurrent-window merge/conflict recovery is not implemented.
 
 Do not push or inspect CI in this stage. Do not close #35 until developer acceptance.
+
+## Developer verification update — 2026-11-04
+
+The developer confirmed that all four checks in the chat's short acceptance list
+work: ordinary autosave with stable cursor/selection; saving before opening or
+creating a Text and retaining edits on return; Play/enqueue using the latest
+visible edits; and F5 retaining content after confirmed saving.
+
+This confirmation refers to the four-item chat list, not items 1–4 of the longer
+acceptance procedure above. Developer verification of write failure, blocked
+transitions and retry has not yet been reported. Delayed-response and failure
+scenarios have the agent browser evidence recorded above. Full stage 8 acceptance
+has not yet been declared; #35 remains open. Push and CI remain deferred.
