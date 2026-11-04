@@ -213,3 +213,11 @@ earlier push deferral. The developer will check CI separately: do not inspect or
 wait for CI in this session. #35 has not been closed in this session. Stage 9 is
 #36, with immediate reload/page-hide protection and documented lifecycle limits;
 read its current body before implementation.
+
+### Final developer acceptance — 2026-11-04
+
+Stage 8 is accepted after the developer's successful ordinary and failure/retry
+checks. The developer clarified that #35 should therefore be closed; it is now
+closed. This supersedes the earlier pending-acceptance/open-Issue statements.
+The next-stage prompt should say that stages 1–8 are accepted and #35 is closed.
+CI remains for the developer to check independently.
