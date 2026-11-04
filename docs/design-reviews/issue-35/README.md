@@ -195,3 +195,12 @@ acceptance procedure above. Developer verification of write failure, blocked
 transitions and retry has not yet been reported. Delayed-response and failure
 scenarios have the agent browser evidence recorded above. Full stage 8 acceptance
 has not yet been declared; #35 remains open. Push and CI remain deferred.
+
+### Developer failure/retry check — 2026-11-04
+
+The developer also confirmed that the write-failure scenario works: an empty
+`library.json.tmp` directory in the current disposable preview Library produces
+a save error, a Text switch retains the visible edits, and removing the obstruction
+then retrying saves successfully. Together with the earlier four chat checks,
+the developer has now confirmed the ordinary and failure/retry scenarios.
+No Issue state, push or CI operation was performed as part of recording this result.
