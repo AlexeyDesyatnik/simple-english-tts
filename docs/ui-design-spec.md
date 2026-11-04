@@ -83,6 +83,13 @@ keyboard users, never hover-only. Show ready Narrations as readable labels such 
 Keep total storage size secondary. Distinguish an empty Library from an empty search
 result. Searching must not remove the current Text from the working area.
 
+Stage 3 bounds row titles to three visible lines, retaining the full accessible name
+and title tooltip. Ready Narration labels stay in the row; their removal actions live
+in the row's always-visible ellipsis disclosure alongside rename and Text deletion.
+Only one row disclosure is open at a time. Escape closes it and focuses its summary;
+Tab leaving it or a click outside closes it. Actions remain in document flow inside
+the bounded Library scroll area, with targets at least 44 CSS pixels high.
+
 ## Voice, Speed, and Narration queue
 
 Keep selected Voice and Speed visible near the editor; disclose the full Voice list

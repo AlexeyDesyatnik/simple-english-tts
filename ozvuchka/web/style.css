@@ -37,20 +37,25 @@ summary { cursor: pointer; min-height: var(--control); padding: var(--space-2); 
 #library, #queue, #voices { list-style: none; padding: 0; margin: 0; }
 #library { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
 #library > li { border-bottom: 1px solid var(--divider); padding: var(--space-2) 0; }
+.library-empty { padding: var(--space-4) var(--space-2); }
+.library-empty > p + p { margin-top: var(--space-2); }
 .library-text { display: flex; align-items: start; gap: var(--space-1); }
 #library .text-title { min-width: 0; flex: 1; background: transparent; color: var(--fg); text-align: left; font-weight: 400; border-color: transparent; overflow-wrap: anywhere; padding: var(--space-2); }
+.library-title-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 #library .text-title:hover { background: var(--selected); }
 #library .text-title.current { background: var(--selected); color: #173f70; font-weight: 600; }
 .row-actions { flex: none; }
 .row-actions summary { list-style: none; width: 44px; text-align: center; color: var(--accent); border: 1px solid var(--border); }
 .row-actions summary::-webkit-details-marker { display: none; }
 .row-actions svg { display: block; fill: currentColor; }
-.row-actions[open] { width: 100%; }
-.library-text:has(.row-actions[open]) { flex-wrap: wrap; }
-.row-actions button { display: block; width: 100%; margin-top: var(--space-1); text-align: left; }
+.library-text:has(.row-actions[open]) { position: relative; flex-wrap: wrap; }
+#library .library-text:has(.row-actions[open]) > .text-title { flex: 0 0 calc(100% - 48px); }
+.row-actions[open] { width: 100%; min-width: 0; padding-bottom: var(--space-2); }
+.row-actions[open] > summary { position: absolute; top: 0; right: 0; }
+.row-actions button { display: block; width: 100%; margin-top: var(--space-1); text-align: left; overflow-wrap: anywhere; font-size: 14px; }
+.row-actions button.destructive { color: var(--error); }
 .library-narrations { display: grid; gap: var(--space-1); padding: 0 var(--space-2); }
-.ready-narration { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: 14px; color: var(--muted); }
-#library .delete-narration { background: transparent; color: var(--error); font-size: 14px; padding: var(--space-2); }
+.ready-narration { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
 .settings { display: flex; align-items: start; flex-wrap: wrap; gap: var(--space-3); padding-bottom: var(--space-4); margin-bottom: var(--space-4); border-bottom: 1px solid var(--divider); }
 #voice-panel { flex: 1; min-width: 200px; }
 #voice-panel summary { border: 1px solid var(--border); font-weight: 400; }

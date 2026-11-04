@@ -233,19 +233,33 @@ function formatBytes(bytes) {
 }
 
 function renderLibrary(library, currentId) {
-  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер неизвестен" : formatBytes(snapshot.library_bytes);
+  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер Библиотеки неизвестен" : `Библиотека · ${formatBytes(snapshot.library_bytes)}`;
+  const searching = Boolean(snapshot.library_search);
+  document.getElementById("library-empty").hidden = library.length > 0;
+  document.getElementById("library-empty-title").textContent = searching ? "Ничего не найдено" : "В Библиотеке пока нет текстов";
+  document.getElementById("library-empty-help").textContent = searching
+    ? "Измените запрос или очистите поле поиска."
+    : "Нажмите «Новый текст», вставьте текст и запустите воспроизведение или подготовку озвучки.";
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
+    const focusedRow = document.activeElement?.closest("#library > li");
+    const focusedId = focusedRow?.dataset.id;
+    const focusedTitle = document.activeElement?.classList.contains("text-title");
+    const openId = libraryEl.querySelector(".row-actions[open]")?.closest("li").dataset.id;
     shownLibrary = key;
     libraryEl.replaceChildren(
       ...library.map((t) => {
         const li = document.createElement("li");
+        li.dataset.id = t.id;
         const row = document.createElement("div");
         row.className = "library-text";
         const open = document.createElement("button");
         open.type = "button";
         open.className = "text-title";
-        open.textContent = t.title;
+        const titleLabel = document.createElement("span");
+        titleLabel.className = "library-title-label";
+        titleLabel.textContent = t.title;
+        open.append(titleLabel);
         open.title = t.title;
         open.dataset.id = t.id;
         open.addEventListener("click", async () => {
@@ -263,15 +277,36 @@ function renderLibrary(library, currentId) {
         rename.addEventListener("click", () => renameText(t));
         const remove = document.createElement("button");
         remove.type = "button";
-        remove.className = "secondary library-action";
-        remove.textContent = "Удалить";
+        remove.className = "secondary library-action destructive";
+        remove.textContent = "Удалить текст и озвучки";
         remove.addEventListener("click", () => deleteText(t));
         const actions = document.createElement("details");
         actions.className = "row-actions";
+        actions.open = t.id === openId;
         const menu = document.createElement("summary");
         menu.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
         menu.setAttribute("aria-label", `Действия с текстом «${t.title}»`);
         actions.append(menu, rename, remove);
+        actions.addEventListener("toggle", () => {
+          if (actions.open) {
+            for (const other of libraryEl.querySelectorAll(".row-actions[open]")) {
+              if (other !== actions) other.open = false;
+            }
+          }
+        });
+        actions.addEventListener("keydown", (event) => {
+          if (event.key === "Tab") {
+            // Let native focus move before hiding any of its current controls.
+            setTimeout(() => {
+              if (!actions.contains(document.activeElement)) actions.open = false;
+            }, 0);
+          }
+          if (event.key !== "Escape" || !actions.open) return;
+          event.preventDefault();
+          event.stopPropagation();
+          actions.open = false;
+          menu.focus({ preventScroll: true });
+        });
         row.append(open, actions);
 
         const narrations = document.createElement("div");
@@ -280,21 +315,27 @@ function renderLibrary(library, currentId) {
           const label = narrationLabel(n);
           const ready = document.createElement("span");
           ready.className = "ready-narration";
-          ready.title = `Готовая озвучка: ${label}`;
           const removeNarration = document.createElement("button");
           removeNarration.type = "button";
-          removeNarration.className = "delete-narration";
-          removeNarration.textContent = "Удалить";
+          removeNarration.className = "secondary library-action destructive";
+          removeNarration.textContent = `Удалить озвучку · ${label}`;
           removeNarration.title = `Удалить озвучку ${label}`;
-          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
+          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label} текста «${t.title}»`);
           removeNarration.addEventListener("click", () => deleteNarration(t, n));
-          ready.append(`Готово · ${label}`, removeNarration);
+          ready.textContent = `Готово · ${label}`;
           narrations.append(ready);
+          actions.append(removeNarration);
         }
         li.append(row, narrations);
         return li;
       }),
     );
+    if (focusedId) {
+      const replacement = [...libraryEl.children].find((li) => li.dataset.id === focusedId);
+      const target = replacement?.querySelector(focusedTitle ? ".text-title" : "summary")
+        ?? libraryEl.querySelector(".text-title") ?? librarySearchEl;
+      target.focus({ preventScroll: true });
+    }
   }
   for (const button of libraryEl.querySelectorAll(".text-title")) {
     button.classList.toggle("current", button.dataset.id === currentId);
@@ -302,6 +343,12 @@ function renderLibrary(library, currentId) {
     else button.removeAttribute("aria-current");
   }
 }
+
+document.addEventListener("click", (event) => {
+  for (const actions of libraryEl.querySelectorAll(".row-actions[open]")) {
+    if (!actions.contains(event.target)) actions.open = false;
+  }
+});
 
 // "0,8×"; normal Speed is named so the teacher can find the way back to it
 function speedLabel(speed) {

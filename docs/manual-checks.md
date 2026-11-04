@@ -29,3 +29,7 @@ do not substitute another branch's build. Browser verification is recorded in
 ## experiment-2 preparation workspace (#29)
 
 - [ ] **School laptops, #29:** check narrow Library opening/scrolling/closing and switching back to the editor with 20 Texts on the Celeron and i5. Verify that controls stay responsive and typed input remains intact.
+
+## experiment-2 Library (#30)
+
+- [ ] **School laptops, #30:** with 20 Texts and several ready Narrations, check Library search and row menus on the Celeron and i5: opening a Text, keyboard navigation, and removing a disposable Narration stay responsive. Use a test Library for deletion.
