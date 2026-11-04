@@ -243,3 +243,16 @@ clicking the background. At genuine 200%, open Library, cancel deletion of the w
 Text, then act on the intended Text without reopening/searching the panel. Close the
 Library explicitly when finished. #33 stays open until these corrections are accepted
 and push/CI are separately authorized and successful.
+
+## Developer acceptance completed
+
+On 2026-11-04 the developer confirmed that both usability corrections work and
+accepted stage 6. This includes immediate playback shortcuts after Play and Library
+remaining open across actions/dialog cancellation, including their 200% workflow.
+Earlier pending developer-acceptance statements above are historical. Implementation:
+`bc5a4a4`; handoff pointer: `f25769c`; accepted usability corrections: `56a52c0`.
+
+Push and CI inspection still require separate authorization. #33 remains open until
+an authorized push and successful Build; stage 7 has not started. Hardware-only
+checks in `docs/manual-checks.md` remain outstanding and are not marked complete
+by this desktop acceptance.
