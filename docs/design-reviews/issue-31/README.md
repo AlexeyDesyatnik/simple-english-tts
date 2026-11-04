@@ -3,6 +3,8 @@
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#31](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/31).
 Baseline: `b3b7b50`, clean working tree, identical to `origin/experiment-2`.
+Implementation and browser evidence commit: `afae5e2`. This follow-up records its
+identifier only; the implementation has not been published and CI has not been queried.
 Stage 3 was accepted; its Library implementation and visual direction are preserved.
 Stage 4 is awaiting developer acceptance. Do not close #31 or start stage 5 yet.
 
