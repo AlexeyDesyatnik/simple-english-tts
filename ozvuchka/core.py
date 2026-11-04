@@ -82,6 +82,10 @@ class Core:
             self._library_error = f"Не удалось прочитать Библиотеку: {error}"
         self._text_id: str | None = None  # the current Text's place in the Library; None until it is saved
         self._text: str | None = None
+        self._edit_context = uuid.uuid4().hex
+        self._edit_sequence = 0
+        self._save_status = "idle"
+        self._save_error: str | None = None
         self._paragraphs: list[Paragraph] = []
         self._queue: list[_Queued] = []  # the Narration queue; the first one is being synthesized
         # A piece's audio is saved in the Library; only one that could not be saved is kept in memory.
@@ -117,12 +121,40 @@ class Core:
         with self._work:
             if text == self._text:
                 return
+            self._reset_edit_context()
             self._show(text)
             if self._paragraphs:
                 self._text_id = self._text_id or uuid.uuid4().hex[:12]
                 title = next((t.title for t in self._library if t.id == self._text_id), None)
                 self._move_to_front(SavedText(self._text_id, text, title))
                 self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
+
+    def save_text(self, text: str, *, context: str, sequence: int) -> dict[str, Any]:
+        """Accept an ordered edit for the current editing context and acknowledge its disk write.
+
+        A failed edit stays in memory and reserves its sequence. Retry with the same content/sequence,
+        or send a higher sequence. Contexts expire on Text transitions and changed legacy set_text calls.
+        """
+        if not isinstance(context, str) or type(sequence) is not int or sequence < 1:
+            raise ValueError("context must be a string and sequence a positive integer")
+        with self._work:
+            if context != self._edit_context or sequence < self._edit_sequence or (
+                sequence == self._edit_sequence and text != self._text
+            ):
+                return {
+                    "context": context, "sequence": sequence, "text_id": None,
+                    "status": "stale", "error": "Изменения устарели. Получите текущее состояние Текста.",
+                }
+            self._edit_sequence = sequence
+            if text != self._text:
+                self._show(text)
+            self._text_id = self._text_id or uuid.uuid4().hex[:12]
+            title = next((t.title for t in self._library if t.id == self._text_id), None)
+            written = self._move_to_front(SavedText(self._text_id, text, title))
+            self._save_status = "saved" if written else "failed"
+            self._save_error = None if written else self._library_error
+            self._drop_finished()
+            return self._save_snapshot()
 
     def open_text(self, text_id: str) -> None:
         """Makes a Text from the Library the current one."""
@@ -131,6 +163,7 @@ class Core:
             if saved is None:
                 raise ValueError(f"no text {text_id} in the library")
             if text_id != self._text_id or saved.content != self._text:
+                self._reset_edit_context()
                 self._text_id = text_id
                 self._show(saved.content)
             self._move_to_front(saved)
@@ -138,6 +171,7 @@ class Core:
     def new_text(self) -> None:
         """Leaves the current Text in the Library; the next set_text starts a new one."""
         with self._work:
+            self._reset_edit_context()
             self._text_id = None
             self._show(None)
 
@@ -166,6 +200,7 @@ class Core:
             self._library = [t for t in self._library if t.id != text_id]
             self._queue = [q for q in self._queue if q.text_id != text_id]
             if self._text_id == text_id:
+                self._reset_edit_context()
                 self._text_id = None
                 self._show(None)
             self._save_library()
@@ -429,6 +464,7 @@ class Core:
             library_search = self._library_search
             voice, speed, text_size = self._voice.key, self._speed, self._text_size
             voices_loading = self._loading
+            save = self._save_snapshot()
         return {
             "voices": [
                 {"id": v.key, "label": v.label, "available": self._registry.available(v)}
@@ -446,6 +482,7 @@ class Core:
             "library_error": library_error,
             "queue": queue,
             "text": text,
+            "save": save,
             "playback": playback,
         }
 
@@ -469,19 +506,33 @@ class Core:
         self._stop_playback()
         self._failed.clear()
 
-    def _move_to_front(self, text: SavedText) -> None:
+    def _reset_edit_context(self) -> None:
+        self._edit_context = uuid.uuid4().hex
+        self._edit_sequence = 0
+        self._save_status = "idle"
+        self._save_error = None
+
+    def _save_snapshot(self) -> dict[str, Any]:
+        return {
+            "context": self._edit_context, "sequence": self._edit_sequence, "text_id": self._text_id,
+            "status": self._save_status, "error": self._save_error,
+        }
+
+    def _move_to_front(self, text: SavedText) -> bool:
         """Saves the Library with this Text as the most recently used one."""
         self._library = [text] + [t for t in self._library if t.id != text.id]
-        self._save_library()
+        return self._save_library()
 
-    def _save_library(self) -> None:
+    def _save_library(self) -> bool:
         if not self._library_readable:
-            return
+            return False
         try:
             self._files.save_texts(self._library)
             self._library_error = None
+            return True
         except OSError as error:
             self._library_error = f"Не удалось сохранить Библиотеку: {error}"
+            return False
 
     def _readable(self, index: int) -> bool:
         return 0 <= index < len(self._paragraphs) and not self._paragraphs[index].skipped

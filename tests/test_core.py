@@ -49,6 +49,130 @@ def statuses(snapshot):
     return [p["status"] for p in snapshot["text"]["paragraphs"]]
 
 
+# ---------------------------------------------------------------- save acknowledgement and ordering
+
+
+def test_save_acknowledges_the_exact_edit_only_after_it_can_be_reopened(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    result = core.save_text("Confirmed text.", context=context, sequence=1)
+    assert result == {
+        "context": context, "sequence": 1, "text_id": core.snapshot()["text"]["id"],
+        "status": "saved", "error": None,
+    }
+    assert core.snapshot()["save"] == result
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(result["text_id"])
+    assert restarted.snapshot()["text"]["content"] == "Confirmed text."
+
+
+def test_failed_save_is_observable_survives_polling_and_retries_the_same_edit(make_core, tmp_path):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Previous text.")
+    context = core.snapshot()["save"]["context"]
+    obstruction = tmp_path / "data" / "library.json.tmp"
+    obstruction.mkdir()
+    failed = core.save_text("Retained edit.", context=context, sequence=2)
+    assert failed["status"] == "failed"
+    assert failed["error"].startswith("Не удалось сохранить Библиотеку")
+    assert core.snapshot()["save"] == failed
+    assert core.snapshot()["text"]["content"] == "Retained edit."
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(failed["text_id"])
+    assert restarted.snapshot()["text"]["content"] == "Previous text."
+    assert core.save_text("Older edit.", context=context, sequence=1)["status"] == "stale"
+    obstruction.rmdir()
+    assert core.save_text("Retained edit.", context=context, sequence=2)["status"] == "saved"
+    reopened = make_core(FakeVoiceProvider())
+    reopened.open_text(failed["text_id"])
+    assert reopened.snapshot()["text"]["content"] == "Retained edit."
+
+
+def test_older_or_reused_sequences_cannot_replace_a_newer_edit(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    newest = core.save_text("Newest text.", context=context, sequence=3)
+    assert core.save_text("Old text.", context=context, sequence=1)["status"] == "stale"
+    assert core.save_text("Different text.", context=context, sequence=3)["status"] == "stale"
+    assert core.snapshot()["save"] == newest
+    assert core.snapshot()["text"]["content"] == "Newest text."
+    assert core.save_text("Newest text.", context=context, sequence=3) == newest
+
+
+@pytest.mark.parametrize("transition", ["new", "open", "delete", "legacy"])
+def test_late_saves_cannot_follow_a_text_switch_or_an_unguarded_edit(make_core, transition):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("First text.")
+    first = core.snapshot()["text"]["id"]
+    core.new_text()
+    core.set_text("Second text.")
+    old_context = core.snapshot()["save"]["context"]
+    second = core.snapshot()["text"]["id"]
+    if transition == "open":
+        core.open_text(first)
+    elif transition == "new":
+        core.new_text()
+    elif transition == "delete":
+        core.delete_text(second)
+    else:
+        core.set_text("Legacy edit.")
+    before = core.snapshot()
+    assert core.save_text("Late first edit.", context=old_context, sequence=100)["status"] == "stale"
+    assert core.snapshot()["text"] == before["text"]
+    assert core.snapshot()["save"] == before["save"]
+    assert core.snapshot()["library"] == before["library"]
+
+
+def test_clearing_a_text_is_confirmed_on_disk_and_preserves_its_identity(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Clear me.")
+    before = core.snapshot()
+    result = core.save_text("", context=before["save"]["context"], sequence=1)
+    assert result["status"] == "saved"
+    assert result["text_id"] == before["text"]["id"]
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(result["text_id"])
+    assert restarted.snapshot()["text"]["content"] == ""
+
+
+def test_an_unreadable_library_never_acknowledges_a_write(make_core, tmp_path):
+    library = tmp_path / "data" / "library.json"
+    library.parent.mkdir(parents=True)
+    library.write_text("damaged", encoding="utf-8")
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    result = core.save_text("Keep in memory.", context=context, sequence=1)
+    assert result["status"] == "failed"
+    assert result["error"].startswith("Не удалось прочитать Библиотеку")
+    assert library.read_text(encoding="utf-8") == "damaged"
+
+
+def test_a_save_before_switch_stays_with_its_text_and_a_later_one_is_rejected(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    saved = core.save_text("First saved edit.", context=context, sequence=1)
+    core.new_text()
+    second_context = core.snapshot()["save"]["context"]
+    second = core.save_text("Second saved edit.", context=second_context, sequence=1)
+    assert second["text_id"] != saved["text_id"]
+    assert core.save_text("Late edit.", context=context, sequence=2)["status"] == "stale"
+    core.open_text(saved["text_id"])
+    assert core.snapshot()["text"]["content"] == "First saved edit."
+    assert core.save_text("Late edit after return.", context=context, sequence=3)["status"] == "stale"
+    current_context = core.snapshot()["save"]["context"]
+    assert core.save_text("Fresh edit.", context=current_context, sequence=1)["status"] == "saved"
+
+
+@pytest.mark.parametrize("sequence", [0, -1, True, 1.5, "2", None])
+def test_invalid_edit_sequences_leave_the_current_text_untouched(make_core, sequence):
+    core = make_core(FakeVoiceProvider())
+    before = core.snapshot()
+    with pytest.raises(ValueError):
+        core.save_text("Invalid edit.", context=before["save"]["context"], sequence=sequence)
+    assert core.snapshot()["text"] is None
+    assert core.snapshot()["save"] == before["save"]
+
+
 # ---------------------------------------------------------------- synthesis
 
 
