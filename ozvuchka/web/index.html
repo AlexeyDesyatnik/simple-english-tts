@@ -30,16 +30,17 @@
       <div class="transport">
         <div class="controls">
           <span class="playback-transport" role="group" aria-label="Воспроизведение">
-            <button id="previous" type="button" class="secondary playback-only">Назад</button>
-            <button id="play" type="button">Воспроизвести</button><button id="pause" type="button">Пауза</button>
-            <button id="next" type="button" class="secondary playback-only">Вперёд</button>
+            <button id="previous" type="button" class="secondary playback-only" aria-label="Предыдущий абзац" title="Предыдущий абзац">Назад</button>
+            <button id="play" type="button">Воспроизвести</button>
+            <button id="next" type="button" class="secondary playback-only" aria-label="Следующий абзац" title="Следующий абзац">Вперёд</button>
           </span>
           <button id="repeat" type="button" class="secondary playback-only">Повторить абзац</button>
           <button id="enqueue" type="button" class="secondary">Подготовить озвучку</button>
-          <span class="text-size"><button id="smaller" type="button" class="secondary" aria-label="Уменьшить размер текста">A−</button><button id="bigger" type="button" class="secondary" aria-label="Увеличить размер текста">A+</button></span>
+          <span class="text-size" role="group" aria-label="Размер текста"><span id="text-size-label" class="muted"></span><button id="smaller" type="button" class="secondary" aria-label="Уменьшить размер текста">A−</button><button id="bigger" type="button" class="secondary" aria-label="Увеличить размер текста">A+</button></span>
         </div>
         <div class="feedback"><span id="position"></span><p id="status" role="status"></p></div>
-        <details class="keyboard-help"><summary>Управление с клавиатуры</summary><p>Пробел — пауза или продолжение. ← / →, PageUp / PageDown — соседний абзац. R (К) — повторить. Нажмите на абзац, чтобы начать с него.</p></details>
+        <p class="playback-only reading-hint muted">Нажмите на абзац, чтобы читать с него. С клавиатуры — Enter или пробел.</p>
+        <details class="keyboard-help"><summary>Управление с клавиатуры</summary><p>Пробел — пауза или продолжение. ← / →, PageUp / PageDown — соседний абзац. R (К) — повторить. Быстрые клавиши работают, когда фокус вне кнопок и полей. Tab — переход к элементам управления.</p></details>
       </div>
       <details id="queue-panel"><summary>Очередь озвучки · <span id="queue-count">пуста</span></summary><p id="queue-empty" class="muted">Нет озвучек, ожидающих подготовки.</p><p id="queue-cancel-help" class="muted" hidden>При отмене текущая подготовка прерывается, затем начинается следующая озвучка. Уже подготовленная часть сохраняется.</p><ol id="queue" aria-label="Озвучки в порядке подготовки"></ol></details>
       <ol id="paragraphs" aria-label="Текст для чтения"></ol>

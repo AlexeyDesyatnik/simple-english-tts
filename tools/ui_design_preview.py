@@ -30,10 +30,11 @@ _TEXT = "\n".join([
 class _PreviewVoiceProvider(FakeVoiceProvider):
     """Pace the existing fake for visible loading and queue checks, without changing Core."""
 
-    def __init__(self, load_seconds: float, piece_seconds: float, unavailable: bool) -> None:
+    def __init__(self, load_seconds: float, piece_seconds: float, unavailable: bool, fail_text: str) -> None:
         super().__init__(loading=load_seconds > 0, available=not unavailable)
         self._load_seconds = load_seconds
         self._piece_seconds = piece_seconds
+        self._fail_text = fail_text
 
     def load(self) -> None:
         time.sleep(self._load_seconds)
@@ -46,6 +47,8 @@ class _PreviewVoiceProvider(FakeVoiceProvider):
         else:
             cancel.wait(self._piece_seconds)
         check_cancelled(cancel)
+        if self._fail_text and self._fail_text in text:
+            raise RuntimeError("Тестовая ошибка подготовки абзаца")
         return super().synthesize(text, voice, speed, cancel)
 
 
@@ -66,12 +69,15 @@ def main() -> None:
     parser.add_argument("--piece-seconds", type=float, default=0, help="Delay each fake synthesis piece")
     parser.add_argument("--unavailable", action="store_true", help="Show unavailable Voices")
     parser.add_argument("--no-ready", action="store_true", help="Skip seeding ready Narrations")
+    parser.add_argument("--fail-text", default="", help="Fail synthesis containing this text (use with --no-ready)")
     args = parser.parse_args()
     preview_root = Path(__file__).resolve().parents[1] / ".cache" / "ui-design-preview"
     preview_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="issue-28-", dir=preview_root) as temporary:
         core = Core(
-            VoiceRegistry([_PreviewVoiceProvider(args.load_seconds, args.piece_seconds, args.unavailable)]),
+            VoiceRegistry([_PreviewVoiceProvider(
+                args.load_seconds, args.piece_seconds, args.unavailable, args.fail_text,
+            )]),
             "fake:alice", clock=time.monotonic,
             data_dir=Path(temporary), computer="isolated-design-review",
         )

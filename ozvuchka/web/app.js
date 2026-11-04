@@ -39,6 +39,21 @@ libraryPanelEl.addEventListener("keydown", (event) => {
   closeNarrowLibrary();
   libraryPanelEl.querySelector("summary").focus({ preventScroll: true });
 });
+const transportEl = document.querySelector(".transport");
+const helpEl = document.querySelector(".keyboard-help");
+helpEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !helpEl.open) return;
+  event.preventDefault();
+  helpEl.open = false;
+  helpEl.querySelector("summary").focus({ preventScroll: true });
+});
+// Wrapping tools, expanded help and browser zoom all change the sticky panel's height.
+new ResizeObserver(() => {
+  paragraphsEl.style.setProperty("--transport-offset", `${transportEl.getBoundingClientRect().height + 16}px`);
+  keepCurrentVisible();
+}).observe(transportEl);
+window.addEventListener("resize", () => keepCurrentVisible());
+
 let shownTitle = "Новый текст";
 
 let snapshot = null;
@@ -519,7 +534,11 @@ function renderParagraphs(text, textSizeChanged) {
     paragraphsEl.replaceChildren(
       ...(text?.paragraphs ?? []).map((p, i) => {
         const li = document.createElement("li");
-        li.textContent = p.text;
+        const content = document.createElement("span");
+        content.textContent = p.text;
+        const error = document.createElement("span");
+        error.className = "paragraph-error";
+        li.append(content, error);
         if (p.status !== "skipped") {
           li.tabIndex = 0;
           li.setAttribute("role", "button");
@@ -540,19 +559,30 @@ function renderParagraphs(text, textSizeChanged) {
   (text?.paragraphs ?? []).forEach((p, i) => {
     const li = paragraphsEl.children[i];
     const current = highlighted === i;
-    if (current && (textSizeChanged || !li.classList.contains("current"))) {
-      // On a projector the class reads ahead, so the current Paragraph is kept in the middle of the screen.
-      const transportHeight = document.querySelector(".transport").getBoundingClientRect().height;
-      li.style.scrollMarginTop = `${transportHeight + 16}px`;
-      const tall = li.getBoundingClientRect().height > innerHeight - transportHeight - 48;
-      const block = document.body.classList.contains("playback") ? (tall ? "start" : "center") : "nearest";
-      li.scrollIntoView({ block, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-    }
+    const moved = current && !li.classList.contains("current");
     li.className = [p.status === "skipped" && "skipped", p.status === "failed" && "failed", current && "current"]
       .filter(Boolean)
       .join(" ");
-    li.title = p.error ?? "";
+    li.querySelector(".paragraph-error").textContent = p.status === "failed"
+      ? `Не удалось озвучить: ${p.error}. Нажмите на абзац, чтобы повторить попытку.` : "";
+    if (current) li.setAttribute("aria-current", "true");
+    else li.removeAttribute("aria-current");
+    if (moved || (current && textSizeChanged)) requestAnimationFrame(() => keepCurrentVisible(true));
   });
+}
+
+// Scroll within the space below the sticky controls, including at large Text sizes.
+function keepCurrentVisible(center = false) {
+  if (!document.body.classList.contains("playback")) return;
+  const current = paragraphsEl.querySelector(".current");
+  if (!current) return;
+  const panelHeight = transportEl.getBoundingClientRect().height;
+  const top = panelHeight + 16;
+  const rect = current.getBoundingClientRect();
+  const available = Math.max(0, innerHeight - top - 16);
+  if (!center && rect.top >= top && (rect.bottom <= innerHeight - 16 || rect.height > available)) return;
+  const offset = rect.height < available ? (available - rect.height) / 2 : 0;
+  window.scrollBy({ top: rect.top - top - offset, behavior: "instant" });
 }
 
 // "~1 мин 20 с", "~45 с"
@@ -592,6 +622,7 @@ function statusText(text, playback) {
 function renderTextSize() {
   const changed = paragraphsEl.style.fontSize !== `${snapshot.text_size}px`;
   paragraphsEl.style.fontSize = `${snapshot.text_size}px`;
+  document.getElementById("text-size-label").textContent = `Текст · ${snapshot.text_size}`;
   const at = snapshot.text_sizes.indexOf(snapshot.text_size);
   smallerEl.disabled = at <= 0;
   biggerEl.disabled = at === snapshot.text_sizes.length - 1;
@@ -600,7 +631,6 @@ function renderTextSize() {
 
 function render(next) {
   const first = snapshot === null;
-  const transportFocus = document.activeElement?.id;
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
   document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
@@ -621,16 +651,12 @@ function render(next) {
   document.getElementById("text-title").textContent = shownTitle;
   document.getElementById("text-title").title = shownTitle;
   const playing = ["playing", "waiting"].includes(snapshot.playback.state);
-  document.getElementById("play").hidden = playing;
-  document.getElementById("play").textContent = snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
-  document.getElementById("pause").hidden = !playing;
-  if (transportFocus === (playing ? "play" : "pause")) {
-    document.getElementById(playing ? "pause" : "play").focus({ preventScroll: true });
-  }
+  document.getElementById("play").textContent = playing ? "Пауза"
+    : snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
   const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
-  const current = snapshot.text?.paragraphs[snapshot.playback.paragraph];
-  document.getElementById("position").textContent = snapshot.playback.state === "stopped" ? ""
-    : `Абзац ${Math.max(1, readable.indexOf(current) + 1)} из ${readable.length}`;
+  const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph];
+  document.getElementById("position").textContent = snapshot.playback.state === "stopped" || !current || !readable.length ? ""
+    : `Абзац ${readable.indexOf(current) + 1} из ${readable.length}`;
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text, textSizeChanged);
   const [message, className] = statusText(snapshot.text, snapshot.playback);
@@ -713,7 +739,10 @@ async function moveParagraph(name) {
   }
 }
 
-document.getElementById("play").addEventListener("click", play);
+document.getElementById("play").addEventListener("click", () => {
+  if (["playing", "waiting"].includes(snapshot?.playback.state)) pause();
+  else play();
+});
 for (const [id, name] of [["previous", "previous_paragraph"], ["repeat", "repeat_paragraph"], ["next", "next_paragraph"]]) {
   document.getElementById(id).addEventListener("click", () => moveParagraph(name));
 }
@@ -725,8 +754,6 @@ speedEl.addEventListener("change", () => {
 });
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
-
-document.getElementById("pause").addEventListener("click", pause);
 
 smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
 biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
@@ -776,7 +803,7 @@ document.getElementById("new-text").addEventListener("click", () => {
 document.getElementById("stop").addEventListener("click", async () => {
   clearSchedule();
   await act({ command: "stop" });
-  sourceEl.focus({ preventScroll: true });
+  sourceEl.focus();
 });
 
 // ---------------------------------------------------------------- heartbeat

@@ -38,3 +38,9 @@ do not substitute another branch's build. Browser verification is recorded in
 
 - [ ] **School laptops, #31:** check Voice chooser opening, independent Voice samples and selection, and queue progress/cancellation on the Celeron and i5 with a disposable Library. Check responsiveness while the real offline Voice provider loads and synthesizes; silent browser fixtures do not verify real Voice samples or device performance.
 - [ ] **School laptops, #31 immediate cancellation (ADR-0004):** while real Alice is synthesizing a long Text and George is queued, cancel Alice and record the time until George starts. Repeat cancellation and re-enqueue; verify no old computation continues for minutes, no cancellation error appears, and previously completed Paragraphs remain usable. Use disposable data; browser/fake timings do not establish native cancellation latency on the Celeron/i5.
+
+## experiment-2 Playback mode (#32)
+
+- [ ] **Projector/classroom, #32:** check the centred reading Text, yellow current Paragraph with blue edge, position among readable Paragraphs and Text sizes 18–80 from the back rows. Verify that the current Paragraph starts below the sticky controls, including after opening keyboard help.
+- [ ] **Presenter remote, #32:** check pause/resume, previous/next and repeat, including after the natural end and after using reading tools; verify return to editing stops playback. Browser key simulation does not establish the real remote's mappings.
+- [ ] **School laptops, #32:** check Playback mode responsiveness and automatic Paragraph scrolling on Celeron/i5 with a long Text, waiting synthesis, large Text and 200% browser zoom. Use the experiment-2 candidate and a disposable Library.
