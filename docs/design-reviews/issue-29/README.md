@@ -6,10 +6,12 @@ accepted by the developer on 2026-11-03; that approval is recorded in the #28 ha
 
 ## Result and boundary
 
-The preparation workspace implementation is ready for review. **#29 remains open:
-genuine browser zoom at 200% still requires verification.** The in-app browser exposes
-viewport sizing, but no zoom capability; the earlier Ctrl-plus attempt did not change
-zoom. Do not claim that a smaller viewport establishes genuine browser zoom acceptance.
+The preparation workspace implementation (`aa66901`) has passed its browser layout
+acceptance, including genuine 200% zoom reported by the developer on 2026-11-04:
+Chrome 150, window 1280 × 720, all controls accessible and no horizontal scrolling.
+The in-app browser checks below remain separate evidence; their smaller viewport
+was not a substitute for the developer's genuine zoom check. GitHub Issue state has
+not been changed by this acceptance record. School-laptop checks remain pending.
 Do not automatically begin stage 3. This stage changed no Core/HTTP contracts, saving
 behavior, audio scheduling, Voice provider, queue semantics or application lifecycle.
 
@@ -79,6 +81,7 @@ was on 2026-11-03, with final checks and screenshots on 2026-11-04.
 | Tab from final Library row | Focus reaches the Voice disclosure and the Library closes. |
 | Outside pointer input | Clicking the app heading closes the Library. |
 | 640 × 360 CSS viewport | No horizontal page overflow. Found and fixed a 29 px list area in the initial implementation; the panel now has one scroll area, and a Text can be chosen through its visible row. This is not a genuine 200% zoom test. |
+| Genuine 200% browser zoom, developer check, 2026-11-04 | Chrome 150, window 1280 × 720: developer reports that everything is accessible and there is no horizontal scrolling anywhere. OS was not specified in the report. |
 | Narrow Text selection | Library closes, selected Text appears, editor receives focus. |
 | Playback regression | Preparation has Play/enqueue only and no duplicate Paragraph list. Play/Pause enters Playback mode, hiding Library/editor; return restores the Text and editor focus. |
 
@@ -108,9 +111,8 @@ The repository-local pytest base directory avoids the system-temp sandbox restri
 already encountered in stage 1. Production paths are unchanged. Slow/provider/build
 checks do not apply to this change. No CSS/DOM assertion tests were introduced.
 
-Genuine 200% zoom remains unchecked. A manual acceptance pass should set the browser
-to 200%, verify reachability and no horizontal overflow, and record browser/OS and
-viewport. School-laptop responsiveness remains unticked in `docs/manual-checks.md`.
+Genuine 200% zoom acceptance is satisfied by the developer's report above; it no longer
+blocks browser layout acceptance. School-laptop responsiveness remains unticked in `docs/manual-checks.md`.
 The #28 projector/presenter checks also remain pending. Actual Linux/macOS font
 rendering is unverified.
 
@@ -122,10 +124,10 @@ full Playback mode behavior stage 5; dialogs and integrated keyboard journeys st
 
 ## Next session
 
-Resolve this implementation's commit with
-`git log -1 --format=%H -- docs/design-reviews/issue-29/README.md` (also in the delivery).
+Implementation commit: `aa66901`; this handoff also contains the subsequent developer
+acceptance record for 200% zoom.
 Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0003, the UI specification,
-#29 and this handoff. First finish or explicitly disposition the outstanding 200%
-acceptance before closing #29. Stage 3 is #30 and should be a separate bounded task.
+#29 and this handoff. The 200% browser acceptance is complete. Hardware checks remain
+in the manual checklist. Stage 3 is #30 and should be a separate bounded task.
 Other branches and their Issues remain unrelated; no code or requirements were copied
 from them. This session did not post comments or change Issue states on GitHub.
