@@ -21,6 +21,9 @@ _log = logging.getLogger(__name__)
 
 COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
     "set_text": lambda core, body: core.set_text(str(body["text"])),
+    "save_text": lambda core, body: core.save_text(
+        str(body["text"]), context=body["context"], sequence=body["sequence"]
+    ),
     "open_text": lambda core, body: core.open_text(str(body["id"])),
     "new_text": lambda core, body: core.new_text(),
     "search_library": lambda core, body: core.search_library(str(body["query"])),

@@ -5,7 +5,6 @@ const PARAGRAPH_PAUSE = 0.7; // seconds of silence between paragraphs
 const FADE = 0.005; // seconds; pieces fade in and out so they join without clicks
 
 const sourceEl = document.getElementById("source");
-const saveStatusEl = document.getElementById("save-status");
 const statusEl = document.getElementById("status");
 const voicesEl = document.getElementById("voices");
 const speedEl = document.getElementById("speed");
@@ -13,60 +12,45 @@ const paragraphsEl = document.getElementById("paragraphs");
 const libraryEl = document.getElementById("library");
 const librarySearchEl = document.getElementById("library-search");
 const librarySizeEl = document.getElementById("library-size");
+const queuePanelEl = document.getElementById("queue-panel");
 const queueEl = document.getElementById("queue");
+const voicePanelEl = document.getElementById("voice-panel");
+const sampleStatusEl = document.getElementById("sample-status");
 const smallerEl = document.getElementById("smaller");
 const biggerEl = document.getElementById("bigger");
-const playEl = document.getElementById("play");
-const progressEl = document.getElementById("paragraph-progress");
-const playbackErrorEl = document.getElementById("playback-error");
-const titleEl = document.getElementById("text-title");
-const titleActionsEl = document.getElementById("title-actions");
-const titleErrorEl = document.getElementById("title-error");
-const deleteDialogEl = document.getElementById("delete-dialog");
 const libraryPanelEl = document.getElementById("library-panel");
-const narrowWindow = matchMedia("(max-width: 900px)");
-
-// Disclosures are page presentation only; resizing never sends a Core command.
-function resizeLibrary() {
-  if (narrowWindow.matches && libraryPanelEl.contains(document.activeElement)) {
-    closeMenu(false);
-    libraryPanelEl.querySelector("summary").focus();
-  }
-  libraryPanelEl.open = !narrowWindow.matches;
-}
-narrowWindow.addEventListener("change", resizeLibrary);
-let titleDirty = false;
-let replacingText = false;
-let savingTitle = false;
-let activeMenu = null;
-resizeLibrary();
-
-function revealWorkspace() {
-  if (narrowWindow.matches) libraryPanelEl.open = false;
-  sourceEl.focus();
-}
-
-for (const panel of [libraryPanelEl, document.getElementById("voice-panel"), document.getElementById("playback-help")]) {
-  panel.addEventListener("toggle", () => {
-    // A closed disclosure hands control back to playback, after native Space keyup.
-    // Leave focus alone when an action inside the panel has already moved it elsewhere.
-    if (!panel.open && panel.contains(document.activeElement) && !playEl.disabled) playEl.focus();
-  });
-  panel.addEventListener("keydown", (e) => {
-    if (e.defaultPrevented || e.key !== "Escape" || !panel.open || activeMenu || deleteDialogEl.open) return;
-    panel.open = false;
-    panel.querySelector("summary").focus();
-    e.preventDefault();
-    e.stopPropagation();
-  });
-}
-libraryPanelEl.addEventListener("toggle", () => {
-  if (!libraryPanelEl.open) closeMenu(false);
+const workspaceEl = document.getElementById("text-workspace");
+const narrowWindow = matchMedia("(max-width: 959px)");
+libraryPanelEl.open = !narrowWindow.matches;
+libraryPanelEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !narrowWindow.matches || !libraryPanelEl.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  libraryPanelEl.open = false;
+  libraryPanelEl.querySelector("summary").focus({ preventScroll: true });
 });
+const transportEl = document.querySelector(".transport");
+const helpEl = document.querySelector(".keyboard-help");
+for (const panel of [helpEl, queuePanelEl]) {
+  panel.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !panel.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    panel.open = false;
+    panel.querySelector("summary").focus({ preventScroll: true });
+  });
+}
+// Wrapping tools, expanded help and browser zoom all change the sticky panel's height.
+new ResizeObserver(() => {
+  paragraphsEl.style.setProperty("--transport-offset", `${transportEl.getBoundingClientRect().height + 16}px`);
+  keepCurrentVisible();
+}).observe(transportEl);
+window.addEventListener("resize", () => keepCurrentVisible());
+
+let shownTitle = "Новый текст";
 
 let snapshot = null;
 let shownContent = null; // the Text the paragraph list was built for
-let shownTextId = null; // the Text put in the text box; another one replaces what is typed there
 let shownLibrary = null; // the Library the list was built for
 let shownQueue = null; // the Narration queue the list was built for
 let shownVoices = null; // the Voices and Speeds the pickers were built for
@@ -90,14 +74,13 @@ function serial(task) {
 
 let issued = 0; // commands sent so far: a snapshot fetched before the latest one may undo it, so it is dropped
 
-function command(body, keepalive = false) {
+function command(body) {
   issued++;
   return serial(async () => {
     const response = await fetch("/api/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      keepalive,
     });
     const reply = await response.json();
     if (!response.ok) throw new Error(reply.error);
@@ -109,9 +92,7 @@ function refresh() {
   return serial(async () => {
     const before = issued;
     const next = await (await fetch("/api/state")).json();
-    if (issued !== before) return false; // the refresh after that command brings a newer one
-    render(next);
-    return true;
+    if (issued === before) render(next); // otherwise the refresh after that command brings a newer one
   });
 }
 
@@ -120,74 +101,6 @@ function act(body) {
   return command(body)
     .then(refresh)
     .catch((e) => showError(e.message));
-}
-
-// ---------------------------------------------------------------- autosave
-
-const AUTOSAVE_DELAY = 700;
-let editVersion = 0;
-let savedVersion = 0;
-let saveTimer = null;
-let saveInFlight = null;
-
-function showSaveState(state, message = "") {
-  const labels = {
-    unsaved: "Изменения не сохранены",
-    saving: "Сохранение…",
-    saved: "Сохранено",
-    failed: message || "Не удалось сохранить изменения",
-  };
-  saveStatusEl.textContent = labels[state];
-  saveStatusEl.className = state === "failed" ? "error" : "muted";
-  saveStatusEl.dataset.state = state;
-}
-
-function cancelScheduledSave() {
-  clearTimeout(saveTimer);
-  saveTimer = null;
-}
-
-function scheduleSave() {
-  cancelScheduledSave();
-  saveTimer = setTimeout(() => saveEdits().catch(() => {}), AUTOSAVE_DELAY);
-}
-
-function saveEdits() {
-  cancelScheduledSave();
-  if (saveInFlight) return saveInFlight;
-  if (editVersion === savedVersion) {
-    showSaveState("saved");
-    return Promise.resolve();
-  }
-  const version = editVersion;
-  const text = sourceEl.value;
-  showSaveState("saving");
-  saveInFlight = (async () => {
-    try {
-      const saved = await command({ command: "set_text", text });
-      await refresh();
-      if (!saved) throw new Error(snapshot?.text?.save_error || "Не удалось сохранить Библиотеку");
-      savedVersion = version;
-      if (editVersion === version) {
-        showSaveState("saved");
-      } else {
-        showSaveState("unsaved");
-        scheduleSave();
-      }
-    } catch (e) {
-      showSaveState("failed", `Не удалось сохранить изменения: ${e.message}`);
-      if (editVersion !== version) scheduleSave();
-      throw e;
-    } finally {
-      saveInFlight = null;
-    }
-  })();
-  return saveInFlight;
-}
-
-async function flushEdits() {
-  cancelScheduledSave();
-  while (editVersion !== savedVersion || saveInFlight) await saveEdits();
 }
 
 // ---------------------------------------------------------------- player
@@ -301,204 +214,117 @@ async function startAfterReload() {
 
 // ---------------------------------------------------------------- view
 
-async function actAfterFlush(body, clear = false) {
-  try {
-    await flushEdits();
-    await saveTitle();
-    if (clear) clearSchedule();
-    await act(body);
-  } catch (e) {
-    showError(e.message);
-  }
+const dialogEl = document.getElementById("text-dialog");
+const dialogNameEl = document.getElementById("dialog-name");
+const dialogErrorEl = document.getElementById("dialog-error");
+const dialogSubmitEl = document.getElementById("dialog-submit");
+const dialogCancelEl = document.getElementById("dialog-cancel");
+const renameTitleEl = document.getElementById("rename-title");
+let dialogAction = null;
+let dialogOrigin = null;
+let dialogRowId = null;
+let dialogBusy = false;
+
+function openTextDialog(text, title, description, action, rename = false) {
+  dialogOrigin = document.activeElement;
+  dialogRowId = dialogOrigin.closest("#library > li")?.dataset.id;
+  dialogAction = action;
+  dialogBusy = false;
+  document.getElementById("dialog-title").textContent = title;
+  document.getElementById("dialog-description").textContent = description;
+  document.getElementById("rename-field").hidden = !rename;
+  dialogNameEl.value = text.title;
+  dialogNameEl.removeAttribute("aria-invalid");
+  dialogErrorEl.textContent = "";
+  dialogSubmitEl.textContent = rename ? "Сохранить" : "Удалить";
+  dialogSubmitEl.classList.toggle("destructive", !rename);
+  dialogSubmitEl.disabled = false;
+  dialogCancelEl.disabled = false;
+  dialogEl.showModal();
+  if (rename) { dialogNameEl.focus(); dialogNameEl.select(); }
+  else dialogCancelEl.focus();
 }
 
-async function replaceText(body) {
-  if (replacingText) return false;
-  replacingText = true;
-  sourceEl.disabled = true;
-  titleEl.disabled = true;
-  try {
-    await flushEdits();
-    await saveTitle();
-  } catch (e) {
-    replacingText = false;
-    sourceEl.disabled = false;
-    renderTitle();
-    if (titleErrorEl.textContent) titleEl.focus();
-    showError(e.message);
-    return false;
+// Rows can disappear after deletion or a rename that no longer matches the search.
+dialogEl.addEventListener("close", () => {
+  let target = dialogOrigin;
+  if (dialogRowId) {
+    const row = [...libraryEl.children].find((li) => li.dataset.id === dialogRowId);
+    target = row?.querySelector("summary") ?? libraryEl.querySelector(".text-title") ?? librarySearchEl;
+    if (!libraryPanelEl.open) target = libraryPanelEl.querySelector("summary");
   }
-  // Typing resumes only after a current snapshot has actually been rendered.
-  clearSchedule();
-  try {
-    await command(body);
-  } catch (e) {
-    showError(e.message);
-  }
-  let rendered = false;
-  while (!rendered) {
-    try {
-      rendered = await refresh();
-    } catch {
-      showError("Не удалось показать текст. Повторяю…");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-  replacingText = false;
-  sourceEl.disabled = false;
-  renderTitle();
-  return true;
-}
-
-function renderTitle() {
-  titleEl.disabled = replacingText || savingTitle || !snapshot.text?.id;
-  titleEl.placeholder = "Введите текст, чтобы дать ему название";
-  if (!titleDirty) titleEl.value = snapshot.text?.title ?? "";
-  titleActionsEl.hidden = !titleDirty;
-}
-
-async function saveTitle() {
-  if (!titleDirty) return;
-  const title = titleEl.value;
-  if (!title.trim()) {
-    titleErrorEl.textContent = "Название текста не может быть пустым";
-    titleEl.setAttribute("aria-invalid", "true");
-    titleEl.focus();
-    throw new Error(titleErrorEl.textContent);
-  }
-  savingTitle = true;
-  titleEl.disabled = true;
-  try {
-    await command({ command: "rename_text", id: snapshot.text.id, title });
-    await refresh();
-    if (snapshot.library_error) throw new Error(snapshot.library_error);
-    if (titleEl.value === title) titleDirty = false;
-  } finally {
-    savingTitle = false;
-    renderTitle();
-  }
-}
-
-async function renameText(text) {
-  if (await replaceText({ command: "open_text", id: text.id })) {
-    if (narrowWindow.matches) libraryPanelEl.open = false;
-    titleEl.focus();
-    titleEl.select();
-  }
-}
-
-function restoreLibraryFocus(trigger, textId) {
-  if (!libraryPanelEl.open) {
-    libraryPanelEl.querySelector("summary").focus();
+  if (!target?.isConnected || !target.getClientRects().length || target.disabled) target = sourceEl;
+  target.focus();
+  dialogAction = null;
+});
+dialogCancelEl.addEventListener("click", () => dialogEl.close());
+dialogEl.addEventListener("cancel", (event) => {
+  if (dialogBusy) event.preventDefault();
+});
+dialogEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const controls = [...dialogEl.querySelectorAll("input, button")].filter((el) => !el.disabled && el.getClientRects().length);
+  if (!controls.length) { event.preventDefault(); return; }
+  const first = controls[0], last = controls.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+document.getElementById("dialog-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (dialogBusy) return;
+  const rename = !document.getElementById("rename-field").hidden;
+  if (rename && !dialogNameEl.value.trim()) {
+    dialogErrorEl.textContent = "Введите название текста. Название не может быть пустым.";
+    dialogNameEl.setAttribute("aria-invalid", "true");
+    dialogNameEl.focus();
     return;
   }
-  const row = [...libraryEl.querySelectorAll(".text-title")].find((el) => el.dataset.id === textId);
-  const label = trigger.getAttribute("aria-label");
-  const replacement = label ? [...(row?.closest("li").querySelectorAll("button") ?? [])]
-    .find((el) => el.getAttribute("aria-label") === label) ?? row : row;
-  (trigger.isConnected ? trigger : replacement ?? document.getElementById("new-text")).focus();
-}
-
-function confirmDeletion(heading, consequences, trigger, textId, remove) {
-  if (deleteDialogEl.open) return;
-  document.getElementById("delete-heading").textContent = heading;
-  document.getElementById("delete-consequences").textContent = consequences;
-  deleteDialogEl.returnValue = "cancel";
-  deleteDialogEl.addEventListener("close", async () => {
-    if (deleteDialogEl.returnValue === "delete") await remove();
-    restoreLibraryFocus(trigger, textId);
-  }, { once: true });
-  deleteDialogEl.showModal();
-  document.getElementById("cancel-delete").focus();
-}
-
-deleteDialogEl.addEventListener("keydown", (e) => {
-  if (e.key !== "Tab") return;
-  const buttons = [...deleteDialogEl.querySelectorAll("button")];
-  const first = buttons[0];
-  const last = buttons.at(-1);
-  if (e.shiftKey && document.activeElement === first) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault();
-    first.focus();
+  dialogBusy = true;
+  dialogSubmitEl.disabled = true;
+  dialogCancelEl.disabled = true;
+  dialogEl.setAttribute("aria-busy", "true");
+  try {
+    await dialogAction(dialogNameEl.value);
+    await refresh();
+    dialogEl.close();
+  } catch (error) {
+    dialogErrorEl.textContent = `Не удалось выполнить действие. ${error.message}`;
+  } finally {
+    dialogBusy = false;
+    dialogSubmitEl.disabled = false;
+    dialogCancelEl.disabled = false;
+    dialogEl.removeAttribute("aria-busy");
   }
 });
 
-function deleteText(text, trigger) {
-  confirmDeletion(`Удалить текст «${text.title}»?`,
-    "Текст, его готовые озвучки и задания в очереди будут удалены из Библиотеки. Восстановить их нельзя.",
-    trigger, text.id, () => replaceText({ command: "delete_text", id: text.id }));
+function renameText(text) {
+  openTextDialog(text, "Изменить название", "Название поможет найти текст в Библиотеке.",
+    (title) => command({ command: "rename_text", id: text.id, title }), true);
 }
 
-function deleteNarration(text, narration, trigger) {
-  const label = narrationLabel(narration);
-  confirmDeletion(`Удалить озвучку «${label}»?`,
-    `Готовая озвучка текста «${text.title}» будет удалена. Сам текст останется; озвучку можно создать заново.`,
-    trigger, text.id, () => actAfterFlush(
-      { command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }, true));
+function deleteText(text) {
+  openTextDialog(text, "Удалить текст?",
+    `Текст «${text.title}» и его озвучки будут удалены из Библиотеки. Его озвучки будут убраны из очереди озвучки. Если этот текст открыт, воспроизведение остановится. Отменить удаление нельзя.`,
+    async () => {
+      if (transitionBusy) throw new Error("Дождитесь сохранения текста.");
+      // Deletion explicitly discards this Text; wait for any dispatched write
+      // before expiring its context so its reply cannot affect the next editor.
+      if (snapshot.text?.id === text.id) {
+        clearTimeout(saveTimer);
+        while (saving) await saving.catch(() => {});
+      }
+      clearSchedule();
+      await command({ command: "delete_text", id: text.id });
+    });
 }
 
-function closeMenu(restore = true) {
-  if (!activeMenu) return;
-  const { menu, trigger } = activeMenu;
-  menu.hidden = true;
-  trigger.setAttribute("aria-expanded", "false");
-  activeMenu = null;
-  if (restore) trigger.focus();
+function deleteNarration(text, narration) {
+  openTextDialog(text, "Удалить озвучку?",
+    `Озвучка «${narrationLabel(narration)}» текста «${text.title}» будет удалена и убрана из очереди озвучки. Если она воспроизводится, воспроизведение остановится. Сам текст останется в Библиотеке; озвучку можно подготовить заново.`,
+    () => { clearSchedule(); return command({ command: "delete_narration", id: text.id, voice: narration.voice, speed: narration.speed }); });
 }
 
-function libraryMenu(text, trigger) {
-  const menu = document.createElement("div");
-  menu.id = `text-menu-${text.id}`;
-  menu.className = "library-menu";
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", `Действия с текстом «${text.title}»`);
-  menu.hidden = true;
-  trigger.setAttribute("aria-controls", menu.id);
-  const actions = [
-    ["Переименовать", () => renameText(text)],
-    ["Удалить текст…", () => deleteText(text, trigger)],
-  ];
-  for (const [label, action] of actions) {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.tabIndex = -1;
-    item.setAttribute("role", "menuitem");
-    item.className = label.startsWith("Удалить") ? "secondary destructive" : "secondary";
-    item.textContent = label;
-    item.addEventListener("click", () => { closeMenu(); action(); });
-    menu.append(item);
-  }
-  function openMenu(last = false) {
-    closeMenu(false);
-    menu.hidden = false;
-    trigger.setAttribute("aria-expanded", "true");
-    activeMenu = { menu, trigger };
-    (last ? menu.lastElementChild : menu.firstElementChild).focus();
-  }
-  trigger.addEventListener("click", () => activeMenu?.trigger === trigger ? closeMenu() : openMenu());
-  trigger.addEventListener("keydown", (e) => {
-    if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
-    e.preventDefault();
-    openMenu(e.key === "ArrowUp");
-  });
-  menu.addEventListener("keydown", (e) => {
-    const items = [...menu.children];
-    const index = items.indexOf(document.activeElement);
-    const positions = { ArrowDown: (index + 1) % items.length,
-      ArrowUp: (index + items.length - 1) % items.length, Home: 0, End: items.length - 1 };
-    if (e.key in positions) {
-      e.preventDefault();
-      items[positions[e.key]].focus();
-    } else if (e.key === "Escape" || e.key === "Tab") {
-      closeMenu();
-      if (e.key === "Escape") e.preventDefault();
-    }
-  });
-  return menu;
-}
+renameTitleEl.addEventListener("click", () => renameText({ id: snapshot.text.id, title: shownTitle }));
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} Б`;
@@ -508,36 +334,77 @@ function formatBytes(bytes) {
 }
 
 function renderLibrary(library, currentId) {
-  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер неизвестен" : formatBytes(snapshot.library_bytes);
+  librarySizeEl.textContent = snapshot.library_bytes === null ? "Размер Библиотеки неизвестен" : `Библиотека · ${formatBytes(snapshot.library_bytes)}`;
+  const searching = Boolean(snapshot.library_search);
+  document.getElementById("library-empty").hidden = library.length > 0;
+  document.getElementById("library-empty-title").textContent = searching ? "Ничего не найдено" : "В Библиотеке пока нет текстов";
+  document.getElementById("library-empty-help").textContent = searching
+    ? "Измените запрос или очистите поле поиска."
+    : "Нажмите «Новый текст» и вставьте текст. Он сохранится автоматически.";
   const key = JSON.stringify(library);
   if (key !== shownLibrary) {
-    const focused = document.activeElement;
-    const focusedId = focused.closest("#library > li")?.querySelector(".text-title").dataset.id;
-    const menuId = activeMenu?.menu.id;
-    const menuIndex = activeMenu ? [...activeMenu.menu.children].indexOf(focused) : -1;
-    closeMenu(false);
+    const focusedRow = document.activeElement?.closest("#library > li");
+    const focusedId = focusedRow?.dataset.id;
+    const focusedTitle = document.activeElement?.classList.contains("text-title");
+    const openId = libraryEl.querySelector(".row-actions[open]")?.closest("li").dataset.id;
     shownLibrary = key;
     libraryEl.replaceChildren(
       ...library.map((t) => {
+        const title = t.title || "Текст без названия";
         const li = document.createElement("li");
+        li.dataset.id = t.id;
         const row = document.createElement("div");
         row.className = "library-text";
         const open = document.createElement("button");
         open.type = "button";
         open.className = "text-title";
-        open.textContent = t.title;
+        const titleLabel = document.createElement("span");
+        titleLabel.className = "library-title-label";
+        titleLabel.textContent = title;
+        open.append(titleLabel);
+        open.title = title;
         open.dataset.id = t.id;
         open.addEventListener("click", async () => {
-          if (await replaceText({ command: "open_text", id: t.id })) revealWorkspace();
+          await transition({ command: "open_text", id: t.id });
         });
-        const trigger = document.createElement("button");
-        trigger.type = "button";
-        trigger.className = "secondary menu-trigger";
-        trigger.textContent = "⋯";
-        trigger.setAttribute("aria-label", `Действия с текстом «${t.title}»`);
-        trigger.setAttribute("aria-haspopup", "menu");
-        trigger.setAttribute("aria-expanded", "false");
-        row.append(open, trigger, libraryMenu(t, trigger));
+        const rename = document.createElement("button");
+        rename.type = "button";
+        rename.className = "secondary library-action";
+        rename.textContent = "Переименовать";
+        rename.addEventListener("click", () => renameText(t));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "secondary library-action destructive";
+        remove.textContent = "Удалить текст и озвучки";
+        remove.addEventListener("click", () => deleteText(t));
+        const actions = document.createElement("details");
+        actions.className = "row-actions";
+        actions.open = t.id === openId;
+        const menu = document.createElement("summary");
+        menu.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+        menu.setAttribute("aria-label", `Действия с текстом «${title}»`);
+        actions.append(menu, rename, remove);
+        actions.addEventListener("toggle", () => {
+          if (actions.open) {
+            for (const other of libraryEl.querySelectorAll(".row-actions[open]")) {
+              if (other !== actions) other.open = false;
+            }
+          }
+        });
+        actions.addEventListener("keydown", (event) => {
+          if (event.key === "Tab") {
+            // Let native focus move before hiding any of its current controls.
+            setTimeout(() => {
+              if (!actions.contains(document.activeElement)) actions.open = false;
+            }, 0);
+          }
+          if (event.key !== "Escape" || !actions.open) return;
+          event.preventDefault();
+          event.stopPropagation();
+          actions.open = false;
+          menu.focus({ preventScroll: true });
+        });
+        row.append(open, actions);
 
         const narrations = document.createElement("div");
         narrations.className = "library-narrations";
@@ -545,32 +412,27 @@ function renderLibrary(library, currentId) {
           const label = narrationLabel(n);
           const ready = document.createElement("span");
           ready.className = "ready-narration";
-          ready.title = `Готовая озвучка: ${label}`;
-          const icon = document.createElement("span");
-          icon.setAttribute("aria-hidden", "true");
-          icon.textContent = "♪";
           const removeNarration = document.createElement("button");
           removeNarration.type = "button";
-          removeNarration.className = "delete-narration";
-          removeNarration.textContent = "×";
+          removeNarration.className = "secondary library-action destructive";
+          removeNarration.textContent = `Удалить озвучку · ${label}`;
           removeNarration.title = `Удалить озвучку ${label}`;
-          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label}`);
-          removeNarration.addEventListener("click", () => deleteNarration(t, n, removeNarration));
-          ready.append(icon, ` ${label}`, removeNarration);
+          removeNarration.setAttribute("aria-label", `Удалить озвучку ${label} текста «${title}»`);
+          removeNarration.addEventListener("click", () => deleteNarration(t, n));
+          ready.textContent = `Готово · ${label}`;
           narrations.append(ready);
+          actions.append(removeNarration);
         }
         li.append(row, narrations);
         return li;
       }),
     );
-    const menu = menuId ? document.getElementById(menuId) : null;
-    if (menu && !deleteDialogEl.open) {
-      const trigger = menu.previousElementSibling;
-      menu.hidden = false;
-      trigger.setAttribute("aria-expanded", "true");
-      activeMenu = { menu, trigger };
-      if (menuIndex >= 0) menu.children[menuIndex].focus();
-    } else if (focusedId && !deleteDialogEl.open) restoreLibraryFocus(focused, focusedId);
+    if (focusedId) {
+      const replacement = [...libraryEl.children].find((li) => li.dataset.id === focusedId);
+      const target = replacement?.querySelector(focusedTitle ? ".text-title" : "summary")
+        ?? libraryEl.querySelector(".text-title") ?? librarySearchEl;
+      target.focus({ preventScroll: true });
+    }
   }
   for (const button of libraryEl.querySelectorAll(".text-title")) {
     button.classList.toggle("current", button.dataset.id === currentId);
@@ -578,6 +440,12 @@ function renderLibrary(library, currentId) {
     else button.removeAttribute("aria-current");
   }
 }
+
+document.addEventListener("click", (event) => {
+  for (const actions of libraryEl.querySelectorAll(".row-actions[open]")) {
+    if (!actions.contains(event.target)) actions.open = false;
+  }
+});
 
 // "0,8×"; normal Speed is named so the teacher can find the way back to it
 function speedLabel(speed) {
@@ -587,49 +455,97 @@ function speedLabel(speed) {
 // A Voice sample is ready-made: the core hands it over without synthesizing anything.
 function playSample(voiceId) {
   sample?.pause();
-  sample = new Audio(`/api/sample/${encodeURIComponent(voiceId)}`);
-  sample.play().catch(() => showError("Не получилось проиграть образец голоса"));
+  const clip = new Audio(`/api/sample/${encodeURIComponent(voiceId)}`);
+  sample = clip;
+  const name = snapshot.voices.find((v) => v.id === voiceId)?.label.split(" — ")[0] ?? voiceId;
+  sampleStatusEl.textContent = `Загрузка образца · ${name}…`;
+  clip.addEventListener("ended", () => {
+    if (sample === clip) sampleStatusEl.textContent = `Образец прослушан · ${name}`;
+  });
+  clip.play().then(() => {
+    if (sample === clip) sampleStatusEl.textContent = `Звучит образец · ${name}`;
+  }).catch(() => {
+    if (sample === clip) sampleStatusEl.textContent = `Не получилось проиграть образец · ${name}. Попробуйте ещё раз.`;
+  });
 }
 
+function closeVoicePanel() {
+  voicePanelEl.open = false;
+  voicePanelEl.querySelector("summary").focus({ preventScroll: true });
+}
+
+async function chooseVoice(voiceId) {
+  try {
+    if (voiceId !== snapshot.voice) {
+      // Another Voice is another Narration: the core stops the one playing.
+      clearSchedule();
+      await command({ command: "set_voice", voice: voiceId });
+      await refresh();
+    }
+    closeVoicePanel();
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+voicePanelEl.addEventListener("keydown", (event) => {
+  if (!voicePanelEl.open) return;
+  const direction = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+  if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    const choices = [...voicesEl.querySelectorAll(".voice-choice")];
+    const current = event.target.closest("#voices > li")?.querySelector(".voice-choice");
+    const selected = choices.findIndex((choice) => choice.dataset.voice === snapshot.voice);
+    const index = current ? (choices.indexOf(current) + direction + choices.length) % choices.length : Math.max(0, selected);
+    choices[index]?.focus();
+    return;
+  }
+  if (event.key !== "Escape" || !voicePanelEl.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeVoicePanel();
+});
+voicePanelEl.addEventListener("focusout", (event) => {
+  if (event.relatedTarget && !voicePanelEl.contains(event.relatedTarget)) voicePanelEl.open = false;
+});
+document.addEventListener("click", (event) => {
+  if (!voicePanelEl.contains(event.target)) voicePanelEl.open = false;
+});
+
 function renderVoices() {
+  const selectedVoice = snapshot.voices.find((v) => v.id === snapshot.voice);
+  const availability = snapshot.voices_loading ? "загрузка…" : selectedVoice?.available ? "доступен" : "недоступен";
+  document.getElementById("selected-voice").textContent = `${selectedVoice?.label.split(" — ")[0] ?? "Не выбран"} · ${availability}`;
+  document.getElementById("voice-availability").textContent = snapshot.voices_loading
+    ? "Голоса загружаются. Готовые озвучки и образцы можно слушать."
+    : snapshot.voices.some((v) => !v.available)
+      ? "Недоступный голос сейчас не может подготовить новую озвучку. Готовые озвучки и образцы можно слушать."
+      : "Голоса доступны для подготовки озвучки.";
+  // Availability changes update existing rows, preserving keyboard focus during loading.
   const key = JSON.stringify([snapshot.voices.map((v) => [v.id, v.label]), snapshot.speeds]);
   if (key !== shownVoices) {
     shownVoices = key;
     voicesEl.replaceChildren(
-      ...snapshot.voices.map((v, i) => {
+      ...snapshot.voices.map((v) => {
         const li = document.createElement("li");
-        const label = document.createElement("label");
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "voice";
-        radio.value = v.id;
-        // Another Voice is another Narration: the core stops the one playing.
-        radio.addEventListener("change", () => {
-          clearSchedule();
-          act({ command: "set_voice", voice: v.id });
-        });
-        const text = document.createElement("span");
-        text.className = "voice-text";
-        const [name, ...description] = v.label.split(" — ");
-        const title = document.createElement("strong");
-        title.textContent = name;
-        const detail = document.createElement("span");
-        detail.className = "muted";
-        detail.textContent = description.join(" — ");
-        const state = document.createElement("span");
-        state.id = `voice-state-${i}`;
-        state.className = "voice-state";
-        state.setAttribute("aria-live", "polite");
-        radio.setAttribute("aria-describedby", state.id);
-        text.append(title, detail, state);
-        label.append(radio, text);
+        const choice = document.createElement("button");
+        choice.type = "button";
+        choice.className = "secondary voice-choice";
+        choice.dataset.voice = v.id;
+        choice.addEventListener("click", () => chooseVoice(v.id));
+        const description = document.createElement("span");
+        description.textContent = v.label;
+        const availability = document.createElement("span");
+        availability.className = "voice-state muted";
+        choice.append(description, availability);
         const listen = document.createElement("button");
         listen.type = "button";
         listen.className = "secondary";
-        listen.textContent = "Образец";
-        listen.setAttribute("aria-label", `Послушать образец: ${name}`);
+        listen.textContent = "Послушать";
+        listen.setAttribute("aria-label", `Послушать образец · ${v.label.split(" — ")[0]}`);
         listen.addEventListener("click", () => playSample(v.id));
-        li.append(label, listen);
+        li.append(choice, listen);
         return li;
       }),
     );
@@ -637,20 +553,11 @@ function renderVoices() {
   }
   snapshot.voices.forEach((v, i) => {
     const row = voicesEl.children[i];
-    const selected = v.id === snapshot.voice;
-    const availability = v.available ? "ready" : snapshot.voices_loading ? "loading" : "unavailable";
-    row.dataset.availability = availability;
-    row.classList.toggle("selected", selected);
-    row.querySelector("input").checked = selected;
-    const state = [selected && "Выбран", availability === "loading" && "Загрузка…",
-      availability === "unavailable" && "Недоступен"].filter(Boolean).join(" · ");
-    const stateEl = row.querySelector(".voice-state");
-    if (stateEl.textContent !== state) stateEl.textContent = state;
+    row.querySelector(".voice-choice").setAttribute("aria-pressed", String(v.id === snapshot.voice));
+    const availability = snapshot.voices_loading ? "Загрузка…" : v.available ? "Доступен" : "Недоступен";
+    row.querySelector(".voice-state").textContent = `${v.id === snapshot.voice ? "Выбран · " : ""}${availability}`;
   });
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
-  const voice = snapshot.voices.find((v) => v.id === snapshot.voice);
-  document.getElementById("voice-summary").textContent =
-    `${voice ? voice.label.split(" — ")[0] : snapshot.voice} · ${speedLabel(snapshot.speed)}`;
 }
 
 // "George, 0,8×"
@@ -660,13 +567,19 @@ function narrationLabel(narration) {
 }
 
 function renderQueue(queue) {
-  document.getElementById("queue-empty").hidden = queue.length !== 0;
+  const active = queue.filter((n) => n.synthesizing).length;
+  document.getElementById("queue-count").textContent = queue.length
+    ? `${queue.length} · ${active ? "готовится" : "ожидает подготовки"}` : "пуста";
+  document.getElementById("queue-empty").hidden = queue.length > 0;
+  document.getElementById("queue-cancel-help").hidden = queue.length === 0;
   const key = JSON.stringify(queue.map((n) => n.id));
   if (key !== shownQueue) {
+    const focusedId = document.activeElement?.closest("#queue > li")?.dataset.id;
     shownQueue = key;
     queueEl.replaceChildren(
       ...queue.map((n) => {
         const li = document.createElement("li");
+        li.dataset.id = n.id;
         const title = document.createElement("span");
         title.className = "title";
         title.textContent = `${n.title} · ${narrationLabel(n)}`;
@@ -676,58 +589,82 @@ function renderQueue(queue) {
         cancel.type = "button";
         cancel.className = "secondary";
         cancel.textContent = "Отменить";
+        cancel.setAttribute("aria-label", `Отменить подготовку · ${n.title} · ${narrationLabel(n)}`);
+        cancel.setAttribute("aria-describedby", "queue-cancel-help");
         cancel.addEventListener("click", () => act({ command: "cancel", narration: n.id }));
         li.append(title, left, cancel);
         return li;
       }),
     );
+    if (focusedId) {
+      const replacement = [...queueEl.children].find((li) => li.dataset.id === focusedId);
+      (replacement?.querySelector("button") ?? queuePanelEl.querySelector("summary")).focus({ preventScroll: true });
+    }
   }
   queue.forEach((n, i) => {
-    const state = n.synthesizing ? "озвучивается" : "ждёт";
-    const left = n.ready_in === null ? "" : ` · готово через ${formatDuration(n.ready_in)}`;
+    const state = n.synthesizing ? "Готовится" : "В очереди";
+    const left = n.ready_in === null ? " · время пока неизвестно" : ` · готово через ${formatDuration(n.ready_in)}`;
     queueEl.children[i].querySelector(".muted").textContent = state + left;
   });
 }
 
-function renderParagraphs(text) {
+function renderParagraphs(text, textSizeChanged) {
   if (text?.content !== shownContent) {
     shownContent = text?.content ?? null;
     paragraphsEl.replaceChildren(
       ...(text?.paragraphs ?? []).map((p, i) => {
         const li = document.createElement("li");
-        li.textContent = p.text;
-        li.addEventListener("click", () => playFrom(i));
+        const content = document.createElement("span");
+        content.textContent = p.text;
+        const error = document.createElement("span");
+        error.className = "paragraph-error";
+        li.append(content, error);
         if (p.status !== "skipped") {
           li.tabIndex = 0;
           li.setAttribute("role", "button");
-          li.addEventListener("keydown", (e) => {
-            if (!["Enter", " "].includes(e.key)) return;
-            e.preventDefault();
-            if (!e.repeat) playFrom(i);
+          li.addEventListener("keydown", (event) => {
+            if (event.code !== "Enter" && event.code !== "Space") return;
+            event.preventDefault();
+            event.stopPropagation();
+            playFrom(i);
           });
         }
+        li.addEventListener("click", () => playFrom(i));
         return li;
       }),
     );
   }
   const playback = snapshot.playback;
-  const highlighted = lingering ?? (playback.state === "stopped" ? null : playback.paragraph);
+  const highlighted = lingering ?? playback.paragraph ?? playback.ended_at;
   (text?.paragraphs ?? []).forEach((p, i) => {
     const li = paragraphsEl.children[i];
     const current = highlighted === i;
-    if (current && !li.classList.contains("current")) {
-      // On a projector the class reads ahead, so the current Paragraph is kept in the middle of the screen.
-      const block = document.body.classList.contains("playback") ? "center" : "nearest";
-      const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
-      li.scrollIntoView({ block, behavior });
-    }
+    const moved = current && !li.classList.contains("current");
     li.className = [p.status === "skipped" && "skipped", p.status === "failed" && "failed", current && "current"]
       .filter(Boolean)
       .join(" ");
-    li.title = p.error ?? "";
+    li.querySelector(".paragraph-error").textContent = p.status === "failed"
+      ? `Не удалось озвучить: ${p.error}. Нажмите на абзац, чтобы повторить попытку.` : "";
     if (current) li.setAttribute("aria-current", "true");
     else li.removeAttribute("aria-current");
+    if (moved || (current && textSizeChanged)) requestAnimationFrame(() => keepCurrentVisible(true));
   });
+}
+
+// Scroll within the space below the sticky controls, including at large Text sizes.
+function keepCurrentVisible(center = false) {
+  if (!document.body.classList.contains("playback")) return;
+  const current = paragraphsEl.querySelector(".current");
+  if (!current) return;
+  const panelHeight = transportEl.getBoundingClientRect().height;
+  const top = panelHeight + 16;
+  const rect = current.getBoundingClientRect();
+  const available = Math.max(0, innerHeight - top - 16);
+  if (!center && rect.top >= top && (
+    rect.height > available ? rect.top <= top + 16 : rect.bottom <= innerHeight - 16
+  )) return;
+  const offset = rect.height < available ? (available - rect.height) / 2 : 0;
+  window.scrollBy({ top: rect.top - top - offset, behavior: "instant" });
 }
 
 // "~1 мин 20 с", "~45 с"
@@ -743,7 +680,8 @@ function statusText(text, playback) {
   const readable = text.paragraphs.filter((p) => p.status !== "skipped");
   const failed = readable.find((p) => p.status === "failed");
   if (failed) return [`Не получилось озвучить абзац: ${failed.error}`, "error"];
-  if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы включить звук", ""];
+  if (playback.ended_at != null) return ["Текст прочитан", ""];
+  if (blocked && playback.state === "paused") return ["Нажмите «Продолжить», чтобы продолжить", ""];
   if (playback.state === "waiting") {
     if (snapshot.voices_loading && playback.start_delay === null) return ["Голоса загружаются…", ""];
     if (playback.start_delay === null) return ["Оцениваю, сколько ждать начала…", ""];
@@ -757,67 +695,49 @@ function statusText(text, playback) {
   if (playback.state === "paused") parts.push("Пауза");
   if (progress) parts.push(`Озвучено абзацев: ${ready} из ${readable.length}`);
   if (snapshot.voices_loading && snapshot.queue.length) parts.push("Голоса загружаются…");
+  if (readable.length && ready === readable.length) parts.push(`Озвучка готова · ${ready} из ${readable.length} абзацев`);
   return [parts.join(" · "), ""];
 }
 
 function renderTextSize() {
+  const changed = paragraphsEl.style.fontSize !== `${snapshot.text_size}px`;
   paragraphsEl.style.fontSize = `${snapshot.text_size}px`;
+  document.getElementById("text-size-label").textContent = `Текст · ${snapshot.text_size}`;
   const at = snapshot.text_sizes.indexOf(snapshot.text_size);
   smallerEl.disabled = at <= 0;
   biggerEl.disabled = at === snapshot.text_sizes.length - 1;
-}
-
-function renderPlayback() {
-  const { state, paragraph } = snapshot.playback;
-  const active = state === "playing" || state === "waiting";
-  playEl.textContent = active ? "Пауза" : state === "paused" ? "Продолжить" : "Воспроизвести";
-  playEl.title = active ? "Приостановить (Пробел)" : "Начать или продолжить (Пробел)";
-  const readable = (snapshot.text?.paragraphs ?? []).flatMap((p, i) => p.status === "skipped" ? [] : [i]);
-  playEl.disabled = readable.length === 0 && !sourceEl.value.trim();
-  document.getElementById("stop").disabled = state === "stopped";
-  document.getElementById("enqueue").hidden = state !== "stopped";
-  const current = readable.indexOf(lingering ?? paragraph);
-  progressEl.textContent = current < 0 ? `Абзацев для чтения: ${readable.length}` : `Абзац ${current + 1} из ${readable.length}`;
-  for (const id of ["previous", "repeat", "next"]) {
-    document.getElementById(id).disabled = readable.length === 0;
-  }
+  return changed;
 }
 
 function render(next) {
   const first = snapshot === null;
-  const wasPlaying = document.body.classList.contains("playback");
+  const wasReading = document.body.classList.contains("playback");
+  const startingPlayback = snapshot?.playback.state === "stopped" && next.playback.state !== "stopped";
   snapshot = next;
   // Playback mode: only the Text and the buttons, for the class to read on a projector.
-  document.body.classList.toggle("playback", snapshot.playback.state !== "stopped");
-  const isPlaying = snapshot.playback.state !== "stopped";
-  if (wasPlaying !== isPlaying) {
-    closeMenu(false);
-    if (document.activeElement.closest("#library-panel, .workspace-header, #source, #enqueue") ||
-        (!isPlaying && document.activeElement.id === "stop")) playEl.focus();
-  }
+  document.body.classList.toggle("playback", snapshot.playback.state !== "stopped" || snapshot.playback.ended_at != null);
   renderVoices();
-  renderTextSize();
+  const textSizeChanged = renderTextSize();
   const textId = snapshot.text?.id ?? null;
-  const textChanged = textId !== shownTextId;
-  if ((first || textChanged) && editVersion === savedVersion) {
-    sourceEl.value = snapshot.text?.content ?? "";
-  }
-  if (first || textChanged) shownTextId = textId;
-  renderTitle();
-  if (first && editVersion === savedVersion) {
-    const saveError = snapshot.text?.save_error;
-    if (saveError) {
-      savedVersion = -1; // the next edit or action retries the save that failed before the reload
-      showSaveState("failed", saveError);
-    } else {
-      showSaveState("saved");
-    }
-  }
+  adoptEditor(snapshot);
   if (librarySearchEl.value !== snapshot.library_search) librarySearchEl.value = snapshot.library_search;
   renderLibrary(snapshot.library, textId);
+  shownTitle = snapshot.text ? snapshot.text.title || "Текст без названия" : "Новый текст";
+  renameTitleEl.hidden = !textId;
+  document.getElementById("text-title").textContent = shownTitle;
+  document.getElementById("text-title").title = shownTitle;
+  const playing = ["playing", "waiting"].includes(snapshot.playback.state);
+  document.getElementById("play").textContent = playing ? "Пауза"
+    : snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
+  const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
+  const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph ?? snapshot.playback.ended_at];
+  document.getElementById("position").textContent = !current || !readable.length ? ""
+    : `Абзац ${readable.indexOf(current) + 1} из ${readable.length}`;
   renderQueue(snapshot.queue);
-  renderPlayback();
-  renderParagraphs(snapshot.text);
+  renderParagraphs(snapshot.text, textSizeChanged);
+  if (document.body.classList.contains("playback") && (!wasReading || startingPlayback)) {
+    workspaceEl.focus({ preventScroll: true });
+  }
   const [message, className] = statusText(snapshot.text, snapshot.playback);
   statusEl.textContent = message;
   statusEl.className = className;
@@ -829,9 +749,15 @@ function render(next) {
 }
 
 function showError(message) {
-  document.getElementById("playback-error-message").textContent = message;
-  playbackErrorEl.hidden = false;
+  // Polling updates routine status independently; an actionable error stays readable.
+  document.getElementById("action-error-message").textContent = message;
+  document.getElementById("action-error").hidden = false;
 }
+
+document.getElementById("dismiss-error").addEventListener("click", () => {
+  document.getElementById("action-error").hidden = true;
+  (document.body.classList.contains("playback") ? workspaceEl : sourceEl).focus({ preventScroll: true });
+});
 
 async function poll() {
   try {
@@ -855,24 +781,182 @@ function playFrom(index) {
   if (snapshot.text.paragraphs[index].status === "skipped") return;
   allowSound();
   clearSchedule();
-  actOnTypedText({ command: "play_from", paragraph: index });
+  act({ command: "play_from", paragraph: index });
 }
 
-async function actOnTypedText(body) {
-  try {
-    const edited = editVersion !== savedVersion;
-    await flushEdits();
-    await saveTitle();
-    if (edited) clearSchedule();
-    await act(body);
-  } catch (e) {
-    showError(e.message);
+// Only a matching acknowledgement can confirm the latest local edit. Polling never
+// replaces the editor inside an editing context, including its first Library ID.
+const saveHintEl = document.getElementById("save-hint");
+const saveRetryEl = document.getElementById("save-retry");
+let editContext = null;
+let editSequence = 0;
+let savedSequence = 0;
+let saveError = null;
+let saveTimer = null;
+let saving = null;
+let savingSequence = null;
+let transitionBusy = false;
+const lifecycleSaves = new Map();
+
+function renderSave() {
+  saveHintEl.textContent = saveError ? `Не удалось сохранить текст. ${saveError}`
+    : savingSequence === editSequence || lifecycleSaves.has(`${editContext}:${editSequence}`) ? "Сохранение…"
+    : editSequence !== savedSequence ? "Изменения не сохранены"
+    : editSequence > 0 ? "Сохранено" : "Автосохранение после ввода";
+  saveHintEl.className = saveError ? "error" : "muted";
+  saveRetryEl.hidden = !saveError;
+  saveRetryEl.disabled = Boolean(saving) || transitionBusy;
+}
+
+function adoptEditor(next) {
+  // A reload's first snapshot can precede the departing page's keepalive write.
+  // Follow a later Core revision only while this page has no edits of its own.
+  if (next.save.context !== editContext || (
+    editSequence === savedSequence && !saveError && !saving
+    && next.save.sequence > editSequence
+  )) {
+    clearTimeout(saveTimer);
+    editContext = next.save.context;
+    editSequence = next.save.sequence;
+    savedSequence = next.save.status === "failed" ? -1 : editSequence;
+    saveError = next.save.status === "failed" ? next.save.error : null;
+    sourceEl.value = next.text?.content ?? "";
   }
+  renderSave();
+}
+
+function acknowledgeSave(result, context, sequence) {
+  if (context !== editContext) {
+    throw new Error("Текст изменился в другом окне. Скопируйте правки перед обновлением страницы.");
+  }
+  if (sequence < savedSequence) return;
+  if (result.context !== context || result.sequence !== sequence || result.status !== "saved") {
+    throw new Error(result.error || "Программа не подтвердила сохранение. Повторите попытку.");
+  }
+  savedSequence = sequence;
+  if (sequence === editSequence) saveError = null;
+}
+
+function rememberSaveError(error, context, sequence) {
+  // A response (including a transport error) for an older save cannot undo a
+  // newer confirmed write sent independently by the lifecycle handler.
+  if (context === editContext && sequence > savedSequence) {
+    saveError = error.message || "Нет связи с программой.";
+  }
+}
+
+function saveOnPageHide() {
+  clearTimeout(saveTimer);
+  if (!editContext || (editSequence === savedSequence && !saveError)) return;
+  const context = editContext;
+  const sequence = editSequence;
+  const key = `${context}:${sequence}`;
+  if (lifecycleSaves.has(key)) return;
+  // Do not join serial(): an older request/response must not block the last edit.
+  // keepalive is best effort and subject to the browser's shared body-size quota.
+  issued++;
+  const pending = (async () => {
+    try {
+      const response = await fetch("/api/command", {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: "save_text", context, sequence, text: sourceEl.value }),
+      });
+      const reply = await response.json();
+      if (!response.ok) throw new Error(reply.error);
+      acknowledgeSave(reply.result, context, sequence);
+    } catch (error) {
+      rememberSaveError(error, context, sequence);
+    } finally {
+      lifecycleSaves.delete(key);
+      renderSave();
+    }
+  })();
+  lifecycleSaves.set(key, pending);
+  // Dispatching a keepalive is not a disk acknowledgement.
+  renderSave();
+}
+
+sourceEl.addEventListener("input", () => {
+  editSequence++;
+  clearTimeout(saveTimer);
+  renderSave();
+  // Do not save an unfinished IME composition or write on every keystroke.
+  if (!composing) saveTimer = setTimeout(() => saveTypedText().catch(() => {}), 600);
+});
+let composing = false;
+sourceEl.addEventListener("compositionstart", () => {
+  composing = true;
+  clearTimeout(saveTimer);
+});
+sourceEl.addEventListener("compositionend", () => {
+  composing = false;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveTypedText().catch(() => {}), 600);
+});
+
+async function saveTypedText() {
+  clearTimeout(saveTimer);
+  while (saving) await saving;
+  if (editSequence === savedSequence && !saveError) return;
+  const context = editContext;
+  const sequence = editSequence;
+  const text = sourceEl.value;
+  savingSequence = sequence;
+  saving = (async () => {
+    try {
+      const result = await command({ command: "save_text", context, sequence, text });
+      acknowledgeSave(result, context, sequence);
+    } catch (error) {
+      rememberSaveError(error, context, sequence);
+      if (context === editContext && sequence <= savedSequence) return;
+      throw error;
+    } finally {
+      saving = null;
+      savingSequence = null;
+      renderSave();
+    }
+  })();
+  renderSave();
+  await saving;
+  // Typing during an older request is a different revision, even before dispatch.
+  if (context === editContext && editSequence !== savedSequence) await saveTypedText();
+}
+
+saveRetryEl.addEventListener("click", () => saveTypedText().then(refresh).catch(() => {}));
+
+async function transition(body) {
+  if (transitionBusy || !snapshot) return;
+  if (["play", "enqueue"].includes(body.command) && !sourceEl.value.trim()) {
+    showError("Сначала вставьте английский текст в поле «Текст», затем повторите действие.");
+    return;
+  }
+  transitionBusy = true;
+  sourceEl.readOnly = true;
+  sourceEl.setAttribute("aria-busy", "true");
+  renderSave();
+  try {
+    await saveTypedText();
+    if (["open_text", "new_text"].includes(body.command)) clearSchedule();
+    await command(body);
+    await refresh();
+  } catch (error) {
+    if (!saveError) showError(error.message);
+  } finally {
+    transitionBusy = false;
+    sourceEl.readOnly = false;
+    sourceEl.removeAttribute("aria-busy");
+    renderSave();
+  }
+}
+
+function actOnTypedText(name) {
+  return transition({ command: name });
 }
 
 function play() {
   allowSound();
-  actOnTypedText({ command: "play" });
+  actOnTypedText("play");
 }
 
 function pause() {
@@ -885,7 +969,7 @@ function pause() {
 async function moveParagraph(name) {
   allowSound();
   try {
-    await flushEdits();
+    await saveTypedText();
     if (await command({ command: name })) clearSchedule();
     await refresh();
   } catch (e) {
@@ -893,56 +977,13 @@ async function moveParagraph(name) {
   }
 }
 
-sourceEl.addEventListener("input", () => {
-  editVersion++;
-  showSaveState("unsaved");
-  scheduleSave();
-});
-
-titleEl.addEventListener("input", () => {
-  titleDirty = true;
-  titleActionsEl.hidden = false;
-  titleErrorEl.textContent = "";
-  titleEl.removeAttribute("aria-invalid");
-});
-
-function cancelTitle() {
-  titleDirty = false;
-  titleErrorEl.textContent = "";
-  titleEl.removeAttribute("aria-invalid");
-  renderTitle();
-  titleEl.focus();
-}
-
-document.getElementById("cancel-title").addEventListener("click", cancelTitle);
-titleEl.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { e.preventDefault(); cancelTitle(); }
-});
-document.getElementById("title-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    await flushEdits();
-    await saveTitle();
-    titleEl.focus();
-  } catch (error) {
-    titleErrorEl.textContent = error.message;
-  }
-});
-
-document.addEventListener("click", (e) => {
-  if (activeMenu && !activeMenu.trigger.contains(e.target) && !activeMenu.menu.contains(e.target)) closeMenu();
-});
-
-function togglePlayback() {
+document.getElementById("play").addEventListener("click", () => {
   if (["playing", "waiting"].includes(snapshot?.playback.state)) pause();
   else play();
+});
+for (const [id, name] of [["previous", "previous_paragraph"], ["repeat", "repeat_paragraph"], ["next", "next_paragraph"]]) {
+  document.getElementById(id).addEventListener("click", () => moveParagraph(name));
 }
-
-playEl.addEventListener("click", togglePlayback);
-document.getElementById("dismiss-error").addEventListener("click", () => { playbackErrorEl.hidden = true; });
-document.getElementById("previous").addEventListener("click", () => moveParagraph("previous_paragraph"));
-document.getElementById("repeat").addEventListener("click", () => moveParagraph("repeat_paragraph"));
-document.getElementById("next").addEventListener("click", () => moveParagraph("next_paragraph"));
 
 // Another Speed is another Narration: the core stops the one playing.
 speedEl.addEventListener("change", () => {
@@ -950,7 +991,7 @@ speedEl.addEventListener("change", () => {
   act({ command: "set_speed", speed: Number(speedEl.value) });
 });
 
-document.getElementById("enqueue").addEventListener("click", () => actOnTypedText({ command: "enqueue" }));
+document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
 
 smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
 biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
@@ -958,7 +999,7 @@ biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));
 // Keys by their place on the keyboard (code), so R works in the Russian layout too.
 // Presenter remotes send the arrows or PageUp / PageDown.
 const KEYS = {
-  Space: togglePlayback,
+  Space: () => (["playing", "waiting"].includes(snapshot?.playback.state) ? pause() : play()),
   ArrowLeft: () => moveParagraph("previous_paragraph"),
   PageUp: () => moveParagraph("previous_paragraph"),
   ArrowRight: () => moveParagraph("next_paragraph"),
@@ -966,43 +1007,47 @@ const KEYS = {
   KeyR: () => moveParagraph("repeat_paragraph"),
 };
 
-// Playback shortcuts must not steal keys while the teacher types in a field.
+// Native controls and custom interactive widgets own their keyboard input.
+const INTERACTIVE = [
+  "input", "textarea", "select", "button", "summary", "a[href]", "audio[controls]", "video[controls]",
+  "[role=button]", "[role=checkbox]", "[role=radio]", "[role=combobox]", "[role=listbox]", "[role=option]",
+  "[role=menu]", "[role=menuitem]", "[role=slider]", "[role=spinbutton]", "[role=switch]", "[role=tab]",
+  "[role=tree]", "[role=treeitem]", "[role=textbox]", "[contenteditable]:not([contenteditable=false])", "[tabindex]",
+].join(", ");
 function typing(e) {
-  const field = e.target;
-  const textInput = field.matches("input") && !["radio", "checkbox", "button", "submit"].includes(field.type);
-  return textInput || field.matches("textarea") || field.isContentEditable;
-}
-
-function usesOwnKeys(e) {
-  return typing(e) || e.target.closest("select, summary, #voice-panel, #library-panel, dialog, #title-form") ||
-    (e.code === "Space" && e.target.closest("button, [role=button]")) || deleteDialogEl.open;
+  // The reading surface receives shortcuts; its interactive descendants keep their own keys.
+  if (e.target === workspaceEl) return false;
+  return e.target.closest(INTERACTIVE) || e.target.isContentEditable;
 }
 
 document.addEventListener("keydown", (e) => {
   const key = KEYS[e.code];
   if (!key || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (e.defaultPrevented || usesOwnKeys(e)) return;
-  // The keys also win over a focused button, radio or list, which would otherwise take them too.
+  if (e.defaultPrevented || e.isComposing || dialogEl.open || typing(e)) return;
+  // Native controls keep their own keys; the reading background handles playback shortcuts.
   e.preventDefault();
   if (!e.repeat) key();
 });
 
 // A focused button is pressed by Space on keyup.
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && !usesOwnKeys(e)) e.preventDefault();
+  if (e.code === "Space" && !dialogEl.open && !typing(e)) e.preventDefault();
 });
 
 librarySearchEl.addEventListener("input", () => {
   act({ command: "search_library", query: librarySearchEl.value });
 });
 
-document.getElementById("new-text").addEventListener("click", async () => {
-  if (await replaceText({ command: "new_text" })) revealWorkspace();
+document.getElementById("new-text").addEventListener("click", () => {
+  transition({ command: "new_text" }).then(() => {
+    if (!narrowWindow.matches) sourceEl.focus();
+  });
 });
 
-document.getElementById("stop").addEventListener("click", () => {
+document.getElementById("stop").addEventListener("click", async () => {
   clearSchedule();
-  act({ command: "stop" });
+  await act({ command: "stop" });
+  sourceEl.focus();
 });
 
 // ---------------------------------------------------------------- heartbeat
@@ -1015,11 +1060,9 @@ function heartbeat(event) {
 function sendHeartbeat() {
   fetch("/api/command", { method: "POST", body: heartbeat("page_alive") }).catch(() => {});
 }
-function saveOnPageHide() {
-  if (editVersion === savedVersion && !saveInFlight) return;
-  // Keep the latest save behind any older one; an independent beacon could reach Core first and then be overwritten.
-  command({ command: "set_text", text: sourceEl.value }, true).catch(() => {});
-}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveOnPageHide();
+});
 window.addEventListener("pagehide", () => {
   saveOnPageHide();
   navigator.sendBeacon("/api/command", heartbeat("page_closing"));

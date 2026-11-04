@@ -55,7 +55,7 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
     assert command(base_url, command="page_alive") is None
     command(base_url, command="set_voice", voice="fake:george")
     command(base_url, command="set_speed", speed=0.9)
-    assert command(base_url, command="set_text", text="Good morning.\nSit down, please.") is True
+    command(base_url, command="set_text", text="Good morning.\nSit down, please.")
     command(base_url, command="play")
 
     deadline = time.monotonic() + 5
@@ -74,3 +74,24 @@ def test_commands_events_snapshot_and_audio_pass_through(base_url):
     content_type, audio = get(base_url + f"/api/audio/{snapshot['text']['paragraphs'][1]['audio'][0]}")
     assert content_type == "audio/wav"
     assert audio.startswith(b"RIFF")
+
+
+def test_save_result_distinguishes_disk_confirmation_failure_and_stale_requests(base_url, tmp_path):
+    state = json.loads(get(base_url + "/api/state")[1])
+    context = state["save"]["context"]
+    obstruction = tmp_path / "data" / "library.json.tmp"
+    obstruction.mkdir()
+    failed = command(base_url, command="save_text", text="HTTP edit.", context=context, sequence=2)
+    assert failed["status"] == "failed"
+    assert failed["error"].startswith("Не удалось сохранить Библиотеку")
+    assert json.loads(get(base_url + "/api/state")[1])["save"] == failed
+    obstruction.rmdir()
+    saved = command(base_url, command="save_text", text="HTTP edit.", context=context, sequence=2)
+    assert saved["status"] == "saved"
+    assert saved["sequence"] == 2
+    assert saved["text_id"] == failed["text_id"]
+    stale = command(base_url, command="save_text", text="Old edit.", context=context, sequence=1)
+    assert stale["status"] == "stale"
+    command(base_url, command="new_text")
+    assert command(base_url, command="save_text", text="Late edit.", context=context, sequence=3)["status"] == "stale"
+    assert json.loads(get(base_url + "/api/state")[1])["text"] is None

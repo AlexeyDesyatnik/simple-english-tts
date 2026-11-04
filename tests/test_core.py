@@ -49,6 +49,130 @@ def statuses(snapshot):
     return [p["status"] for p in snapshot["text"]["paragraphs"]]
 
 
+# ---------------------------------------------------------------- save acknowledgement and ordering
+
+
+def test_save_acknowledges_the_exact_edit_only_after_it_can_be_reopened(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    result = core.save_text("Confirmed text.", context=context, sequence=1)
+    assert result == {
+        "context": context, "sequence": 1, "text_id": core.snapshot()["text"]["id"],
+        "status": "saved", "error": None,
+    }
+    assert core.snapshot()["save"] == result
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(result["text_id"])
+    assert restarted.snapshot()["text"]["content"] == "Confirmed text."
+
+
+def test_failed_save_is_observable_survives_polling_and_retries_the_same_edit(make_core, tmp_path):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Previous text.")
+    context = core.snapshot()["save"]["context"]
+    obstruction = tmp_path / "data" / "library.json.tmp"
+    obstruction.mkdir()
+    failed = core.save_text("Retained edit.", context=context, sequence=2)
+    assert failed["status"] == "failed"
+    assert failed["error"].startswith("Не удалось сохранить Библиотеку")
+    assert core.snapshot()["save"] == failed
+    assert core.snapshot()["text"]["content"] == "Retained edit."
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(failed["text_id"])
+    assert restarted.snapshot()["text"]["content"] == "Previous text."
+    assert core.save_text("Older edit.", context=context, sequence=1)["status"] == "stale"
+    obstruction.rmdir()
+    assert core.save_text("Retained edit.", context=context, sequence=2)["status"] == "saved"
+    reopened = make_core(FakeVoiceProvider())
+    reopened.open_text(failed["text_id"])
+    assert reopened.snapshot()["text"]["content"] == "Retained edit."
+
+
+def test_older_or_reused_sequences_cannot_replace_a_newer_edit(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    newest = core.save_text("Newest text.", context=context, sequence=3)
+    assert core.save_text("Old text.", context=context, sequence=1)["status"] == "stale"
+    assert core.save_text("Different text.", context=context, sequence=3)["status"] == "stale"
+    assert core.snapshot()["save"] == newest
+    assert core.snapshot()["text"]["content"] == "Newest text."
+    assert core.save_text("Newest text.", context=context, sequence=3) == newest
+
+
+@pytest.mark.parametrize("transition", ["new", "open", "delete", "legacy"])
+def test_late_saves_cannot_follow_a_text_switch_or_an_unguarded_edit(make_core, transition):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("First text.")
+    first = core.snapshot()["text"]["id"]
+    core.new_text()
+    core.set_text("Second text.")
+    old_context = core.snapshot()["save"]["context"]
+    second = core.snapshot()["text"]["id"]
+    if transition == "open":
+        core.open_text(first)
+    elif transition == "new":
+        core.new_text()
+    elif transition == "delete":
+        core.delete_text(second)
+    else:
+        core.set_text("Legacy edit.")
+    before = core.snapshot()
+    assert core.save_text("Late first edit.", context=old_context, sequence=100)["status"] == "stale"
+    assert core.snapshot()["text"] == before["text"]
+    assert core.snapshot()["save"] == before["save"]
+    assert core.snapshot()["library"] == before["library"]
+
+
+def test_clearing_a_text_is_confirmed_on_disk_and_preserves_its_identity(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Clear me.")
+    before = core.snapshot()
+    result = core.save_text("", context=before["save"]["context"], sequence=1)
+    assert result["status"] == "saved"
+    assert result["text_id"] == before["text"]["id"]
+    restarted = make_core(FakeVoiceProvider())
+    restarted.open_text(result["text_id"])
+    assert restarted.snapshot()["text"]["content"] == ""
+
+
+def test_an_unreadable_library_never_acknowledges_a_write(make_core, tmp_path):
+    library = tmp_path / "data" / "library.json"
+    library.parent.mkdir(parents=True)
+    library.write_text("damaged", encoding="utf-8")
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    result = core.save_text("Keep in memory.", context=context, sequence=1)
+    assert result["status"] == "failed"
+    assert result["error"].startswith("Не удалось прочитать Библиотеку")
+    assert library.read_text(encoding="utf-8") == "damaged"
+
+
+def test_a_save_before_switch_stays_with_its_text_and_a_later_one_is_rejected(make_core):
+    core = make_core(FakeVoiceProvider())
+    context = core.snapshot()["save"]["context"]
+    saved = core.save_text("First saved edit.", context=context, sequence=1)
+    core.new_text()
+    second_context = core.snapshot()["save"]["context"]
+    second = core.save_text("Second saved edit.", context=second_context, sequence=1)
+    assert second["text_id"] != saved["text_id"]
+    assert core.save_text("Late edit.", context=context, sequence=2)["status"] == "stale"
+    core.open_text(saved["text_id"])
+    assert core.snapshot()["text"]["content"] == "First saved edit."
+    assert core.save_text("Late edit after return.", context=context, sequence=3)["status"] == "stale"
+    current_context = core.snapshot()["save"]["context"]
+    assert core.save_text("Fresh edit.", context=current_context, sequence=1)["status"] == "saved"
+
+
+@pytest.mark.parametrize("sequence", [0, -1, True, 1.5, "2", None])
+def test_invalid_edit_sequences_leave_the_current_text_untouched(make_core, sequence):
+    core = make_core(FakeVoiceProvider())
+    before = core.snapshot()
+    with pytest.raises(ValueError):
+        core.save_text("Invalid edit.", context=before["save"]["context"], sequence=sequence)
+    assert core.snapshot()["text"] is None
+    assert core.snapshot()["save"] == before["save"]
+
+
 # ---------------------------------------------------------------- synthesis
 
 
@@ -213,20 +337,50 @@ TEXT_WITH_A_TASK = "Упражнение 1. Послушайте.\nTom has a cat
 def test_paragraphs_play_in_order_skipping_skipped_paragraphs(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text(TEXT_WITH_A_TASK)
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
     play_when_ready(core)
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_started(1)
     core.paragraph_finished(1)
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_started(3)
     core.paragraph_finished(3)
     core.paragraph_started(4)
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(4)
 
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": 4,
+    }
+
+
+def test_natural_completion_remains_distinguishable_from_return_to_editing(make_core):
+    core = make_core(FakeVoiceProvider())
+    core.set_text(TEXT_WITH_A_TASK)
+    play_when_ready(core)
+    core.play_from(4)
+    core.paragraph_finished(4)
+
+    # This snapshot also drives a freshly reloaded page; the page need not remember the end.
+    assert core.snapshot()["playback"]["ended_at"] == 4
+    assert core.snapshot()["playback"]["state"] == "stopped"
+    assert core.next_paragraph() is False
+    core.play()
+    assert core.snapshot()["playback"]["ended_at"] is None
+    assert core.snapshot()["playback"]["paragraph"] == 1
+    core.play_from(4)
+    core.paragraph_finished(4)
+    core.stop()
+    assert core.snapshot()["playback"]["ended_at"] is None
 
 
 def test_the_page_can_start_the_next_paragraph_before_reporting_the_end_of_the_previous_one(make_core):
@@ -237,7 +391,9 @@ def test_the_page_can_start_the_next_paragraph_before_reporting_the_end_of_the_p
     core.paragraph_started(3)
     core.paragraph_finished(1)  # late: the position has already moved on
 
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_a_text_with_nothing_to_read_does_not_start_playing(make_core):
@@ -256,12 +412,16 @@ def test_pause_keeps_the_position_and_play_resumes_it(make_core):
     core.paragraph_finished(1)
 
     core.pause()
-    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "paused", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(3)  # the page may still report what was playing as it paused
     assert playback(core)["paragraph"] == 3
 
     core.play()
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_stop_returns_to_the_start_of_the_text(make_core):
@@ -271,7 +431,9 @@ def test_stop_returns_to_the_start_of_the_text(make_core):
     core.paragraph_finished(1)
 
     core.stop()
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
     core.play()
     assert playback(core)["paragraph"] == 1
@@ -297,9 +459,13 @@ def test_next_and_previous_paragraph_play_the_neighbouring_one_passing_over_skip
     play_when_ready(core)
 
     assert core.next_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
     assert core.previous_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_previous_at_the_first_paragraph_and_next_at_the_last_leave_playback_as_it_is(make_core):
@@ -308,11 +474,15 @@ def test_previous_at_the_first_paragraph_and_next_at_the_last_leave_playback_as_
     play_when_ready(core)
 
     assert core.previous_paragraph() is False
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
     core.next_paragraph()
     core.next_paragraph()
     assert core.next_paragraph() is False
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_repeat_plays_the_current_paragraph_again_even_when_paused(make_core):
@@ -324,7 +494,9 @@ def test_repeat_plays_the_current_paragraph_again_even_when_paused(make_core):
 
     assert core.repeat_paragraph() is True
 
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_after_the_end_of_the_text_repeat_and_previous_go_back_from_the_last_paragraph(make_core):
@@ -338,10 +510,14 @@ def test_after_the_end_of_the_text_repeat_and_previous_go_back_from_the_last_par
     assert core.next_paragraph() is False
     assert playback(core)["state"] == "stopped"
     assert core.repeat_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 4, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
     core.paragraph_finished(4)
     assert core.previous_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 3, "next": 4, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_after_stop_next_plays_the_first_paragraph_while_previous_and_repeat_do_nothing(make_core):
@@ -355,7 +531,9 @@ def test_after_stop_next_plays_the_first_paragraph_while_previous_and_repeat_do_
     assert core.repeat_paragraph() is False
     assert playback(core)["state"] == "stopped"
     assert core.next_paragraph() is True
-    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None}
+    assert playback(core) == {"state": "playing", "paragraph": 1, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_next_previous_and_repeat_do_nothing_without_a_text(make_core):
@@ -466,16 +644,16 @@ def test_a_renamed_text_keeps_its_title_after_a_restart_and_is_found_by_it(make_
     assert [t["title"] for t in restarted.snapshot()["library"]] == ["6B, Unit 3"]
 
 
-def test_the_current_text_title_is_available_even_when_library_search_hides_it(make_core):
+def test_the_open_text_exposes_its_renamed_title_even_when_library_search_hides_it(make_core):
     core = make_core(FakeVoiceProvider())
-    core.set_text("Tom has a cat.")
-    assert core.snapshot()["text"]["title"] == "Tom has a cat."
-    core.rename_text(core.snapshot()["text"]["id"], "6B, Unit 3")
-    core.search_library("absent")
+    core.set_text("Hello world.")
+    text_id = core.snapshot()["text"]["id"]
+    core.search_library("Hello")
+    core.rename_text(text_id, "6B, Unit 3")
 
-    snapshot = core.snapshot()
-    assert snapshot["library"] == []
-    assert snapshot["text"]["title"] == "6B, Unit 3"
+    assert core.snapshot()["library"] == []
+    assert core.snapshot()["text"]["title"] == "6B, Unit 3"
+    assert core.snapshot()["text"]["content"] == "Hello world."
 
 
 def test_editing_a_renamed_text_keeps_its_custom_title(make_core):
@@ -746,41 +924,6 @@ def test_a_crash_while_saving_the_library_leaves_the_previous_version_readable(m
     assert saved["title"] == "Tom has a cat."
 
 
-def test_a_failed_text_save_is_reported_and_the_same_edit_can_retry_it(make_core, monkeypatch):
-    core = make_core(FakeVoiceProvider())
-    core.set_text("Tom has a cat.")
-
-    crash_on_every_rename(monkeypatch)
-    assert core.set_text("Tom has a dog.") is False
-    assert core.snapshot()["library_error"].startswith("Не удалось сохранить Библиотеку")
-    assert core.snapshot()["text"]["save_error"].startswith("Не удалось сохранить Библиотеку")
-
-    monkeypatch.undo()
-    assert core.set_text("Tom has a dog.") is True
-    assert core.snapshot()["text"]["save_error"] is None
-    core.close()
-
-    restarted = make_core(FakeVoiceProvider())
-    [saved] = restarted.snapshot()["library"]
-    restarted.open_text(saved["id"])
-    assert restarted.snapshot()["text"]["content"] == "Tom has a dog."
-
-
-def test_emptying_an_existing_text_is_saved_and_restored(make_core):
-    core = make_core(FakeVoiceProvider())
-    core.set_text("Tom has a cat.")
-    text_id = core.snapshot()["text"]["id"]
-
-    assert core.set_text("") is True
-    assert core.snapshot()["text"]["content"] == ""
-    assert core.snapshot()["library"][0]["title"] == "Пустой текст"
-    core.close()
-
-    restarted = make_core(FakeVoiceProvider())
-    restarted.open_text(text_id)
-    assert restarted.snapshot()["text"]["content"] == ""
-
-
 def test_every_save_records_the_data_format_version(make_core, tmp_path):
     core = make_core(FakeVoiceProvider())
 
@@ -824,7 +967,9 @@ def test_play_on_a_narration_slower_than_speech_waits_out_a_start_delay_that_cou
     core.set_text(FOUR_PARAGRAPHS_OF_10_S)
 
     core.play()
-    assert playback(core) == {"state": "waiting", "paragraph": 0, "next": 1, "start_delay": None}  # not measured yet
+    assert playback(core) == {"state": "waiting", "paragraph": 0, "next": 1, "start_delay": None,
+        "ended_at": None,
+    }  # not measured yet
 
     provider.finish_next()  # 20 s for 10 s of speech: this computer synthesizes at half the pace of speech
     snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
@@ -872,7 +1017,9 @@ def test_on_a_computer_faster_than_speech_playback_starts_as_soon_as_the_first_p
 
     snapshot = wait_for(core, lambda s: statuses(s)[0] == "ready")
     assert statuses(snapshot)[1:] != ["ready"] * 3
-    assert snapshot["playback"] == {"state": "playing", "paragraph": 0, "next": 1, "start_delay": None}
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 0, "next": 1, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_the_start_delay_is_recalculated_when_synthesis_slows_down_along_the_way(make_core):
@@ -960,7 +1107,9 @@ def test_play_from_a_paragraph_that_is_not_ready_synthesizes_from_it_then_the_on
 
     snapshot = wait_for(core, all_ready)
     assert said(provider) == ["C", "D", "A", "B"]
-    assert snapshot["playback"] == {"state": "playing", "paragraph": 2, "next": 3, "start_delay": None}
+    assert snapshot["playback"] == {"state": "playing", "paragraph": 2, "next": 3, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 def test_play_from_a_paragraph_while_another_is_synthesizing_switches_to_it_after_that_piece(make_core):
@@ -1056,7 +1205,97 @@ def test_a_cancelled_narration_keeps_the_pieces_already_synthesized_and_the_queu
     wait_for(core, lambda s: s["queue"] == [])
     assert [r[0] for r in provider.requests] == ["Apple one.", "Apple two.", "Cherry one."]
     core.open_text(apple["text_id"])
-    assert statuses(core.snapshot()) == ["ready", "ready", "waiting"]
+    assert statuses(core.snapshot()) == ["ready", "waiting", "waiting"]
+
+
+def test_cancelling_alice_interrupts_its_piece_and_starts_queued_george_without_finishing_alice(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.\nGood morning.")
+    core.enqueue()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    core.set_voice("fake:george")
+    core.enqueue()
+    alice, george = core.snapshot()["queue"]
+
+    core.cancel(alice["id"])
+
+    remaining = core.snapshot()["queue"]
+    assert [n["id"] for n in remaining] == [george["id"]]
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2, timeout=1)
+    assert [(n["voice"], n["synthesizing"]) for n in snapshot["queue"]] == [("fake:george", True)]
+    assert provider.requests == [("Hello, class.", "alice", 1.0), ("Hello, class.", "george", 1.0)]
+    core.cancel(alice["id"])  # a repeated old cancellation must not interrupt George
+    assert [(n["voice"], n["synthesizing"]) for n in core.snapshot()["queue"]] == [("fake:george", True)]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert provider.requests == [
+        ("Hello, class.", "alice", 1.0),
+        ("Hello, class.", "george", 1.0),
+        ("Good morning.", "george", 1.0),
+    ]
+    core.set_voice("fake:alice")
+    assert statuses(core.snapshot()) == ["waiting", "waiting"]
+
+
+def test_cancelling_a_waiting_narration_does_not_interrupt_the_active_voice(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    core.set_voice("fake:george")
+    core.enqueue()
+    alice, george = core.snapshot()["queue"]
+
+    core.cancel(george["id"])
+    assert [(n["id"], n["synthesizing"]) for n in core.snapshot()["queue"]] == [(alice["id"], True)]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    core.set_voice("fake:alice")
+    assert statuses(core.snapshot()) == ["ready"]
+    assert provider.requests == [("Hello, class.", "alice", 1.0)]
+
+
+def test_a_cancelled_voice_can_be_enqueued_again_without_reusing_its_cancel_signal(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    narration = wait_for(core, lambda s: len(provider.requests) == 1)["queue"][0]
+
+    core.cancel(narration["id"])
+    core.enqueue()
+
+    wait_for(core, lambda s: len(provider.requests) == 2, timeout=1)
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert statuses(core.snapshot()) == ["ready"]
+    assert provider.requests == [("Hello, class.", "alice", 1.0), ("Hello, class.", "alice", 1.0)]
+
+
+def test_a_result_finishing_concurrently_with_cancellation_does_not_complete_the_requeued_narration(make_core):
+    class FinishingProvider(FakeVoiceProvider):
+        def synthesize(self, text, voice, speed, cancel=None):
+            # A result can already be returning when the cancellation signal is set.
+            return super().synthesize(text, voice, speed)
+
+    provider = FinishingProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.")
+    core.enqueue()
+    narration = wait_for(core, lambda s: len(provider.requests) == 1)["queue"][0]
+
+    core.cancel(narration["id"])
+    core.enqueue()
+    provider.finish_next()
+
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2)
+    assert snapshot["library"][0]["narrations"] == []
+    assert statuses(snapshot) == ["synthesizing"]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert statuses(core.snapshot()) == ["ready"]
 
 
 def test_cancelling_the_narration_waiting_to_play_stops_playback(make_core):
@@ -1239,7 +1478,9 @@ def test_choosing_another_voice_or_speed_stops_the_narration_playing(make_core, 
 
     getattr(core, command)(value)
 
-    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None}
+    assert playback(core) == {"state": "stopped", "paragraph": None, "next": None, "start_delay": None,
+        "ended_at": None,
+    }
 
 
 @pytest.mark.parametrize("command, value", [("set_voice", "fake:bob"), ("set_speed", 1.5)])

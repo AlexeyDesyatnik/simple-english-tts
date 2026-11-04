@@ -29,6 +29,7 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 
 - Core state is read and changed only under the core's lock; the snapshot is copied out under it.
 - One background thread synthesizes, one piece at a time. A Voice provider is never called while the core's lock is held.
+- Core signals cancellation through a per-call Event. A short-lived provider monitor may interrupt native inference; it never owns Core state or synthesizes in parallel (ADR-0004).
 - Commands return at once; progress is seen through the snapshot.
 
 ## Tests

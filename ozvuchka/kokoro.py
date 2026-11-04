@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ozvuchka.audio import Audio, audio_from_wav, wav_from_samples
-from ozvuchka.voices import Voice
+from ozvuchka.voices import Voice, check_cancelled
 
 if TYPE_CHECKING:  # imported for real in load(): it takes seconds
     from kokoro_onnx import Kokoro
@@ -34,12 +34,49 @@ DEFAULT_VOICE = "kokoro:bf_alice"
 GENDER_LABELS = {"female": "женский", "male": "мужской"}
 
 
+class _InterruptibleSession:
+    """Supply per-call ONNX cancellation without changing Kokoro's inference/audio pipeline."""
+
+    def __init__(self, session: Any, cancel: threading.Event):
+        self._session = session
+        self._cancel = cancel
+
+    def run(self, output_names: list[str] | None, inputs: dict[str, Any]) -> Any:
+        from onnxruntime import RunOptions
+
+        check_cancelled(self._cancel)
+        options = RunOptions()
+        finished = threading.Event()
+
+        def interrupt() -> None:
+            # Core only signals an Event under its lock; native runtime calls stay outside that lock.
+            while not finished.wait(0.01):
+                if self._cancel.is_set():
+                    options.terminate = True
+                    return
+
+        monitor = threading.Thread(target=interrupt, name="synthesis-cancellation", daemon=True)
+        monitor.start()
+        try:
+            try:
+                output = self._session.run(output_names, inputs, options)
+            except Exception:
+                check_cancelled(self._cancel)
+                raise
+            check_cancelled(self._cancel)
+            return output
+        finally:
+            finished.set()
+            monitor.join()
+
+
 class KokoroProvider:
     id = "kokoro"
 
     def __init__(self, model_dir: Path):
         self._model_dir = model_dir
         self._tts: Kokoro | None = None
+        self._session: Any = None
         self._g2p: Any = None  # misaki.en.G2P; misaki has no type information
         self._lock = threading.Lock()  # the model and misaki are used by one synthesis at a time
 
@@ -73,6 +110,7 @@ class KokoroProvider:
         tts = Kokoro(str(self._model_dir / "kokoro-int8.onnx"), str(self._model_dir / "voices.npz"))
         with self._lock:
             self._g2p, self._tts = g2p, tts
+            self._session = tts.sess
 
     def sample(self, voice: str) -> Audio | None:
         # Made by the build (tools\make_voice_samples.py), so it plays at once even on the Celeron.
@@ -83,16 +121,21 @@ class KokoroProvider:
         except OSError:
             return None
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Audio:
+    def synthesize(self, text: str, voice: str, speed: float, cancel: threading.Event | None = None) -> Audio:
+        check_cancelled(cancel)
         if self._tts is None:
             raise RuntimeError("Kokoro is not loaded yet")
         with self._lock:
+            check_cancelled(cancel)
             phonemes, _ = self._g2p(text)
+            check_cancelled(cancel)
             phonemes = phonemes.replace("❓", "")
+            self._tts.sess = self._session if cancel is None else _InterruptibleSession(self._session, cancel)
             if phonemes.strip():
                 samples, _ = self._tts.create(phonemes, voice=voice, speed=speed, is_phonemes=True)
             else:
                 samples = np.zeros(0, dtype=np.float32)
+        check_cancelled(cancel)
         return wav_from_samples(samples, SAMPLE_RATE)
 
 

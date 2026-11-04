@@ -11,6 +11,16 @@ the perceived speed difference was minimal, without timed measurements
 ([#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)).
 Review older-CPU support before upgrading this dependency.
 
+## UI design
+
+The accepted ten-stage `experiment-2` implementation is now the basis of `main`.
+Its [UI design specification](docs/ui-design-spec.md) and
+[integrated acceptance record](docs/design-reviews/issue-37/README.md) describe
+the current design. The other design alternatives are retired; only the NumPy
+compatibility change from the previous `main` was retained. See the
+[adoption record](docs/design-reviews/main-adoption/README.md) for source commits
+and archived branch states.
+
 ## Development
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:

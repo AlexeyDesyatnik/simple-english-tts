@@ -1,94 +1,62 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Озвучка</title>
-    <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <main>
-      <h1>Озвучка</h1>
-      <div class="preparation-layout">
-        <details id="library-panel" open>
-          <summary>Библиотека</summary>
-          <div class="library-content">
-            <div class="library-header">
-              <button id="new-text" type="button" class="secondary">Новый текст</button>
-            </div>
-            <div class="library-tools">
-              <input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию">
-            </div>
-            <ul id="library"></ul>
-            <footer id="library-size" class="muted"></footer>
-          </div>
-        </details>
-        <section id="workspace" aria-label="Текущий текст">
-          <div class="workspace-header">
-            <form id="title-form" novalidate>
-              <label for="text-title">Название текста</label>
-              <input id="text-title" type="text" aria-describedby="title-error" disabled>
-              <div id="title-actions" hidden>
-                <button type="submit">Сохранить название</button>
-                <button id="cancel-title" type="button" class="secondary">Отменить</button>
-              </div>
-              <p id="title-error" class="error" role="alert"></p>
-            </form>
-            <details id="voice-panel">
-              <summary><span id="voice-summary">Голос и скорость</span><span class="voice-change">Изменить</span></summary>
-              <div class="voice-options">
-                <h3 id="voices-heading">Голос</h3>
-                <p class="muted voice-hint">Выберите голос или послушайте образец, не меняя выбор.</p>
-                <ul id="voices" aria-labelledby="voices-heading"></ul>
-                <label class="speed-choice">Скорость <select id="speed"></select></label>
-              </div>
-            </details>
-          </div>
-          <label class="editor-label" for="source">Текст · каждая строка — отдельный абзац</label>
-          <textarea id="source" rows="6" placeholder="Вставьте английский текст"></textarea>
-          <p id="save-status" class="muted" role="status" aria-live="polite"></p>
-          <div class="controls">
-            <button id="play" type="button">Воспроизвести</button>
-            <button id="stop" type="button" class="secondary">Стоп</button>
-            <span class="paragraph-controls" role="group" aria-label="Переход по абзацам">
-              <button id="previous" type="button" class="secondary" title="Предыдущий абзац (← / PageUp)">← Назад</button>
-              <button id="repeat" type="button" class="secondary" title="Повторить абзац (R / К)">Повторить</button>
-              <button id="next" type="button" class="secondary" title="Следующий абзац (→ / PageDown)">Вперёд →</button>
-            </span>
-            <button id="enqueue" type="button" class="secondary">В очередь</button>
-            <span class="text-size">
-              <button id="smaller" type="button" class="secondary" title="Мельче">A−</button>
-              <button id="bigger" type="button" class="secondary" title="Крупнее">A+</button>
-            </span>
-          </div>
-          <p id="paragraph-progress" role="status"></p>
-          <p id="status" role="status"></p>
-          <div id="playback-error" role="alert" hidden>
-            <span id="playback-error-message"></span>
-            <button id="dismiss-error" type="button" class="secondary">Скрыть сообщение</button>
-          </div>
-          <section id="queue-panel" aria-label="Очередь озвучки">
-            <h2>Очередь озвучки</h2>
-            <p id="queue-empty" class="muted">Очередь пуста</p>
-            <ol id="queue"></ol>
-          </section>
-          <details id="playback-help">
-            <summary>Как управлять воспроизведением</summary>
-            <p>Пробел — пауза или продолжение. ← / PageUp — предыдущий абзац; → / PageDown — следующий; R / К — повторить. Работает и в русской раскладке. При вводе текста сочетания не действуют.</p>
-          </details>
-          <p id="paragraph-hint" class="muted">Нажмите на абзац, чтобы читать с него.</p>
-          <ol id="paragraphs"></ol>
-        </section>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Озвучка</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main>
+  <header class="app-header"><h1>Озвучка</h1><span class="muted">Английский для урока</span></header>
+  <div class="workspace">
+    <details id="library-panel" open>
+      <summary>Библиотека</summary>
+      <div class="library-content">
+      <div class="library-tools"><button id="new-text" type="button" class="secondary">Новый текст</button><input id="library-search" type="search" placeholder="Поиск по названию" aria-label="Поиск по названию"><span id="library-size" class="muted"></span></div>
+      <ul id="library"></ul>
+      <div id="library-empty" class="library-empty" role="status" hidden><p id="library-empty-title"></p><p id="library-empty-help" class="muted"></p></div>
       </div>
-    </main>
-    <dialog id="delete-dialog" aria-labelledby="delete-heading" aria-describedby="delete-consequences">
-      <h2 id="delete-heading"></h2>
-      <p id="delete-consequences"></p>
-      <form method="dialog" class="dialog-actions">
-        <button id="cancel-delete" value="cancel" class="secondary" autofocus>Отменить</button>
-        <button value="delete" class="destructive">Удалить</button>
-      </form>
-    </dialog>
-    <script src="app.js"></script>
-  </body>
+    </details>
+    <section id="text-workspace" class="working-area" aria-labelledby="text-title" tabindex="-1">
+      <header class="text-header">
+        <div><p class="eyebrow">Подготовка к уроку</p><h2 id="text-title">Новый текст</h2><button id="rename-title" type="button" class="secondary" hidden>Изменить название</button></div>
+        <button id="stop" type="button" class="secondary" title="Остановить воспроизведение и вернуться к редактированию"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v16h-6M13 12H3m4-4-4 4 4 4"/></svg>К редактированию</button>
+      </header>
+      <div class="preparation">
+        <div class="settings">
+          <details id="voice-panel"><summary>Голос · <span id="selected-voice"></span></summary><div class="voice-choices"><p id="voice-availability" class="muted" role="status"></p><p class="muted">Стрелки — переход между голосами, Enter или пробел — выбор. «Послушать» не меняет выбранный голос.</p><ul id="voices" aria-label="Голоса"></ul><p id="sample-status" class="muted" role="status"></p></div></details>
+          <label class="speed-label">Скорость <select id="speed"></select></label>
+        </div>
+        <div class="editor-label"><label for="source">Текст</label><span class="save-feedback"><span id="save-hint" class="muted" role="status" aria-live="polite">Автосохранение после ввода</span><button id="save-retry" type="button" class="secondary" hidden>Повторить сохранение</button></span></div>
+        <p id="source-help" class="muted">Каждая непустая строка — отдельный абзац.</p>
+        <textarea id="source" rows="7" aria-describedby="source-help save-hint" placeholder="Вставьте английский текст"></textarea>
+      </div>
+      <div class="transport">
+        <div class="controls">
+          <span class="playback-transport" role="group" aria-label="Воспроизведение">
+            <button id="previous" type="button" class="secondary playback-only" aria-label="Предыдущий абзац" title="Предыдущий абзац">Назад</button>
+            <button id="play" type="button">Воспроизвести</button>
+            <button id="next" type="button" class="secondary playback-only" aria-label="Следующий абзац" title="Следующий абзац">Вперёд</button>
+          </span>
+          <button id="repeat" type="button" class="secondary playback-only">Повторить абзац</button>
+          <button id="enqueue" type="button" class="secondary">Подготовить озвучку</button>
+          <span class="text-size" role="group" aria-label="Размер текста"><span id="text-size-label" class="muted"></span><button id="smaller" type="button" class="secondary" aria-label="Уменьшить размер текста">A−</button><button id="bigger" type="button" class="secondary" aria-label="Увеличить размер текста">A+</button></span>
+        </div>
+        <div class="feedback"><span id="position"></span><p id="status" role="status"></p></div>
+        <div id="action-error" class="action-error" hidden><p id="action-error-message" class="error" role="alert"></p><button id="dismiss-error" type="button" class="secondary">Закрыть сообщение</button></div>
+        <p class="playback-only reading-hint muted">Нажмите на абзац, чтобы читать с него. С клавиатуры — Enter или пробел.</p>
+        <details class="keyboard-help"><summary>Управление с клавиатуры</summary><p>Пробел — пауза или продолжение. ← / →, PageUp / PageDown — соседний абзац. R (К) — повторить. Быстрые клавиши работают, когда фокус вне кнопок и полей. Tab — переход к элементам управления.</p></details>
+      </div>
+      <details id="queue-panel"><summary>Очередь озвучки · <span id="queue-count">пуста</span></summary><p id="queue-empty" class="muted">Нет озвучек, ожидающих подготовки.</p><p id="queue-cancel-help" class="muted" hidden>При отмене текущая подготовка прерывается, затем начинается следующая озвучка. Уже подготовленная часть сохраняется.</p><ol id="queue" aria-label="Озвучки в порядке подготовки"></ol></details>
+      <ol id="paragraphs" aria-label="Текст для чтения"></ol>
+    </section>
+  </div>
+</main>
+<dialog id="text-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+  <form id="dialog-form" novalidate>
+    <h2 id="dialog-title"></h2>
+    <p id="dialog-description"></p>
+    <div id="rename-field"><label for="dialog-name">Название текста</label><input id="dialog-name" type="text" aria-describedby="dialog-error"></div>
+    <p id="dialog-error" class="error" role="alert"></p>
+    <div class="dialog-actions"><button id="dialog-cancel" type="button" class="secondary">Отмена</button><button id="dialog-submit" type="submit">Сохранить</button></div>
+  </form>
+</dialog>
+<script src="app.js"></script>
+</body>
 </html>

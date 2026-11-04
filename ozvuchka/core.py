@@ -19,7 +19,7 @@ from ozvuchka.library import LibraryFiles, SavedText
 from ozvuchka.scheduling import PlannedPiece, SpeedRecords, SynthesisSpeed, measured, start_delay
 from ozvuchka.settings import Settings, SettingsFile
 from ozvuchka.text import Paragraph, paragraphs
-from ozvuchka.voices import Voice, VoiceRegistry
+from ozvuchka.voices import SynthesisCancelled, Voice, VoiceRegistry
 
 _log = logging.getLogger(__name__)
 
@@ -82,7 +82,10 @@ class Core:
             self._library_error = f"Не удалось прочитать Библиотеку: {error}"
         self._text_id: str | None = None  # the current Text's place in the Library; None until it is saved
         self._text: str | None = None
-        self._text_save_error: str | None = None
+        self._edit_context = uuid.uuid4().hex
+        self._edit_sequence = 0
+        self._save_status = "idle"
+        self._save_error: str | None = None
         self._paragraphs: list[Paragraph] = []
         self._queue: list[_Queued] = []  # the Narration queue; the first one is being synthesized
         # A piece's audio is saved in the Library; only one that could not be saved is kept in memory.
@@ -95,6 +98,8 @@ class Core:
         self._speeds = SpeedRecords(data_dir)
         self._synthesis_speed = self._speeds.speed(computer)
         self._synthesizing: str | None = None
+        self._synthesizing_narration: str | None = None
+        self._synthesis_cancel = threading.Event()
         self._synthesizing_since = 0.0
         self._synthesizing_length = 0  # characters
         # The playback position: the page plays, but the core decides what (ADR-0003).
@@ -110,23 +115,46 @@ class Core:
 
     # ---------------------------------------------------------------- commands
 
-    def set_text(self, text: str) -> bool:
-        """Puts this in the current Text and saves it in the Library, returning whether the save reached disk.
-        The same Text again changes nothing, except to retry a failed save. Unchanged pieces keep their Narration."""
+    def set_text(self, text: str) -> None:
+        """Puts this in the current Text and saves it in the Library; the same Text again (the page after F5)
+        changes nothing. Pieces that stay the same keep their Narration."""
         with self._work:
             if text == self._text:
-                saved = self._save_library() if self._text_save_error is not None else True
-                self._text_save_error = None if saved else self._library_error
-                return saved
+                return
+            self._reset_edit_context()
             self._show(text)
-            if not text and self._text_id is None:
-                return True
+            if self._paragraphs:
+                self._text_id = self._text_id or uuid.uuid4().hex[:12]
+                title = next((t.title for t in self._library if t.id == self._text_id), None)
+                self._move_to_front(SavedText(self._text_id, text, title))
+                self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
+
+    def save_text(self, text: str, *, context: str, sequence: int) -> dict[str, Any]:
+        """Accept an ordered edit for the current editing context and acknowledge its disk write.
+
+        A failed edit stays in memory and reserves its sequence. Retry with the same content/sequence,
+        or send a higher sequence. Contexts expire on Text transitions and changed legacy set_text calls.
+        """
+        if not isinstance(context, str) or type(sequence) is not int or sequence < 1:
+            raise ValueError("context must be a string and sequence a positive integer")
+        with self._work:
+            if context != self._edit_context or sequence < self._edit_sequence or (
+                sequence == self._edit_sequence and text != self._text
+            ):
+                return {
+                    "context": context, "sequence": sequence, "text_id": None,
+                    "status": "stale", "error": "Изменения устарели. Получите текущее состояние Текста.",
+                }
+            self._edit_sequence = sequence
+            if text != self._text:
+                self._show(text)
             self._text_id = self._text_id or uuid.uuid4().hex[:12]
             title = next((t.title for t in self._library if t.id == self._text_id), None)
-            saved = self._move_to_front(SavedText(self._text_id, text, title))
-            self._text_save_error = None if saved else self._library_error
-            self._drop_finished()  # an edit may leave a queued Narration with nothing to synthesize
-            return saved
+            written = self._move_to_front(SavedText(self._text_id, text, title))
+            self._save_status = "saved" if written else "failed"
+            self._save_error = None if written else self._library_error
+            self._drop_finished()
+            return self._save_snapshot()
 
     def open_text(self, text_id: str) -> None:
         """Makes a Text from the Library the current one."""
@@ -135,6 +163,7 @@ class Core:
             if saved is None:
                 raise ValueError(f"no text {text_id} in the library")
             if text_id != self._text_id or saved.content != self._text:
+                self._reset_edit_context()
                 self._text_id = text_id
                 self._show(saved.content)
             self._move_to_front(saved)
@@ -142,6 +171,7 @@ class Core:
     def new_text(self) -> None:
         """Leaves the current Text in the Library; the next set_text starts a new one."""
         with self._work:
+            self._reset_edit_context()
             self._text_id = None
             self._show(None)
 
@@ -170,6 +200,7 @@ class Core:
             self._library = [t for t in self._library if t.id != text_id]
             self._queue = [q for q in self._queue if q.text_id != text_id]
             if self._text_id == text_id:
+                self._reset_edit_context()
                 self._text_id = None
                 self._show(None)
             self._save_library()
@@ -256,10 +287,14 @@ class Core:
                 self._work.notify()
 
     def cancel(self, narration_id: str) -> None:
-        """Takes a Narration out of the Narration queue; its pieces already synthesized are kept, and a piece under
-        way is finished. Playback of a cancelled Narration stops."""
+        """Removes a Narration and interrupts its active piece, keeping completed pieces.
+
+        Playback of a cancelled Narration stops. The next Narration starts when interruption unwinds.
+        """
         with self._lock:
             self._queue = [q for q in self._queue if q.id != narration_id]
+            if self._synthesizing_narration == narration_id:
+                self._synthesis_cancel.set()
             current = self._current_narration()
             if current is not None and current.id == narration_id:
                 self._stop_playback()
@@ -399,18 +434,16 @@ class Core:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             self._start_when_safe()
+            current = next((t for t in self._library if t.id == self._text_id), None)
             text = None if self._text is None else {
                 "id": self._text_id,
-                "title": next(
-                    (t.title or _title(t.content) for t in self._library if t.id == self._text_id),
-                    _title(self._text),
-                ),
+                "title": (current.title or _title(current.content)) if current else _title(self._text),
                 "content": self._text,
-                "save_error": self._text_save_error,
                 "paragraphs": [self._paragraph_state(p) for p in self._paragraphs],
             }
             playback = {
                 "state": self._state,
+                "ended_at": self._ended_at,
                 "paragraph": self._paragraph,
                 "next": None if self._paragraph is None else self._readable_after(self._paragraph),
                 "start_delay": self._start_delay() if self._state == "waiting" else None,
@@ -431,6 +464,7 @@ class Core:
             library_search = self._library_search
             voice, speed, text_size = self._voice.key, self._speed, self._text_size
             voices_loading = self._loading
+            save = self._save_snapshot()
         return {
             "voices": [
                 {"id": v.key, "label": v.label, "available": self._registry.available(v)}
@@ -448,6 +482,7 @@ class Core:
             "library_error": library_error,
             "queue": queue,
             "text": text,
+            "save": save,
             "playback": playback,
         }
 
@@ -467,10 +502,21 @@ class Core:
 
     def _show(self, text: str | None) -> None:
         self._text = text
-        self._text_save_error = None
         self._paragraphs = [] if text is None else paragraphs(text)
         self._stop_playback()
         self._failed.clear()
+
+    def _reset_edit_context(self) -> None:
+        self._edit_context = uuid.uuid4().hex
+        self._edit_sequence = 0
+        self._save_status = "idle"
+        self._save_error = None
+
+    def _save_snapshot(self) -> dict[str, Any]:
+        return {
+            "context": self._edit_context, "sequence": self._edit_sequence, "text_id": self._text_id,
+            "status": self._save_status, "error": self._save_error,
+        }
 
     def _move_to_front(self, text: SavedText) -> bool:
         """Saves the Library with this Text as the most recently used one."""
@@ -671,6 +717,10 @@ class Core:
         if piece is not None:
             self._deleted_pieces.discard(piece[0])
             self._synthesizing = piece[0]
+            self._synthesizing_narration = next(
+                q.id for q in self._queue if any(audio_id == piece[0] for audio_id, _ in self._queued_pieces(q))
+            )
+            self._synthesis_cancel = threading.Event()
             self._synthesizing_since = self._clock()
             self._synthesizing_length = len(piece[1])
         return piece
@@ -702,26 +752,38 @@ class Core:
                 audio_id, text, voice, voice_speed = piece
                 started = self._synthesizing_since
                 load_error = self._load_errors.get(voice.provider)
-            result: Audio | str  # the audio, or why there is none
+                cancel = self._synthesis_cancel
+            result: Audio | str | None  # None means cancellation, not a synthesis error
             try:
                 if not self._registry.available(voice):
                     raise RuntimeError(load_error or f"{voice.label}: голос недоступен")
-                result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed)
+                result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed, cancel)
+            except SynthesisCancelled:
+                result = None
             except Exception as error:
-                _log.exception("Could not synthesize %r in %s", text, voice.key)
-                result = str(error)
+                if cancel.is_set():
+                    result = None
+                else:
+                    _log.exception("Could not synthesize %r in %s", text, voice.key)
+                    result = str(error)
             finished = self._clock()
             save_error = None
-            if isinstance(result, Audio):
+            if isinstance(result, Audio) and not cancel.is_set():
                 try:
                     self._files.save_piece(audio_id, result)
                 except OSError as error:
                     save_error = f"Не удалось сохранить озвучку: {error}"
             with self._lock:
                 self._synthesizing = None
-                if not isinstance(result, Audio):
+                self._synthesizing_narration = None
+                if cancel.is_set():
+                    if isinstance(result, Audio):
+                        # Cancellation may race the atomic disk write above; do not revive its partial Narration.
+                        self._delete_pieces({audio_id})
+                    result = None
+                elif isinstance(result, str):
                     self._failed[audio_id] = result
-                else:
+                elif isinstance(result, Audio):
                     self._synthesis_speed = measured(
                         self._synthesis_speed, len(text), result.duration, finished - started, voice_speed
                     )
@@ -755,8 +817,6 @@ def _parsed(content: str) -> list[Paragraph]:
 
 def _title(content: str) -> str:
     words = content.split()
-    if not words:
-        return "Пустой текст"
     if len(words) <= _TITLE_WORDS:
         return " ".join(words)
     return " ".join(words[:_TITLE_WORDS]).rstrip(",;:—–-") + "…"

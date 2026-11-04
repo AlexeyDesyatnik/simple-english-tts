@@ -5,9 +5,19 @@ A Voice is identified by the pair "provider + voice", written as "provider:voice
 """
 
 from dataclasses import dataclass
+from threading import Event
 from typing import Protocol
 
 from ozvuchka.audio import Audio
+
+
+class SynthesisCancelled(Exception):
+    """An interrupted synthesis produces neither an Audio nor a failure."""
+
+
+def check_cancelled(cancel: Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise SynthesisCancelled
 
 
 @dataclass(frozen=True)
@@ -37,8 +47,11 @@ class VoiceProvider(Protocol):
         """Whether the provider can synthesize right now (model loaded, connection up)."""
         ...
 
-    def synthesize(self, text: str, voice: str, speed: float) -> Audio:
-        """Synthesizes one piece of text with one of this provider's Voices at a Speed."""
+    def synthesize(self, text: str, voice: str, speed: float, cancel: Event | None = None) -> Audio:
+        """Synthesizes a piece; a set cancellation signal interrupts work with SynthesisCancelled.
+
+        The signal belongs to this call only. Completed pieces from earlier calls remain usable.
+        """
         ...
 
     def sample(self, voice: str) -> Audio | None:
