@@ -36,7 +36,8 @@ cancellation button or the queue summary if that Narration has gone. Expanded de
 scroll within their existing bound and retain their open state after cancellation/completion.
 
 Changed files: `ozvuchka/web/app.js`, `index.html`, `style.css`,
-`tools/ui_design_preview.py`, `docs/manual-checks.md`, and this review directory.
+`tools/ui_design_preview.py`, `tests/test_core.py`, `docs/ui-design-spec.md`,
+`docs/manual-checks.md`, and this review directory.
 No Core, HTTP, storage, production provider, audio scheduling, queue semantics, estimate
 calculation, Speed values or public contracts changed. No code or decisions were copied
 from another branch. No other Issues were changed.
@@ -103,14 +104,16 @@ keyboard focus may have scrolled the page):
 
 ## Checks and remaining limits
 
-- `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue31-final`: **109 passed, 6 slow tests deselected**.
+- Initial checks: `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue31-final`: **109 passed, 6 slow tests deselected**.
+- Cancellation clarification: `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue31-cancel-final`: **110 passed, 6 slow tests deselected**.
 - `runtime/python.exe -m mypy`: passed (23 source files).
 - `runtime/python.exe -m ruff check`: passed.
 - `git diff --check`: passed.
 
 Production provider/build/launcher behaviour is unchanged; slow tests and ZIP smoke are
 not required for this stage. The preview tool wraps the test fake only. No CSS/DOM
-assertion tests were introduced and no Core behaviour required new tests.
+assertion tests were introduced. A public-seam cancellation regression test was added
+after the developer's report, confirming existing behaviour without changing Core.
 
 The developer reported that genuine 200% zoom was fine on 2026-11-04. This covers the
 initial candidate; the subsequent Voice-button revision was browser-checked at 1280
@@ -162,6 +165,42 @@ visually checked but no Narrations were enqueued there by the agent, preserving 
 for the developer. If a combination later becomes ready, create a New Text or change
 Speed before retesting: enqueue deliberately does not regenerate a ready Narration.
 This only changes fixture invocation; production timing/queue semantics are unchanged.
+
+## Cancellation follow-up (2026-11-04)
+
+The developer accepted revised Voice keyboard/pointer selection and successfully
+created active Alice plus queued George. They reported that cancelling Alice left
+George queued rather than immediately synthesizing. Full stage acceptance is still
+pending this clarification.
+
+Inspection of `Core.cancel` confirmed its existing contract: cancellation removes the
+Narration but finishes the provider call already under way, keeping its result. Only
+then can the single synthesis worker claim George. With :8778's deliberately slow
+fixture that means up to 60 seconds of waiting after Alice is removed. Do not change
+this into interruptible synthesis or mark George synthesizing before it actually starts.
+
+Added a deterministic test using the existing manual FakeVoiceProvider: cancel Alice,
+assert George is still queued, release just the Alice piece, assert George becomes
+synthesizing, then finish and check that Alice's later Paragraph was never requested.
+It passed before any implementation changes. Core, production provider and queue
+semantics remain unchanged.
+
+Actual browser reproduction used another disposable Library on :8779 with
+`--texts 1 --no-ready --piece-seconds 15`. Through visible controls enqueue Alice and
+George, cancel Alice, observe only George with `В очереди`, then observe George become
+`Готовится` after the outstanding Alice piece finishes. No re-enqueue or reload was
+needed. [Retained transition evidence](cancel-next-started-1280.jpg).
+
+The UI now explains the cancellation boundary in expanded nonempty queue details;
+cancel buttons refer to that explanation with `aria-describedby`. This is explanatory
+text, not an inferred worker state or a new timing calculation. For repeat developer
+acceptance, refresh :8778 and cancel Alice while George waits, then allow up to 60 seconds
+for George to start. If a Voice/Speed combination is already ready, use a New Text or
+another Speed so that the existing enqueue command has work to do.
+
+Review correction commit: `550a641` (Voice confirmation/keyboard). The cancellation
+clarification and evidence are in the commit introducing this section; use
+`git log -1 --format=%h -- tests/test_core.py` to identify it.
 
 ## Next session
 

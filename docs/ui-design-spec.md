@@ -104,6 +104,8 @@ Speed. No options may be clipped.
 Show a compact Narration queue summary with expandable details. Keep existing estimates,
 ready Paragraph counts, and cancellation. The queue's appearance must not displace the
 primary action or editor. Do not invent progress precision or new timing calculations.
+Explain the existing cancellation boundary: a piece already being synthesized finishes
+before the next queued Narration starts. Cancellation does not interrupt that provider call.
 
 ## Playback mode
 

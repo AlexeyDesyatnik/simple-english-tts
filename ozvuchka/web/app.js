@@ -476,6 +476,7 @@ function renderQueue(queue) {
   document.getElementById("queue-count").textContent = queue.length
     ? `${queue.length} · ${active ? "готовится" : "ожидает подготовки"}` : "пуста";
   document.getElementById("queue-empty").hidden = queue.length > 0;
+  document.getElementById("queue-cancel-help").hidden = queue.length === 0;
   const key = JSON.stringify(queue.map((n) => n.id));
   if (key !== shownQueue) {
     const focusedId = document.activeElement?.closest("#queue > li")?.dataset.id;
@@ -494,6 +495,7 @@ function renderQueue(queue) {
         cancel.className = "secondary";
         cancel.textContent = "Отменить";
         cancel.setAttribute("aria-label", `Отменить подготовку · ${n.title} · ${narrationLabel(n)}`);
+        cancel.setAttribute("aria-describedby", "queue-cancel-help");
         cancel.addEventListener("click", () => act({ command: "cancel", narration: n.id }));
         li.append(title, left, cancel);
         return li;

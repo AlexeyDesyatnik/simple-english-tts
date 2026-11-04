@@ -78,6 +78,7 @@ textarea { display: block; width: 100%; min-height: 190px; padding: var(--space-
 #queue-panel { border-top: 1px solid var(--divider); margin-top: var(--space-2); }
 #queue-panel > summary { overflow-wrap: anywhere; }
 #queue-empty { padding: var(--space-2); }
+#queue-cancel-help { padding: var(--space-2); }
 #queue { max-height: 220px; overflow: auto; }
 #queue li { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); }
 #queue .title { flex: 1; min-width: 150px; overflow-wrap: anywhere; }

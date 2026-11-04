@@ -1012,6 +1012,35 @@ def test_a_cancelled_narration_keeps_the_pieces_already_synthesized_and_the_queu
     assert statuses(core.snapshot()) == ["ready", "ready", "waiting"]
 
 
+def test_cancelling_alice_starts_queued_george_after_the_alice_piece_under_way_finishes(make_core):
+    provider = FakeVoiceProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Hello, class.\nGood morning.")
+    core.enqueue()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    core.set_voice("fake:george")
+    core.enqueue()
+    alice, george = core.snapshot()["queue"]
+
+    core.cancel(alice["id"])
+
+    remaining = core.snapshot()["queue"]
+    assert [n["id"] for n in remaining] == [george["id"]]
+    assert [n["synthesizing"] for n in remaining] == [False]
+    assert provider.requests == [("Hello, class.", "alice", 1.0)]
+    provider.finish_next()
+    snapshot = wait_for(core, lambda s: len(provider.requests) == 2)
+    assert [(n["voice"], n["synthesizing"]) for n in snapshot["queue"]] == [("fake:george", True)]
+    assert provider.requests == [("Hello, class.", "alice", 1.0), ("Hello, class.", "george", 1.0)]
+    provider.finish_all()
+    wait_for(core, lambda s: s["queue"] == [])
+    assert provider.requests == [
+        ("Hello, class.", "alice", 1.0),
+        ("Hello, class.", "george", 1.0),
+        ("Good morning.", "george", 1.0),
+    ]
+
+
 def test_cancelling_the_narration_waiting_to_play_stops_playback(make_core):
     provider = FakeVoiceProvider(manual=True)
     core = make_core(provider)
