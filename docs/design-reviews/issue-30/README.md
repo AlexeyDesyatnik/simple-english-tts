@@ -3,8 +3,10 @@
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#30](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/30).
 Baseline: `88b56ea`, with a clean working tree and no difference from the tracking branch.
-Implementation and browser evidence commit: `3f9d1d0`. This follow-up records that
-identifier; both commits are local to `experiment-2` and have not been pushed.
+Implementation and browser evidence commit: `3f9d1d0`; handoff identifier record:
+`eeaf410`. The developer accepted stage 3 on 2026-11-04 after the requested manual
+browser checks, reporting that everything was OK. Publication and Build verification
+follow this acceptance; the final Build result is recorded on #30.
 
 ## Result and scope
 
@@ -28,8 +30,8 @@ page stays open. Total storage is secondary and explicitly labelled as Library s
 
 No Core, HTTP or storage contract changed. Existing commands and native confirmations
 remain. No autosave, audio, provider, queue, lifecycle or later-stage work was added.
-No other branch or its Issues supplied code or requirements. No GitHub Issue was
-modified, commented on or closed by this session.
+No other branch or its Issues supplied code or requirements. Only #30 is updated
+for stage 3 completion, after publication and a successful Build.
 
 Changed files: `ozvuchka/web/app.js`, `style.css`, `index.html`, the Library paragraph
 of `docs/ui-design-spec.md`, the #30 hardware entry in `docs/manual-checks.md`, and this
@@ -78,6 +80,11 @@ focus, not from that tool response. No controllable native confirm dialog was ex
 its cancel path was not verified. Rename reaches the existing handler, but this browser
 reports `prompt() is not supported`; end-to-end title editing is not claimed. Application
 dialogs remain stage 6 (#33), as explicitly allowed by #30 and the specification.
+The developer subsequently completed the requested browser acceptance, including
+rename, cancellation/removal and the new menus at 200% zoom, and reported no issues.
+Browser version and window dimensions were not restated in this stage 3 report;
+Chrome at 1280 × 720 and 200% was the requested setup. This user acceptance is separate
+from the in-app browser evidence above.
 
 Artifacts (browser capture raster sizes can differ from the measured CSS viewport):
 
@@ -102,10 +109,10 @@ These checks are rerun before the implementation commit. Slow tests and ZIP smok
 not apply because provider/build/launcher code is unchanged. No CSS/DOM assertion
 tests were introduced.
 
-Actual 200% browser zoom was not repeated for stage 3. The preceding stage's developer
-acceptance (Chrome 150, 1280 × 720 at 200%) remains recorded in the #29 handoff; the new
-row menu still needs a genuine zoom check. School-laptop responsiveness remains open
-under #30 in the single manual checklist; no hardware results are claimed.
+Stage 3 browser acceptance, including genuine 200% zoom, is satisfied by the developer's
+2026-11-04 report above. School-laptop responsiveness remains open under #30 in the
+single manual checklist; no hardware results are claimed. This deferred hardware check
+does not block completion of the bounded Library stage.
 
 Inherited transition/reload limitations remain: switching Texts does not flush unsaved
 edits; after F5 with a query hiding the current Text, the working title falls back to
@@ -117,6 +124,6 @@ guarantees; do not add autosave or audio changes as follow-up to this Library st
 ## Next session
 
 Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0003,
-`docs/ui-design-spec.md`, this handoff and the live next-stage Issue. Present stage 3
-for developer review; do not infer acceptance or start stage 4 automatically. Stage 4
+`docs/ui-design-spec.md`, this handoff and the live next-stage Issue. Stage 3 is accepted;
+check #30 for the publication/Build result. Do not start stage 4 automatically. Stage 4
 is #31 (Voice choice and Narration queue); it remains untouched.
