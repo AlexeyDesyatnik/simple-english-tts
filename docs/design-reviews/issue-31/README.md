@@ -3,10 +3,13 @@
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#31](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/31).
 Baseline: `b3b7b50`, clean working tree, identical to `origin/experiment-2`.
-Implementation and browser evidence commit: `afae5e2`. This follow-up records its
-identifier only; the implementation has not been published and CI has not been queried.
+Initial UI implementation and browser evidence: `afae5e2`; Voice interaction revision:
+`550a641`; immediate cancellation implementation and evidence: `f2d2109`.
+These commits have not been published and CI has not been queried.
 Stage 3 was accepted; its Library implementation and visual direction are preserved.
-Stage 4 is awaiting developer acceptance. Do not close #31 or start stage 5 yet.
+The developer accepted stage 4 on 2026-11-04, confirming that immediate cancellation
+now works after the previously accepted Voice interactions, queue creation and 200% zoom.
+Publication, CI verification and issue closure await permission. Do not start stage 5.
 
 ## Current revision: interrupt active synthesis
 
@@ -272,6 +275,7 @@ clarification and evidence are in the commit introducing this section; use
 ## Next session
 
 Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, ADR-0001/0002/0003/0004,
-`docs/ui-design-spec.md`, this handoff and live #31. Present stage 4 for acceptance;
-keep #31 open until accepted. Stage 5 (#32) is not started. Publication and CI need the
-developer's permission; neither is implied by this local handoff.
+`docs/ui-design-spec.md`, this handoff and live #31. Stage 4 is accepted; ask for permission
+to publish `experiment-2`, verify its Build and close #31 after success. Stage 5 (#32)
+is not started and needs a separate instruction. Hardware checks remain in the single
+manual checklist and are not marked complete by browser acceptance.
