@@ -1,9 +1,9 @@
 # Stage 9 — reload and page-hide safety (#36)
 
 Date: 2026-11-04. Branch: `experiment-2`. Starting tree was clean at `510566e`.
-Stages 1–8 are accepted. The current open #36 was read in the built-in browser:
+Stages 1–8 were accepted at implementation start. The then-open #36 was read in the built-in browser:
 `gh issue view` returned 401 and unauthenticated REST was rate-limited.
-No Issue was modified. Keep #36 open for developer acceptance.
+No Issue was modified during implementation. Stage 9 is now accepted; see the final update below.
 
 Implementation commit: the commit introducing this handoff; resolve its SHA with
 `git log -1 -- docs/design-reviews/issue-36/README.md`. No push or CI inspection
@@ -166,3 +166,15 @@ The developer reports that autosave generally works. No additional exhaustive
 manual verification is requested. Stop a disposable preview with Ctrl+C when done.
 
 Do not close #36 before acceptance and do not begin stage 10 / #37 here.
+
+### Final developer acceptance — 2026-11-04
+
+The developer confirmed that ordinary use works: F5 after editing restores the
+autosaved Text, and playback reads that edited Text correctly. Stage 9 is accepted
+under the proportionate scope agreed above. No further edge-case verification is
+required for this stage.
+
+GitHub closure remains pending: `gh issue view 36` returned HTTP 401 (Requires
+authentication) when recording acceptance, so no authenticated Issue update was
+available. This is a tracker access limitation, not pending product acceptance.
+No push or CI inspection was performed, and stage 10 was not started.
