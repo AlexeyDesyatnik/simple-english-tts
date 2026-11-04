@@ -374,12 +374,42 @@ function playSample(voiceId) {
   });
 }
 
+function closeVoicePanel() {
+  voicePanelEl.open = false;
+  voicePanelEl.querySelector("summary").focus({ preventScroll: true });
+}
+
+async function chooseVoice(voiceId) {
+  try {
+    if (voiceId !== snapshot.voice) {
+      // Another Voice is another Narration: the core stops the one playing.
+      clearSchedule();
+      await command({ command: "set_voice", voice: voiceId });
+      await refresh();
+    }
+    closeVoicePanel();
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
 voicePanelEl.addEventListener("keydown", (event) => {
+  if (!voicePanelEl.open) return;
+  const direction = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+  if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    const choices = [...voicesEl.querySelectorAll(".voice-choice")];
+    const current = event.target.closest("#voices > li")?.querySelector(".voice-choice");
+    const selected = choices.findIndex((choice) => choice.dataset.voice === snapshot.voice);
+    const index = current ? (choices.indexOf(current) + direction + choices.length) % choices.length : Math.max(0, selected);
+    choices[index]?.focus();
+    return;
+  }
   if (event.key !== "Escape" || !voicePanelEl.open) return;
   event.preventDefault();
   event.stopPropagation();
-  voicePanelEl.open = false;
-  voicePanelEl.querySelector("summary").focus({ preventScroll: true });
+  closeVoicePanel();
 });
 voicePanelEl.addEventListener("focusout", (event) => {
   if (event.relatedTarget && !voicePanelEl.contains(event.relatedTarget)) voicePanelEl.open = false;
@@ -404,28 +434,23 @@ function renderVoices() {
     voicesEl.replaceChildren(
       ...snapshot.voices.map((v) => {
         const li = document.createElement("li");
-        const label = document.createElement("label");
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "voice";
-        radio.value = v.id;
-        // Another Voice is another Narration: the core stops the one playing.
-        radio.addEventListener("change", () => {
-          clearSchedule();
-          act({ command: "set_voice", voice: v.id });
-        });
+        const choice = document.createElement("button");
+        choice.type = "button";
+        choice.className = "secondary voice-choice";
+        choice.dataset.voice = v.id;
+        choice.addEventListener("click", () => chooseVoice(v.id));
         const description = document.createElement("span");
         description.textContent = v.label;
         const availability = document.createElement("span");
         availability.className = "voice-state muted";
-        label.append(radio, description, availability);
+        choice.append(description, availability);
         const listen = document.createElement("button");
         listen.type = "button";
         listen.className = "secondary";
         listen.textContent = "Послушать";
         listen.setAttribute("aria-label", `Послушать образец · ${v.label.split(" — ")[0]}`);
         listen.addEventListener("click", () => playSample(v.id));
-        li.append(label, listen);
+        li.append(choice, listen);
         return li;
       }),
     );
@@ -433,8 +458,9 @@ function renderVoices() {
   }
   snapshot.voices.forEach((v, i) => {
     const row = voicesEl.children[i];
-    row.querySelector("input").checked = v.id === snapshot.voice;
-    row.querySelector(".voice-state").textContent = snapshot.voices_loading ? "Загрузка…" : v.available ? "Доступен" : "Недоступен";
+    row.querySelector(".voice-choice").setAttribute("aria-pressed", String(v.id === snapshot.voice));
+    const availability = snapshot.voices_loading ? "Загрузка…" : v.available ? "Доступен" : "Недоступен";
+    row.querySelector(".voice-state").textContent = `${v.id === snapshot.voice ? "Выбран · " : ""}${availability}`;
   });
   if (speedEl.value !== String(snapshot.speed)) speedEl.value = String(snapshot.speed);
 }

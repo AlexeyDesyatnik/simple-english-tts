@@ -12,16 +12,19 @@ Stage 4 is awaiting developer acceptance. Do not close #31 or start stage 5 yet.
 
 Selected Voice, its availability and the native Speed picker remain visible beside the
 editor. Normal Speed remains explicitly named `1× — обычная`. The Voice disclosure
-opens a bounded, scrolling panel over the editor without changing its layout. Native
-radio labels choose a Voice; separate, named buttons play Voice samples without changing
+opens a bounded, scrolling panel over the editor without changing its layout. Explicit
+choice buttons choose a Voice; separate, named buttons play Voice samples without changing
 selection. Rows show loading, available or unavailable states in text. Samples remain
 usable during loading/unavailability, as the existing Voice provider contract allows.
 Sample loading, playing, completion and retry guidance have their own status, independent
 of polled synthesis feedback. Late sample promises cannot overwrite a newer sample's status.
 
-Escape closes the Voice panel and focuses its summary. Tab leaving it and outside clicks
-close it. Availability updates keep the same radio/button elements rather than rebuilding
-them. Narrow rows wrap into a single column, with 44 px selection and sample targets.
+Voice choice buttons expose the committed selection through `aria-pressed` and visible
+`Выбран` text. Arrow keys move focus without selecting; Enter/Space or a click confirms,
+closes the panel and focuses its summary. Escape closes without changing the Voice.
+Tab leaving it and outside clicks close it. Availability updates keep the same buttons
+rather than rebuilding them. Narrow rows wrap into a single column, with 44 px selection
+and sample targets. This interaction was revised after the developer review below.
 
 The queue summary is always present, including `пуста`, below the primary action. Details
 show existing order, Voice/Speed, synthesizing or queued state, and existing time estimates;
@@ -74,7 +77,7 @@ No static mock or new browser-test framework. Browser version was not exposed/re
 | 1440 × 900 | No horizontal overflow; Play bottom=616.75. Full Voice panel and editor fit. |
 | 390 × 844 | No horizontal overflow (document width=375, viewport=390 including scrollbar). Single-column Voice choices and samples fit. Panel has its own bounded scroll. Native Speed control fits. |
 | 640 × 360 CSS viewport | No horizontal overflow (document width=625). Tab reaches the George sample in the scrolling panel; Space plays it. This is a compact viewport check, **not genuine 200% browser zoom**. |
-| Independent sample | George sample reports playing/completion while Alice remains the only checked radio. No `set_voice` action is sent by sample controls. |
+| Independent sample | George sample reports playing/completion while Alice remains selected. No `set_voice` action is sent by sample controls. |
 | Voice selection / Escape | Choosing George changes the visible summary. Escape closes the panel and focuses its summary. |
 | Tab / outside click | Tab after the last sample reaches Speed and closes the panel. Clicking Speed outside also closes it. |
 | Speed and reload | Changing to 0.8 survives reload alongside selected George; returning to the labelled normal Speed works. |
@@ -109,11 +112,10 @@ Production provider/build/launcher behaviour is unchanged; slow tests and ZIP sm
 not required for this stage. The preview tool wraps the test fake only. No CSS/DOM
 assertion tests were introduced and no Core behaviour required new tests.
 
-Genuine browser zoom at 200% remains for developer acceptance: the in-app browser's
-documented capability controls viewport size but does not expose browser zoom. Please
-check Voice selection, independent samples, the Speed options and queue cancellation
-at 200% in the developer's browser. The compact viewport evidence above is not a claim
-to have completed that check. Sample-failure retry text is implemented but an actual
+The developer reported that genuine 200% zoom was fine on 2026-11-04. This covers the
+initial candidate; the subsequent Voice-button revision was browser-checked at 1280
+and 390 CSS px, and still awaits the developer's interaction acceptance. In-app compact
+viewport evidence is not genuine browser zoom. Sample-failure retry text is implemented but an actual
 missing/corrupt sample failure was not injected in this session.
 
 School-laptop responsiveness and real offline samples remain under #31 in the single
@@ -124,6 +126,42 @@ Inherited stage 3 limitations remain: native `prompt()` does not work in the in-
 browser; application dialogs belong to stage 6. Text transitions do not flush unsaved
 edits; reload/search title fallback and deleted-Text draft behaviour are unchanged.
 No autosave, audio redesign or later-stage work was added.
+
+## Developer review and revision (2026-11-04)
+
+The developer confirmed workspace stability, independent samples, Tab navigation,
+Speed persistence, and genuine 200% zoom. They requested closing the chooser on Voice
+selection and arrow-key navigation with explicit Enter/Space confirmation. Queue and
+cancellation acceptance could not be completed because their test Narrations finished
+before the second Voice could be enqueued. This is not full stage acceptance.
+
+The revision replaces native radios (whose arrows select immediately) with named native
+buttons. Pointer click and native Enter/Space activation confirm; arrows only focus a
+Voice, wrapping at either end. From the open summary an arrow focuses the currently
+selected Voice. Confirmation closes the disclosure and returns summary focus after
+the command/refresh; clicking the already selected Voice closes without another command.
+Sample buttons remain separate, and availability/progress do not alter pending focus.
+
+Actual in-app browser rechecks: arrow to Alice while George remains selected; Escape
+preserves George; Enter selects George from Alice and closes; Space selects Alice and
+closes; pointer selection closes; sample playback leaves the panel open with selection
+unchanged. At 390 CSS px the revised panel has no horizontal overflow. Retained updated
+evidence: [focused Alice, selected George](keyboard-choice-1280.jpg),
+[revised narrow panel](choice-revised-390.jpg). Earlier Voice screenshots show the
+pre-review radio layout and are retained as historical evidence.
+
+A fresh, unprepared disposable Library is served for repeat acceptance at :8778:
+
+```powershell
+runtime/python.exe -X utf8 tools/ui_design_preview.py --long-title --no-ready --piece-seconds 60 --port 8778
+```
+
+It delays every synthesis piece by 60 seconds and seeds no ready Narrations, leaving
+several minutes to enqueue Alice and George and cancel them. The initial page was
+visually checked but no Narrations were enqueued there by the agent, preserving it
+for the developer. If a combination later becomes ready, create a New Text or change
+Speed before retesting: enqueue deliberately does not regenerate a ready Narration.
+This only changes fixture invocation; production timing/queue semantics are unchanged.
 
 ## Next session
 

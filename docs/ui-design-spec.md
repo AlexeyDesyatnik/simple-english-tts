@@ -95,6 +95,9 @@ the bounded Library scroll area, with targets at least 44 CSS pixels high.
 Keep selected Voice and Speed visible near the editor; disclose the full Voice list
 on request. Selecting a Voice and listening to its Voice sample are separate actions:
 auditioning must not change selection. Explain loading and unavailable Voices in text.
+Confirming a Voice by pointer, Enter or Space closes the chooser and restores focus
+to its summary. While open, arrow keys move focus between Voice choices without
+changing the selected Voice; Enter or Space confirms it. Escape closes without choosing.
 Use a single-column Voice list when space is limited; retain the clearly named normal
 Speed. No options may be clipped.
 
