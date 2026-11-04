@@ -174,7 +174,9 @@ autosaved Text, and playback reads that edited Text correctly. Stage 9 is accept
 under the proportionate scope agreed above. No further edge-case verification is
 required for this stage.
 
-GitHub closure remains pending: `gh issue view 36` returned HTTP 401 (Requires
-authentication) when recording acceptance, so no authenticated Issue update was
-available. This is a tracker access limitation, not pending product acceptance.
+Issue #36 is closed after developer acceptance. The initial sandboxed `gh` returned
+HTTP 401; using the developer's authenticated `gh` outside the sandbox resolved it.
+Closure was verified with `gh issue view 36 --json number,state,closedAt`:
+`CLOSED`, `2026-11-04T19:10:44Z`. This was an execution-context issue, not missing
+developer authentication.
 No push or CI inspection was performed, and stage 10 was not started.
