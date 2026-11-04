@@ -3,6 +3,8 @@
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#30](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/30).
 Baseline: `88b56ea`, with a clean working tree and no difference from the tracking branch.
+Implementation and browser evidence commit: `3f9d1d0`. This follow-up records that
+identifier; both commits are local to `experiment-2` and have not been pushed.
 
 ## Result and scope
 
@@ -91,7 +93,7 @@ Artifacts (browser capture raster sizes can differ from the measured CSS viewpor
 
 ## Checks and remaining limits
 
-- `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue30-20261104`: **109 passed, 6 slow tests deselected**.
+- `runtime/python.exe -m pytest --basetemp=.cache/pytest-issue30-final`: **109 passed, 6 slow tests deselected**.
 - `runtime/python.exe -m mypy`: passed (23 source files).
 - `runtime/python.exe -m ruff check`: passed.
 - `git diff --check`: passed.
