@@ -1,6 +1,10 @@
 Ozvuchka includes the following third-party software and data. Their license texts are in this folder;
 the licenses of every Python package are in packages\<package name>\.
 
+Onest font (ozvuchka\web\Onest-Variable.ttf)
+    Copyright 2021 The Onest Project Authors. SIL Open Font License 1.1 (Onest-OFL.txt).
+    https://github.com/simpals/onest
+
 Kokoro-82M model and voices (models\kokoro\)
     Copyright hexgrad. Apache License 2.0 (Apache-2.0.txt).
     https://huggingface.co/hexgrad/Kokoro-82M
