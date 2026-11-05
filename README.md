@@ -1,105 +1,70 @@
-# Озвучка (Simple English TTS)
+# Озвучка — английские тексты для урока
 
-An offline program that reads English texts aloud during English lessons. See `GLOSSARY.md` for the terms and `docs/adr/` for the decisions.
+Вставьте английский текст, выберите голос и скорость — «Озвучка» прочитает его вслух. Программа помогает проводить аудирование, повторять отдельные абзацы и показывать текст крупно на проекторе.
 
-NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
-Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
-([release notes](https://numpy.org/doc/stable/release/2.4.0-notes.html#modulate-dispatched-x86-cpu-features)).
-The isolated v0.2 build with 2.3.5 was tested successfully on the Athlon and an
-11th-generation Core i5 laptop. The developer accepted these checks as sufficient;
-the perceived speed difference was minimal, without timed measurements
-([#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)).
-Review older-CPU support before upgrading this dependency.
+Работает **без интернета**. Тексты и подготовленные озвучки сохраняются в библиотеке: их можно использовать на следующих уроках. Программу вместе с библиотекой можно переносить на флешке.
 
-## UI design
+## Скачать для Windows
 
-The accepted ten-stage `experiment-2` implementation is now the basis of `main`.
-Its [UI design specification](docs/ui-design-spec.md) and
-[integrated acceptance record](docs/design-reviews/issue-37/README.md) describe
-the current design. The other design alternatives are retired; only the NumPy
-compatibility change from the previous `main` was retained. See the
-[adoption record](docs/design-reviews/main-adoption/README.md) for source commits
-and archived branch states.
+**[Скачать последнюю версию](https://github.com/AlexeyDesyatnik/simple-english-tts/releases/latest)**
 
-## Development
+На странице выпуска раскройте **Assets** и скачайте архив `ozvuchka-<версия>.zip`. Файлы **Source code** для запуска не нужны.
 
-Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
+Нужен компьютер с **Windows 10 или 11, 64-разрядной версии (x64)**, и динамики или наушники. Устанавливать Python и скачивать голоса отдельно не требуется. Интернет нужен только для скачивания программы.
 
-```bat
-tools\build.bat dev
-```
+Текущая версия — **v0.3**. Архив выпуска: `ozvuchka-0.3.zip`.
 
-Run the tests (the real Kokoro tests are marked `slow` and skipped by default):
+## Первый запуск
 
-```bat
-runtime\python.exe -m pytest
-runtime\python.exe -m pytest -m slow
-```
+1. Скачайте архив на компьютер.
+2. Нажмите на него правой кнопкой мыши → **Свойства**. Если внизу есть пункт **Разблокировать**, отметьте его и нажмите **ОК**. Делайте это только для архива, скачанного со страницы проекта выше.
+3. Распакуйте архив целиком в папку, в которой вы можете сохранять файлы, например в «Документы». Не запускайте программу прямо из архива.
+4. Откройте распакованную папку **Озвучка** и дважды нажмите **Озвучка.exe**.
 
-Check types and lint (settings in `pyproject.toml`; the rules the tools don't check are in `CODING_STANDARDS.md`):
+Откроется окно программы или вкладка браузера. Это нормально: интернет для работы не нужен. При первом запуске, особенно с флешки, загрузка голосов может занять некоторое время.
 
-```bat
-runtime\python.exe -m mypy
-runtime\python.exe -m ruff check
-```
+Если Windows блокирует запуск, закройте программу, разблокируйте исходный архив через его свойства и распакуйте его в новую папку.
 
-Start the program and open http://127.0.0.1:8770:
+## Первый текст для урока
 
-```bat
-runtime\python.exe -X utf8 -m ozvuchka
-```
+1. Нажмите **Новый текст** и вставьте английский текст. Каждая непустая строка считается отдельным абзацем: его можно прослушать и повторить отдельно.
+2. Выберите **голос**. Кнопка **Послушать** позволяет заранее послушать его образец.
+3. Выберите **скорость**: например, замедлите чтение для начинающих.
+4. Нажмите **Воспроизвести**. Программа сохранит текст в библиотеке и начнёт готовить озвучку. Если нужно подождать, состояние будет показано на экране.
 
-Started this way the program keeps running until Ctrl+C. Its log is `data\ozvuchka.log`.
+На медленном компьютере удобнее подготовиться до урока: вставьте текст, выберите голос и скорость, нажмите **Подготовить озвучку** и дождитесь готовности. Затем откройте этот текст из библиотеки и нажмите **Воспроизвести** с теми же голосом и скоростью — повторная подготовка не потребуется.
 
-## The program the teacher gets
+Текст сохраняется автоматически после ввода. Перед закрытием программы убедитесь, что рядом с полем текста появилось «Сохранено».
 
-The release zip `ozvuchka-<version>.zip` holds one folder, `Озвучка\` (ADR-0001):
+## Во время урока
 
-- `Озвучка.exe` — the launcher. It starts `runtime\python.exe -m ozvuchka --app` from its own folder, with no console window; the program opens its window with `msedge --app=http://127.0.0.1:8770` at once, or the default browser on a computer without Edge (ADR-0003), and loads Kokoro in the background: a ready Narration plays meanwhile, a new one waits for the Voices. Starting `Озвучка.exe` again opens the window of the program already running instead of starting a second one. If the program stops with an error, the launcher shows Python's exit code and saves its available error output in a separate `data\startup-<id>.log` for that launch. The message identifies that file, or explains that Python produced no output or that saving failed. Earlier `ozvuchka.log` entries are never presented as evidence of the current failure.
-- `runtime\`, `ozvuchka\`, `models\` — Python with the packages, the program, the Kokoro model and the Voice samples. Python code is compiled ahead, so nothing is written there at start.
-- `licenses\` — third-party licenses; `licenses\NOTICE.txt` lists the components.
-- `data\` — not in the zip: the program makes it on the first start and keeps the Library, the settings and its log `ozvuchka.log` there (rotated: at most three parts of 1 MB), and nothing anywhere else on the computer.
+- **Пауза** приостанавливает чтение; **Продолжить** продолжает его. Это одна кнопка, название которой меняется во время чтения.
+- Нажмите на нужный абзац, чтобы читать с него. Кнопки **Назад**, **Вперёд** и **Повторить абзац** помогают работать с отдельными частями текста.
+- **К редактированию** останавливает чтение и возвращает к подготовке текста.
+- **A− / A+** уменьшают и увеличивают текст для показа на проекторе.
+- В режиме воспроизведения, когда фокус находится вне кнопок и полей, **пробел** ставит чтение на паузу и продолжает его, **← / →** переключают абзацы, **R** (клавиша **К** в русской раскладке) повторяет абзац.
+- Строки без английского текста, например русские инструкции к заданию, остаются на экране, но не читаются вслух.
 
-When the window is closed, the page stops sending its heartbeat and the program ends by itself, about 10 seconds later (it waits that long in case the page is only being reloaded with F5). A page that has not been heard from for two minutes counts as closed too.
+Чтобы закончить работу, закройте окно программы или её вкладку в браузере.
 
-## Building a release
+## Как выглядит программа
 
-GitHub Actions (`.github/workflows/build.yml`) does it on every push: it builds the dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, close the page and check that the program ends and wrote only into `data\`). The zip of every run is kept for 14 days among the run's artifacts.
+![Новый интерфейс «Озвучки»: библиотека слева, английский текст, выбор голоса и кнопки воспроизведения справа](docs/design-reviews/issue-37/workspace-1280.jpg)
 
-To build it locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
+## Флешка, библиотека и обновление
 
-```bat
-tools\build.bat release
-runtime\python.exe tools\smoke_test.py dist\ozvuchka-<version>.zip
-```
+**Для работы с флешки** сначала распакуйте архив на компьютере, затем скопируйте на флешку всю папку **Озвучка**. На другом компьютере откройте в ней **Озвучка.exe**. Копирование множества файлов и первый запуск могут занять несколько минут.
 
-The release mode builds the folder from scratch every time; downloads are cached in `.cache\`. The version is `git describe --tags`, or `-Version 1.0` to name it.
+**Ваша библиотека** хранится в папке `data` внутри папки программы. Для резервной копии закройте программу, подождите около 10 секунд и скопируйте `data` в безопасное место. Перед извлечением флешки также закройте программу и дождитесь её завершения.
 
-## Releasing a version
+**Для обновления с сохранением библиотеки:**
 
-1. Make sure the last build of `main` in GitHub Actions is green.
-2. Tag the commit and push the tag:
+1. Закройте программу и подождите около 10 секунд.
+2. Сделайте резервную копию папки `data`.
+3. Скачайте и распакуйте новый выпуск в отдельную папку.
+4. Скопируйте в неё свою папку `data`, рядом с новым **Озвучка.exe**, до первого запуска.
+5. Запустите новую версию и убедитесь, что ваши тексты на месте. Старую папку сохраните до этой проверки.
 
-   ```bat
-   git tag v1.0
-   git push origin v1.0
-   ```
+---
 
-3. The tag's build publishes `ozvuchka-1.0.zip` in GitHub Releases, under the tag's name, with notes made from the commits. Edit the notes there if needed.
-
-## Unblocking the zip
-
-A zip downloaded from GitHub carries the "downloaded from the internet" mark, and Windows passes it on to every file unpacked from it, so SmartScreen warns about `Озвучка.exe` and may refuse to run it. Remove the mark from the zip **before** unpacking it:
-
-- right-click the zip → Properties → tick **Unblock** at the bottom → OK; or
-- in PowerShell: `Unblock-File .\ozvuchka-1.0.zip`
-
-If the folder was already unpacked from a blocked zip, unblock everything in it: `Get-ChildItem -Recurse .\Озвучка | Unblock-File`.
-
-## Copying to a flash drive
-
-1. Unblock the zip (above) and unpack it on the computer first: unpacking straight onto a flash drive is much slower.
-2. Copy the whole `Озвучка` folder to the flash drive, anywhere (the drive letter and the path may be different on each laptop; names in Russian are fine). The folder is about 400 MB of many small files, so the copy takes a few minutes; the flash drive may be FAT32, exFAT or NTFS.
-3. On the laptop, open the folder on the flash drive and double-click `Озвучка.exe`. The first start on a laptop is slower while Windows reads the files from the flash drive.
-
-To update, replace the folder's `runtime\`, `ozvuchka\`, `models\`, `licenses\`, `Озвучка.exe` and `version.txt` with the new ones, and keep `data\`: it holds the teacher's Library.
+[Документация для разработчиков](docs/development.md)

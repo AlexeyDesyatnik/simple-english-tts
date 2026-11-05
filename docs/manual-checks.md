@@ -8,7 +8,7 @@ Everything the developer has to check by hand on the school laptops, the project
 
 ## Getting the program onto a laptop
 
-Take the zip from the latest green build of `main` in GitHub Actions (the run's artifacts) or from GitHub Releases, unblock it before unpacking and copy it to the flash drive: see README, "Unblocking the zip" and "Copying to a flash drive". The program writes only into its `data\` folder; its log is `data\ozvuchka.log`, worth bringing back when something goes wrong.
+Take the zip from the latest green build of `main` in GitHub Actions (the run's artifacts) or from GitHub Releases, unblock it before unpacking and copy it to the flash drive: see [development instructions](development.md#unblocking-the-zip) and [copying to a flash drive](development.md#copying-to-a-flash-drive). The program writes only into its `data\` folder; its log is `data\ozvuchka.log`, worth bringing back when something goes wrong.
 
 The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech, about ×0.44) and **i5** (about ×1.85).
 

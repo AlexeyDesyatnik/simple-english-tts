@@ -14,7 +14,8 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 
 ## Language
 
-- Code, comments, docs and commit messages are in English; everything the teacher sees is in Russian.
+- Code, comments, internal documentation and commit messages are in English.
+  README.md, teacher-facing instructions and everything the teacher sees in the program are in Russian.
 - Domain concepts are named as in `GLOSSARY.md`, capitalized in prose (Text, Paragraph, Voice, Narration), never with the synonyms it lists under _Avoid_. A concept the glossary lacks is a gap to settle with `/domain-modeling`, not a word to invent.
 
 ## Shape

@@ -32,3 +32,9 @@ fault injection and exhaustive lifecycle matrices are not routine developer acce
 ### Coding standards
 
 `CODING_STANDARDS.md` at the repo root: the checks to run (pytest, mypy, ruff) and the rules the tools don't check.
+
+### Development and releases
+
+See [docs/development.md](docs/development.md) for environment setup, local commands,
+packaging, compatibility constraints and release publication. README.md is the
+Russian welcome page for teachers; keep implementation details out of it.

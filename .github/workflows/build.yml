@@ -1,5 +1,5 @@
 # The build in GitHub Actions (ADR-0001): on every push the checks, the release zip and its smoke test;
-# on a tag v*, the zip is also published in GitHub Releases. See README.md, "Releasing a version".
+# on a tag v*, the zip is also published in GitHub Releases. See docs/development.md, "Releasing a version".
 name: Build
 
 on:
