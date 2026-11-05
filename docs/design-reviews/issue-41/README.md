@@ -1,7 +1,11 @@
 # Issue #41 — HTTP protection verification
 
-Date: 2026-11-05. Status: HTTP implementation and release smoke verified;
-browser acceptance remains incomplete. No teacher Library was used.
+Date: 2026-11-05. Status: accepted by the developer for closure. HTTP
+implementation, release smoke, developer everyday browser acceptance and in-app
+Chromium foreign-loopback-origin checks passed. The developer explicitly judged
+these checks sufficient and requested closure of #41. Edge-specific, public
+HTTPS-origin and explicitly allowed LNA checks were not performed and are not
+required for this accepted scope. Agent checks used disposable Libraries.
 
 ## Implemented policy
 
@@ -53,16 +57,56 @@ keepalive saves already supplied JSON and retain their existing behaviour.
   An independent HTTP probe of `/api/state` returned 200. On resuming UI
   verification, Computer Use stopped because it could not reliably determine
   the current Windows browser URL. No further UI actions were attempted.
-- Application autosave/reload/close/freeze in a real browser is **not yet
-  verified**. No foreign-origin browser request was exercised. Target state
-  and request arrival for those scenarios therefore have no browser result.
-- Different-loopback-port requests, a controlled public HTTPS source, actual
-  Edge policy/permission state, and explicitly allowed LNA in a disposable
-  profile are **untested**. Raw HTTP tests establish server rejection, not
-  browser exploitability. Do not infer that arbitrary internet pages can
-  currently reach the application.
+- The developer subsequently confirmed the short everyday browser check below
+  passed with the rebuilt release ZIP. This covers saving, reload, Playback,
+  deletion, close/reopen and a second launcher start. It does not establish
+  individual beacon dispatch or the browser freeze event.
+- The subsequent in-app Chromium check below exercised foreign-loopback-origin
+  requests and independently inspected target state and server logs.
+- Edge foreign-origin requests, a controlled public HTTPS source, actual Edge
+  policy/permission state, and explicitly allowed LNA in a disposable profile
+  remain **untested**. Do not infer that arbitrary internet pages can currently
+  reach the application from the loopback result.
+
+## Foreign-loopback-origin browser result (2026-11-05)
+
+The agent opened the existing fixture in the ChatGPT in-app browser and clicked
+its marker-request button. Browser-reported user agent:
+`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36`.
+This is Chromium evidence, not an installed Edge result. Source:
+`http://127.0.0.1:8782`; target: `http://127.0.0.1:8781`.
+The permission query reported `local-network-access: prompt`; neither request
+required an observed permission interaction. No permissions, policies or browser
+security settings were changed. Browser policy state was not inspected.
+
+| Request | Browser result | Independent target log |
+| --- | --- | --- |
+| `POST`, `no-cors`, `text/plain` JSON marker | Opaque response, status 0 | `POST /api/command` returned **403**. The request reached the server and was rejected. |
+| `POST`, `cors`, `application/json` marker | `TypeError: Failed to fetch` | `OPTIONS /api/command` returned **501**, unsupported method. No subsequent JSON POST was logged. |
+
+The server has no CORS permission or OPTIONS handler; 501 is the existing
+preflight refusal, not a new implementation change. The browser console-log API
+returned no entries, so the request conclusions above use fixture output and
+target-server logs rather than an asserted console/network-panel capture.
+
+Before and after `/api/state` snapshots were identical, including empty Library,
+null current Text and unchanged save context/sequence. Neither marker appeared.
+`library.json` was absent before and after, so there were no persisted Library
+bytes to compare. This verifies rejection even though the browser allowed the
+simple cross-origin request to reach the application.
+
+![Foreign-origin fixture result](foreign-origin-iab.png)
+
+Local raw evidence: `.cache/issue-41-acceptance/before-foreign-state.json`,
+`after-foreign-state.json`, `preview.err`, and `fixture.err` (not committed).
+The isolated preview's disposable data directory was
+`.cache/ui-design-preview/issue-28-yl24xl0d`.
 
 ## Resume agent browser acceptance
+
+The developer accepted the completed checks as sufficient on 2026-11-05. The
+procedure below is retained for optional future investigation of installed Edge
+or a public HTTPS source; it is not outstanding acceptance work for #41.
 
 Use `tools/ui_design_preview.py --port 8781 --texts 0` outside network isolation
 with its disposable Library. Probe `/api/state` before opening the UI. Exercise
@@ -91,6 +135,17 @@ profile. Do not disable ordinary user protections. Keep the distinction between
 public HTTPS and loopback results in the evidence.
 
 ## Short developer acceptance
+
+**Passed, 2026-11-05:** after the ZIP was rebuilt on the current computer, the
+developer reported that the supplied check worked. The new standard release
+build produced a 177 MB ZIP. Its agent-run smoke test passed: page after 1.2 s,
+second launch left the first process running, real Kokoro produced 0.85 s of
+speech, closing ended the program, writes stayed in `data/`, and both startup
+diagnostic scenarios passed. Downloads were staged through IPv4 into a local
+wheelhouse to avoid IPv6 connection timeouts; application/build source and
+Windows network settings were unchanged.
+
+Accepted check:
 
 Unpack `dist/ozvuchka-issue-41.zip` into a fresh folder with a disposable Library.
 Start `Озвучка.exe`, save two short English Texts and prepare speech. Reload and
