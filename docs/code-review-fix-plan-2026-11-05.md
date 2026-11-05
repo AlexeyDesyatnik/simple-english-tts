@@ -1,12 +1,12 @@
 # Code review fix plan — 2026-11-05
 
-Status: planned; no implementation changes or acceptance claimed. The developer requested that this plan be recorded in project documentation and GitHub Issues.
+Status: finding 1 / Issue #39 implemented locally and accepted by the developer on 2026-11-05; verification and acceptance are recorded below. Other findings remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
 
 ## Start here in a new session
 
 1. Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, docs/agents/issue-tracker.md, docs/agents/domain.md, docs/development.md and docs/manual-checks.md, then the relevant ADRs.
 2. Read this plan and [the original review](code-review-2026-11-05.md). The review's priorities are preliminary; this plan records the subsequent revalidation and chosen scope.
-3. Start with finding 1 below and its linked Issue. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
+3. Finding 1 / #39 is accepted. Continue with finding 3 / #40. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
 4. Write behaviour tests through the existing public seams before changing behaviour. Keep Core independent of HTTP and the page. Record verification and remaining limitations in the Issue.
 5. Before each implementation commit run `runtime\python.exe -m pytest`, `runtime\python.exe -m mypy`, and `runtime\python.exe -m ruff check`. Run relevant slow tests for provider/contract/cancellation-test changes; follow the coding standards for provider/build changes. HTTP protection also needs launcher/reopen and release ZIP smoke verification.
 
@@ -14,14 +14,14 @@ Recommended order: **1 → 3 → 2 → 6 → 4 → 5**. Findings 1 and 3 share u
 
 | Order | Finding | Implementation Issue | Dependency |
 | --- | --- | --- | --- |
-| 1 | 1 — Preserve audio on persistence failure | [#39](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/39) | Start here |
+| 1 | 1 — Preserve audio on persistence failure | [#39](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/39) | Accepted 2026-11-05 |
 | 2 | 3 — Validate Library records | [#40](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/40) | After #39 |
 | 3 | 2 — Reject foreign-origin commands | [#41](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/41) | Independent |
 | 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Before #43 slow verification |
 | 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Prefer #42 first |
 | 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Independent |
 
-Suggested next-session instruction: “Implement Issue #39 following docs/code-review-fix-plan-2026-11-05.md and the repository instructions. Keep the scope to that Issue, verify through public seams and report concrete remaining acceptance checks.”
+Suggested next-session instruction: “Implement Issue #40 following docs/code-review-fix-plan-2026-11-05.md and the repository instructions. Keep the scope to that Issue, verify through public seams and report concrete remaining acceptance checks.”
 
 ## Evidence and limits
 
@@ -50,14 +50,23 @@ Prepare and save the prospective Library without the deleted Text before committ
 
 Acceptance:
 
-- [ ] A failed deletion save preserves the persisted Text and its playable Narration after restart; the Text remains available for retry in the current session.
-- [ ] Retrying after the write obstruction is removed deletes the intended Text and only safely unreferenced pieces.
-- [ ] Creating/deleting temporary Texts or deleting a Narration after an unreadable Library does not destroy old audio or overwrite the original Library.
-- [ ] Shared pieces and audio referenced by the last persisted Library remain protected, including after a prior failed edit.
-- [ ] Existing deletion-during-synthesis behaviour remains covered.
-- [ ] Regression tests use Core commands/snapshot/audio and temporary data, not a new storage-unit-test layer.
+- [x] A failed deletion save preserves the persisted Text and its playable Narration after restart; the Text remains available for retry in the current session.
+- [x] Retrying after the write obstruction is removed deletes the intended Text and only safely unreferenced pieces.
+- [x] Creating/deleting temporary Texts or deleting a Narration after an unreadable Library does not destroy old audio or overwrite the original Library.
+- [x] Shared pieces and audio referenced by the last persisted Library remain protected, including after a prior failed edit.
+- [x] Existing deletion-during-synthesis behaviour remains covered.
+- [x] Regression tests use Core commands/snapshot/audio and temporary data, not a new storage-unit-test layer.
 
 Bounds: no journal, backup generations, automatic repair, background garbage collection or crash-proof editor. Ordinary autosave guarantees remain unchanged. No new hardware-only acceptance is needed.
+
+Implementation record (2026-11-05, #39):
+
+- Text deletion saves the prospective Library first. A write failure leaves the Text, editing context and Narration queue intact for retry and exposes the existing Library error.
+- Core remembers the last successfully persisted Text records. Narration deletion protects references from persisted versions hidden by failed edits, while ordinary deletion still removes unshared pieces.
+- An unreadable Library can still be used for temporary work, including Text deletion, without overwriting its original bytes. Audio deletion is suppressed because its complete references are unknown; conservatively retained files are intentional.
+- Six new Core-seam regression cases cover failed deletion and retry, restart Playback without synthesis, shared pieces, unreadable-Library Text/Narration deletion and failed edits followed by Text/Narration deletion. Existing deletion-during-synthesis coverage passes.
+- Agent verification: `pytest` **146 passed, 8 slow tests deselected**; `mypy` and `ruff check` passed; `git diff --check` passed. Tests used disposable temporary Libraries. The new failure scenarios were reproduced before the production fix. Provider/build code was unchanged; slow tests, release build and browser acceptance were not run for this Core-only fix.
+- Developer acceptance passed on 2026-11-05: the developer confirmed that the supplied everyday-use check worked. The instructions used an isolated copy of the current `runtime`, `models` and `ozvuchka` folders under `dist/acceptance-39-<id>`, a fresh disposable Library and port 8771. The check covered saving two Texts, preparing both Narrations, F5 and Playback, deleting one Text, closing and reopening, and verifying the retained Text and ready Narration. This was a source-copy check, not a release ZIP/launcher smoke test. Write-failure simulation remains covered by agent tests. Existing hardware checks remain outstanding in `docs/manual-checks.md`.
 
 ## Finding 3 — Validate Library records before exposing state
 

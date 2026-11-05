@@ -80,6 +80,7 @@ class Core:
         except (OSError, ValueError, KeyError, TypeError) as error:
             self._library_readable = False
             self._library_error = f"Не удалось прочитать Библиотеку: {error}"
+        self._persisted_library = self._library.copy()
         self._text_id: str | None = None  # the current Text's place in the Library; None until it is saved
         self._text: str | None = None
         self._edit_context = uuid.uuid4().hex
@@ -197,13 +198,16 @@ class Core:
         with self._work:
             if all(t.id != text_id for t in self._library):
                 raise ValueError(f"no text {text_id} in the library")
-            self._library = [t for t in self._library if t.id != text_id]
+            remaining = [t for t in self._library if t.id != text_id]
+            # Temporary work in an unreadable Library stays usable without overwriting its file.
+            if self._library_readable and not self._save_library(remaining):
+                return
+            self._library = remaining
             self._queue = [q for q in self._queue if q.text_id != text_id]
             if self._text_id == text_id:
                 self._reset_edit_context()
                 self._text_id = None
                 self._show(None)
-            self._save_library()
             self._remove_unreferenced_pieces()
 
     def delete_narration(self, text_id: str, voice_key: str, speed: float) -> None:
@@ -523,11 +527,13 @@ class Core:
         self._library = [text] + [t for t in self._library if t.id != text.id]
         return self._save_library()
 
-    def _save_library(self) -> bool:
+    def _save_library(self, texts: list[SavedText] | None = None) -> bool:
         if not self._library_readable:
             return False
+        texts = self._library if texts is None else texts
         try:
-            self._files.save_texts(self._library)
+            self._files.save_texts(texts)
+            self._persisted_library = texts.copy()
             self._library_error = None
             return True
         except OSError as error:
@@ -610,12 +616,15 @@ class Core:
         return ready
 
     def _referenced_pieces(self, except_narration: _Queued | None = None) -> set[str]:
+        # Failed edits can hide references still needed when the saved Library is reopened.
+        current = {(t.id, t.content) for t in self._library}
+        previous_versions = [t for t in self._persisted_library if (t.id, t.content) not in current]
         return {
             _audio_id(voice, speed, piece)
-            for saved in self._library
+            for saved in self._library + previous_versions
             for voice in self._registry.voices()
             for speed in _SPEEDS
-            if except_narration is None
+            if saved in previous_versions or except_narration is None
             or (saved.id, voice.key, speed)
             != (except_narration.text_id, except_narration.voice.key, except_narration.speed)
             for paragraph in _parsed(saved.content)
@@ -628,6 +637,9 @@ class Core:
         self._delete_pieces((self._saved_pieces | set(self._audio) | underway) - referenced)
 
     def _delete_pieces(self, audio_ids: set[str]) -> None:
+        if not self._library_readable:
+            # Its references are unknown; even a temporary Narration can share its audio.
+            return
         self._deleted_pieces.update(audio_ids)
         for audio_id in audio_ids:
             try:

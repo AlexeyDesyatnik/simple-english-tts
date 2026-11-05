@@ -738,6 +738,114 @@ def test_deleting_a_text_during_synthesis_does_not_save_an_orphaned_piece(make_c
     assert core.snapshot()["library_bytes"] == empty_library_bytes
 
 
+def test_failed_text_deletion_keeps_the_text_and_speech_until_a_successful_retry(make_core, tmp_path):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Shared line.\nDelete this line.")
+    core.play()
+    first = wait_for(core, all_ready)["text"]
+    core.new_text()
+    core.set_text("Shared line.\nKeep this line.")
+    core.play()
+    second = wait_for(core, all_ready)["text"]
+    core.open_text(first["id"])
+    context = core.snapshot()["save"]["context"]
+    obstruction = tmp_path / "data" / "library.json.tmp"
+    obstruction.mkdir()
+
+    core.delete_text(first["id"])
+
+    snapshot = core.snapshot()
+    assert snapshot["library_error"].startswith("Не удалось сохранить Библиотеку")
+    assert snapshot["text"]["id"] == first["id"]
+    assert snapshot["save"]["context"] == context
+    assert {t["id"] for t in snapshot["library"]} == {first["id"], second["id"]}
+    restarted_provider = FakeVoiceProvider()
+    restarted = make_core(restarted_provider)
+    restarted.open_text(first["id"])
+    restarted.play()
+    assert all_ready(restarted.snapshot())
+    assert restarted.audio(first["paragraphs"][1]["audio"][0]) is not None
+    assert restarted_provider.requests == []
+    restarted.close()
+
+    obstruction.rmdir()
+    core.delete_text(first["id"])
+    assert [t["id"] for t in core.snapshot()["library"]] == [second["id"]]
+    assert core.audio(first["paragraphs"][1]["audio"][0]) is None
+    assert core.audio(second["paragraphs"][0]["audio"][0]) is not None
+    assert core.audio(second["paragraphs"][1]["audio"][0]) is not None
+    reopened = make_core(FakeVoiceProvider())
+    assert [t["id"] for t in reopened.snapshot()["library"]] == [second["id"]]
+
+
+@pytest.mark.parametrize("deletion", ["text", "narration"])
+def test_unreadable_library_keeps_old_audio_when_temporary_work_is_deleted(make_core, tmp_path, deletion):
+    original = make_core(FakeVoiceProvider())
+    ready_and_close(original, "Old saved speech.")
+    library = tmp_path / "data" / "library.json"
+    original_bytes = library.read_bytes()
+    damaged = b"{ unreadable Library"
+    library.write_bytes(damaged)
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Old saved speech.\nTemporary speech.")
+    core.play()
+    temporary = wait_for(core, all_ready)["text"]
+
+    if deletion == "text":
+        core.delete_text(temporary["id"])
+        assert core.snapshot()["library"] == []
+    else:
+        core.delete_narration(temporary["id"], "fake:alice", 1.0)
+    assert core.snapshot()["library_error"].startswith("Не удалось прочитать Библиотеку")
+    assert library.read_bytes() == damaged
+    core.close()
+    library.write_bytes(original_bytes)
+    provider = FakeVoiceProvider()
+    reopened = make_core(provider)
+    reopened.open_text(reopened.snapshot()["library"][0]["id"])
+    reopened.play()
+    assert all_ready(reopened.snapshot())
+    assert reopened.audio(reopened.snapshot()["text"]["paragraphs"][0]["audio"][0]) is not None
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize("deletion", ["text", "narration", "edited_narration"])
+def test_failed_edit_keeps_persisted_audio_when_another_text_or_narration_is_deleted(
+    make_core, tmp_path, deletion
+):
+    core = make_core(FakeVoiceProvider())
+    core.set_text("Shared saved speech.\nFirst saved speech.")
+    core.play()
+    first = wait_for(core, all_ready)["text"]
+    core.new_text()
+    core.set_text("Shared saved speech.\nSecond saved speech.")
+    core.play()
+    second = wait_for(core, all_ready)["text"]
+    core.open_text(first["id"])
+    obstruction = tmp_path / "data" / "library.json.tmp"
+    obstruction.mkdir()
+    core.set_text("Shared saved speech.\nUnsaved replacement.")
+    assert core.snapshot()["library_error"].startswith("Не удалось сохранить Библиотеку")
+
+    if deletion == "text":
+        core.delete_text(second["id"])
+    elif deletion == "narration":
+        core.delete_narration(second["id"], "fake:alice", 1.0)
+        assert core.audio(second["paragraphs"][1]["audio"][0]) is None
+    else:
+        core.delete_narration(first["id"], "fake:alice", 1.0)
+    assert core.audio(first["paragraphs"][0]["audio"][0]) is not None
+    assert core.audio(first["paragraphs"][1]["audio"][0]) is not None
+    core.close()
+    obstruction.rmdir()
+    provider = FakeVoiceProvider()
+    reopened = make_core(provider)
+    reopened.open_text(first["id"])
+    reopened.play()
+    assert all_ready(reopened.snapshot())
+    assert provider.requests == []
+
+
 def test_deleting_one_narration_keeps_shared_pieces_and_other_texts_ready(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text("Shared line.\nOnly in the first Text.")
