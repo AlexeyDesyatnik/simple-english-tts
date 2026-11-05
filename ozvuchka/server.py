@@ -1,7 +1,7 @@
 """Thin HTTP adapter over the core (ADR-0003): JSON commands and events, the snapshot, audio and Voice samples,
 the static page.
 
-It holds no logic of its own and listens only on 127.0.0.1.
+It holds no application logic, enforces the local HTTP request policy and listens only on 127.0.0.1.
 """
 
 import json
@@ -59,6 +59,8 @@ COMMANDS: dict[str, Callable[[Core, dict[str, Any]], object]] = {
 def make_server(core: Core, port: int) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            if not self._local_host():
+                return self._send_error(403, "unsupported Host")
             if self.path == "/api/state":
                 self._send(200, "application/json", json.dumps(core.snapshot()).encode())
             elif self.path.startswith("/api/audio/"):
@@ -71,6 +73,16 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
         def do_POST(self) -> None:
             if self.path != "/api/command":
                 return self._send_error(404, "not found")
+            if not self._local_host():
+                return self._send_error(403, "unsupported Host")
+            origins = self.headers.get_all("Origin", [])
+            if origins and (len(origins) != 1 or origins[0] not in allowed_origins):
+                return self._send_error(403, "unsupported Origin")
+            if (
+                len(self.headers.get_all("Content-Type", [])) != 1
+                or self.headers.get_content_type() != "application/json"
+            ):
+                return self._send_error(415, "commands require application/json")
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
                 command = COMMANDS[body["command"]]
@@ -78,6 +90,10 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
             except (ValueError, KeyError, TypeError) as error:
                 return self._send_error(400, f"{type(error).__name__}: {error}")
             self._send(200, "application/json", json.dumps({"result": result}).encode())
+
+        def _local_host(self) -> bool:
+            hosts = self.headers.get_all("Host", [])
+            return len(hosts) == 1 and hosts[0] in authorities
 
         def _send_audio(self, audio: Audio | None) -> None:
             if audio is None:
@@ -113,4 +129,9 @@ def make_server(core: Core, port: int) -> ThreadingHTTPServer:
         def log_message(self, format: str, *args: Any) -> None:
             _log.warning("%s: %s", self.requestline, format % args)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    authorities = {f"{host}:{server.server_port}" for host in ("127.0.0.1", "localhost")}
+    if server.server_port == 80:
+        authorities.update(("127.0.0.1", "localhost"))
+    allowed_origins = {f"http://{host}" for host in authorities}
+    return server

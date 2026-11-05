@@ -1055,7 +1055,7 @@ document.getElementById("stop").addEventListener("click", async () => {
 // The program ends when its window is closed: it learns that when the heartbeat stops (ADR-0003).
 // Not sent in turn with the commands: it says nothing about the snapshot.
 function heartbeat(event) {
-  return JSON.stringify({ command: event });
+  return new Blob([JSON.stringify({ command: event })], { type: "application/json" });
 }
 function sendHeartbeat() {
   fetch("/api/command", { method: "POST", body: heartbeat("page_alive") }).catch(() => {});

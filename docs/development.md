@@ -28,7 +28,7 @@ and archived branch states.
 
 The [2026-11-05 code review fix plan](code-review-fix-plan-2026-11-05.md)
 records revalidated findings, implementation Issues, dependencies and acceptance.
-Start with [Issue #39](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/39);
+Follow the plan's current task and implementation order;
 the original review is [here](code-review-2026-11-05.md).
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
