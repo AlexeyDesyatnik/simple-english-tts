@@ -779,12 +779,18 @@ def test_failed_text_deletion_keeps_the_text_and_speech_until_a_successful_retry
 
 
 @pytest.mark.parametrize("deletion", ["text", "narration"])
-def test_unreadable_library_keeps_old_audio_when_temporary_work_is_deleted(make_core, tmp_path, deletion):
+@pytest.mark.parametrize("damage", ["json", "record"])
+def test_unreadable_library_keeps_old_audio_when_temporary_work_is_deleted(make_core, tmp_path, deletion, damage):
     original = make_core(FakeVoiceProvider())
     ready_and_close(original, "Old saved speech.")
     library = tmp_path / "data" / "library.json"
     original_bytes = library.read_bytes()
-    damaged = b"{ unreadable Library"
+    if damage == "json":
+        damaged = b"{ unreadable Library"
+    else:
+        stored = json.loads(original_bytes)
+        stored["texts"].append({"id": "invalid", "content": 42})
+        damaged = json.dumps(stored).encode()
     library.write_bytes(damaged)
     core = make_core(FakeVoiceProvider())
     core.set_text("Old saved speech.\nTemporary speech.")
@@ -1055,6 +1061,85 @@ def test_an_unreadable_library_is_reported_and_left_untouched_while_the_program_
     snapshot = wait_for(core, all_ready)
     assert snapshot["library_error"].startswith("Не удалось прочитать Библиотеку")
     assert library.read_text(encoding="utf-8") == damaged
+
+
+@pytest.mark.parametrize("stored", [
+    None, [], 1, "Library",
+    {}, {"version": 1},
+    {"version": None, "texts": []},
+    {"version": True, "texts": []},
+    {"version": 1.0, "texts": []},
+    {"version": "1", "texts": []},
+    {"version": 2, "texts": []},
+    {"version": 1, "texts": None},
+    {"version": 1, "texts": {}},
+    {"version": 1, "texts": "records"},
+    {"version": 1, "texts": [None]},
+    {"version": 1, "texts": [42]},
+    {"version": 1, "texts": ["record"]},
+    {"version": 1, "texts": [[]]},
+    {"version": 1, "texts": [{}]},
+    {"version": 1, "texts": [{"id": "one"}]},
+    {"version": 1, "texts": [{"content": "Hello."}]},
+    {"version": 1, "texts": [{"id": None, "content": "Hello."}]},
+    {"version": 1, "texts": [{"id": 1, "content": "Hello."}]},
+    {"version": 1, "texts": [{"id": "", "content": "Hello."}]},
+    {"version": 1, "texts": [{"id": "one", "content": None}]},
+    {"version": 1, "texts": [{"id": "one", "content": 42}]},
+    {"version": 1, "texts": [{"id": "one", "content": []}]},
+    {"version": 1, "texts": [{"id": "one", "content": "Hello.", "title": 42}]},
+    {"version": 1, "texts": [{"id": "one", "content": "Hello.", "title": []}]},
+    {"version": 1, "texts": [
+        {"id": "one", "content": "First."}, {"id": "one", "content": "Second."},
+    ]},
+    {"version": 1, "texts": [
+        {"id": "valid", "content": "First."}, {"id": "invalid", "content": 42},
+    ]},
+])
+def test_malformed_library_records_leave_a_usable_snapshot_and_cannot_be_overwritten(make_core, tmp_path, stored):
+    library = tmp_path / "data" / "library.json"
+    library.parent.mkdir(parents=True)
+    original = json.dumps(stored, indent=2).encode()
+    library.write_bytes(original)
+    core = make_core(FakeVoiceProvider())
+
+    snapshot = core.snapshot()
+    assert snapshot["library"] == []
+    assert snapshot["library_error"].startswith("Не удалось прочитать Библиотеку")
+    core.set_text("Temporary speech.")
+    core.play()
+    temporary = wait_for(core, all_ready)["text"]
+    core.delete_narration(temporary["id"], "fake:alice", 1.0)
+    core.delete_text(temporary["id"])
+    assert core.snapshot()["library"] == []
+    assert core.snapshot()["library_error"].startswith("Не удалось прочитать Библиотеку")
+    assert library.read_bytes() == original
+
+
+@pytest.mark.parametrize(("title_fields", "expected_title"), [
+    ({}, "Saved speech."),
+    ({"title": None}, "Saved speech."),
+    ({"title": "Chosen title"}, "Chosen title"),
+])
+def test_valid_version_one_records_keep_optional_titles_and_order(make_core, tmp_path, title_fields, expected_title):
+    library = tmp_path / "data" / "library.json"
+    library.parent.mkdir(parents=True)
+    library.write_text(json.dumps({"version": 1, "texts": [
+        {"id": "first", "content": "Saved speech.", **title_fields},
+        {"id": "second", "content": ""},
+    ]}), encoding="utf-8")
+    core = make_core(FakeVoiceProvider())
+
+    snapshot = core.snapshot()
+    assert snapshot["library_error"] is None
+    assert [t["id"] for t in snapshot["library"]] == ["first", "second"]
+    assert snapshot["library"][0]["title"] == expected_title
+    core.open_text("first")
+    assert core.snapshot()["text"]["content"] == "Saved speech."
+    reopened = make_core(FakeVoiceProvider())
+    assert reopened.snapshot()["library"][0]["title"] == expected_title
+    reopened.open_text("second")
+    assert reopened.snapshot()["text"]["content"] == ""
 
 
 # ---------------------------------------------------------------- Start delay

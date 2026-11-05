@@ -1,12 +1,12 @@
 # Code review fix plan — 2026-11-05
 
-Status: finding 1 / Issue #39 implemented locally and accepted by the developer on 2026-11-05; verification and acceptance are recorded below. Other findings remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
+Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Verification and acceptance are recorded below. Other findings remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
 
 ## Start here in a new session
 
 1. Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, docs/agents/issue-tracker.md, docs/agents/domain.md, docs/development.md and docs/manual-checks.md, then the relevant ADRs.
 2. Read this plan and [the original review](code-review-2026-11-05.md). The review's priorities are preliminary; this plan records the subsequent revalidation and chosen scope.
-3. Finding 1 / #39 is accepted. Continue with finding 3 / #40. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
+3. Findings 1 / #39 and 3 / #40 are complete. Continue with finding 2 / #41. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
 4. Write behaviour tests through the existing public seams before changing behaviour. Keep Core independent of HTTP and the page. Record verification and remaining limitations in the Issue.
 5. Before each implementation commit run `runtime\python.exe -m pytest`, `runtime\python.exe -m mypy`, and `runtime\python.exe -m ruff check`. Run relevant slow tests for provider/contract/cancellation-test changes; follow the coding standards for provider/build changes. HTTP protection also needs launcher/reopen and release ZIP smoke verification.
 
@@ -15,13 +15,13 @@ Recommended order: **1 → 3 → 2 → 6 → 4 → 5**. Findings 1 and 3 share u
 | Order | Finding | Implementation Issue | Dependency |
 | --- | --- | --- | --- |
 | 1 | 1 — Preserve audio on persistence failure | [#39](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/39) | Accepted 2026-11-05 |
-| 2 | 3 — Validate Library records | [#40](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/40) | After #39 |
+| 2 | 3 — Validate Library records | [#40](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/40) | Verified 2026-11-05 |
 | 3 | 2 — Reject foreign-origin commands | [#41](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/41) | Independent |
 | 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Before #43 slow verification |
 | 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Prefer #42 first |
 | 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Independent |
 
-Suggested next-session instruction: “Implement Issue #40 following docs/code-review-fix-plan-2026-11-05.md and the repository instructions. Keep the scope to that Issue, verify through public seams and report concrete remaining acceptance checks.”
+Suggested next-session instruction: “Implement Issue #41 following docs/code-review-fix-plan-2026-11-05.md and the repository instructions. Keep the scope to that Issue, verify through public seams and report concrete remaining acceptance checks.”
 
 ## Evidence and limits
 
@@ -78,12 +78,19 @@ Validate the version and complete structure before returning records: texts is a
 
 Acceptance:
 
-- [ ] Parameterized malformed structure/field cases produce a usable snapshot with a Library error instead of an exception.
-- [ ] Invalid Library bytes stay unchanged; temporary editing still follows existing unreadable-Library behaviour.
-- [ ] Existing valid version-1 records, including missing/null title, remain compatible.
-- [ ] Combined regression coverage with finding 1 verifies old audio is preserved.
+- [x] Parameterized malformed structure/field cases produce a usable snapshot with a Library error instead of an exception.
+- [x] Invalid Library bytes stay unchanged; temporary editing still follows existing unreadable-Library behaviour.
+- [x] Existing valid version-1 records, including missing/null title, remain compatible.
+- [x] Combined regression coverage with finding 1 verifies old audio is preserved.
 
 Verification is automated through Core; no hardware-specific check is required.
+
+Implementation record (2026-11-05, #40):
+
+- The complete version-1 Library is validated before returning any records. The version must be integer 1 (not a boolean or float), `texts` must be a list, each record an object, and IDs nonempty unique strings. Content must be a string; title may be absent, null or a string. Values are not coerced and no partial Library is exposed.
+- Malformed records use Core's existing unreadable-Library path. Temporary editing, synthesis and deletion remain usable without replacing the original bytes. The #39 protection also keeps old Narration audio when a valid saved record is followed by an invalid record.
+- Tests were written first: 15 of the 38 selected cases failed before the fix. Added coverage consists of 31 malformed structures/field cases, three compatible optional-title cases (also preserving record order and empty content), and two combined audio-preservation cases extending #39.
+- Agent verification: full `pytest` **182 passed, 8 slow tests deselected**; `mypy`, `ruff check` and `git diff --check` passed. All data was disposable. No provider, build, HTTP or page changes; slow tests, release ZIP and browser checks were not run. All #40 criteria are covered through Core; no additional developer fault-injection or hardware acceptance is required. Existing hardware checks in `docs/manual-checks.md` remain outstanding.
 
 ## Finding 2 — Reject foreign-origin local commands
 

@@ -32,9 +32,28 @@ class LibraryFiles:
         if not self._texts.exists():
             return []
         stored = json.loads(self._texts.read_text(encoding="utf-8"))
-        if not isinstance(stored, dict) or stored.get("version") != _FORMAT_VERSION:
+        if (
+            not isinstance(stored, dict)
+            or type(stored.get("version")) is not int
+            or stored["version"] != _FORMAT_VERSION
+            or not isinstance(stored.get("texts"), list)
+        ):
             raise ValueError("the file is damaged or saved by a newer version of the program")
-        return [SavedText(t["id"], t["content"], t.get("title")) for t in stored["texts"]]
+        texts: list[SavedText] = []
+        ids: set[str] = set()
+        for record in stored["texts"]:
+            if not isinstance(record, dict):
+                raise ValueError("a Text record is damaged")
+            text_id, content, title = record.get("id"), record.get("content"), record.get("title")
+            if (
+                not isinstance(text_id, str) or not text_id or text_id in ids
+                or not isinstance(content, str)
+                or (title is not None and not isinstance(title, str))
+            ):
+                raise ValueError("a Text record is damaged")
+            ids.add(text_id)
+            texts.append(SavedText(text_id, content, title))
+        return texts
 
     def save_texts(self, texts: list[SavedText]) -> None:
         stored = {
