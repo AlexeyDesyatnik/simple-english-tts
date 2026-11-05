@@ -95,6 +95,8 @@ body.playback .eyebrow, body.playback #enqueue, body.playback #queue-panel { dis
 body.playback main { max-width: 1440px; padding-top: var(--space-4); }
 body.playback .workspace { display: block; }
 body.playback .working-area { padding: 0; border: 0; background: transparent; }
+/* This programmatic focus target keeps Playback keyboard controls available. */
+body.playback #text-workspace:focus { outline: none; }
 body.playback .text-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-4); margin-bottom: var(--space-2); border-bottom: 1px solid var(--divider); }
 body.playback .text-header > div { min-width: 0; }
 body.playback #stop { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); flex-shrink: 0; }
