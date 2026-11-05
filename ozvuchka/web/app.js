@@ -419,7 +419,10 @@ function renderLibrary(library, currentId) {
           removeNarration.title = `Удалить озвучку ${label}`;
           removeNarration.setAttribute("aria-label", `Удалить озвучку ${label} текста «${title}»`);
           removeNarration.addEventListener("click", () => deleteNarration(t, n));
-          ready.textContent = `Готово · ${label}`;
+          ready.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+          const readyLabel = document.createElement("span");
+          readyLabel.textContent = `Готово · ${label}`;
+          ready.append(readyLabel);
           narrations.append(ready);
           actions.append(removeNarration);
         }
