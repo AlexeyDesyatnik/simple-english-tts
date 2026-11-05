@@ -1,12 +1,12 @@
 # Code review fix plan — 2026-11-05
 
-Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Finding 2 / Issue #41 has HTTP implementation, automated verification, a passing release ZIP smoke test, developer everyday browser acceptance and passing in-app Chromium foreign-loopback-origin checks; The developer accepted these checks as sufficient and requested closure on 2026-11-05; additional Edge/public HTTPS/LNA checks are waived, not recorded as passed. Verification and acceptance are recorded below. Finding 6 / Issue #42 is implemented and verified through bounded child-process and real-provider tests. Finding 4 / Issue #43 is implemented and verified with the WAV contract and handled runtime-format rejection. Finding 5 / Issue #44 is implemented and agent-verified; short developer everyday acceptance remains pending. The developer requested that this plan be recorded in project documentation and GitHub Issues.
+Status: all six findings / Issues #39–#44 are implemented and verified. Developer everyday acceptance for #44 passed on 2026-11-05, completing this fix plan. The additional Edge/public HTTPS/LNA scenarios for #41 were waived by the developer, not recorded as passed. Existing school-device acceptance in #24 and docs/manual-checks.md remains separate and unchanged. Verification and acceptance are recorded below.
 
 ## Start here in a new session
 
 1. Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, docs/agents/issue-tracker.md, docs/agents/domain.md, docs/development.md and docs/manual-checks.md, then the relevant ADRs.
 2. Read this plan and [the original review](code-review-2026-11-05.md). The review's priorities are preliminary; this plan records the subsequent revalidation and chosen scope.
-3. Findings 1 / #39, 3 / #40, 2 / #41, 6 / #42 and 4 / #43 are complete. Finding 5 / #44 is implemented and agent-verified; its short developer everyday acceptance remains pending. The developer accepted the available #41 checks as sufficient on 2026-11-05 and requested closure. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
+3. All six findings / #39–#44 are complete. The developer confirmed #44 everyday acceptance on 2026-11-05. Do not resume completed fixes or waived #41 scenarios without a new concrete need; existing hardware acceptance remains in #24.
 4. Write behaviour tests through the existing public seams before changing behaviour. Keep Core independent of HTTP and the page. Record verification and remaining limitations in the Issue.
 5. Before each implementation commit run `runtime\python.exe -m pytest`, `runtime\python.exe -m mypy`, and `runtime\python.exe -m ruff check`. Run relevant slow tests for provider/contract/cancellation-test changes; follow the coding standards for provider/build changes. HTTP protection also needs launcher/reopen and release ZIP smoke verification.
 
@@ -19,9 +19,9 @@ Recommended order: **1 → 3 → 2 → 6 → 4 → 5**. Findings 1 and 3 share u
 | 3 | 2 — Reject foreign-origin commands | [#41](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/41) | Accepted 2026-11-05; additional browser matrix waived |
 | 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Verified 2026-11-05 |
 | 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Verified 2026-11-05 |
-| 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Agent-verified; developer acceptance pending |
+| 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Accepted 2026-11-05 |
 
-Suggested next-session instruction: “Finish Issue #44 developer everyday acceptance following docs/design-reviews/issue-44/README.md. Implementation, Core tests and real-page title/focus/cancellation checks pass. Do not resume Issue #41's optional browser matrix.”
+No next implementation stage remains in this fix plan. Developer acceptance is complete; consult #24 and docs/manual-checks.md for the separate outstanding hardware checks.
 
 ## Evidence and limits
 
@@ -197,12 +197,12 @@ Acceptance:
 - [x] A focused cancel button stays focused through title/progress updates; ordering and cancellation still work.
 - [x] Verify with the real Core/HTTP/page and an existing paced provider seam if needed, not a static mock or new JS test framework.
 
-Implementation record (2026-11-05, #44; developer acceptance pending):
+Implementation record (2026-11-05, #44; developer acceptance passed):
 
 - Queue snapshots now use the chosen Library title with the existing automatic fallback. The page refreshes row text and cancel `aria-label` in place on every snapshot; the existing ID-based reconstruction and focus restoration are retained for actual queue membership changes.
 - Tests written first: two custom-title cases failed before the fix, and the automatic-title case already passed. Agent verification: **213 ordinary tests passed, 8 slow tests deselected**; `mypy`, `ruff check` and `git diff --check` passed. No provider/build source change; separate slow tests were not required.
 - Real-page verification used Core/HTTP and the existing paced fake provider with disposable data. Renaming a waiting Text updated its queue title and accessible cancel name without changing queue IDs/order. A second-tab rename left the first tab's cancel button focused, retaining its accessibility ID. Cancelling the preceding Narration advanced the waiting one while retaining its focus; Enter cancelled the intended Narration and returned focus to the empty queue summary. Numeric countdown was unavailable before the preview's first speed measurement. [Full evidence and screenshots](design-reviews/issue-44/README.md).
-- Short developer acceptance remains: use a fresh unpacked `dist/ozvuchka-issue-44.zip`, save two Texts, prepare/queue them, rename a waiting Text and check matching Library/queue titles, reload/play, delete one Text, close/wait/reopen and confirm persisted content/speech. Detailed focus checks are already agent-verified. Existing hardware acceptance is unchanged.
+- Developer everyday acceptance passed on 2026-11-05: the developer confirmed that the supplied fresh-archive check worked. It covered two Texts, preparation/queueing, renaming a waiting Text with matching Library/queue titles, reload/Playback, deletion, close/wait/reopen and retained content/speech. Detailed focus checks were already agent-verified. Existing hardware acceptance is unchanged.
 - The standard release build produced the fresh 177 MB archive using the local dependency wheelhouse. Release smoke passed: page after 1.2 s, second launch kept the first running, real Kokoro synthesized 0.85 s of speech, closing ended the program, data-only writes and both startup diagnostics passed. No CI inspection was performed.
 
 ## Shared developer acceptance and non-goals

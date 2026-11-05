@@ -1,7 +1,8 @@
 # Issue #44 — Narration queue titles
 
-Date: 2026-11-05. Status: implementation and agent checks passed; short developer
-everyday acceptance remains pending. No teacher data was used.
+Date: 2026-11-05. Status: implementation, agent checks and developer everyday
+acceptance passed. The developer confirmed that the supplied fresh-archive
+check worked. Agent checks used disposable data.
 
 ## Change
 
@@ -59,6 +60,9 @@ no numeric timing or real-device responsiveness claim is made.
 ![Next Narration preparing with cancel focus retained](progress-focused.png)
 
 ## Short developer acceptance
+
+**Passed, 2026-11-05:** the developer confirmed that the supplied check with
+`dist/ozvuchka-issue-44.zip` worked. Accepted procedure:
 
 Unpack `dist/ozvuchka-issue-44.zip` into a new folder with a fresh disposable
 Library. Save a long English Text and a second short one. Start preparing the
