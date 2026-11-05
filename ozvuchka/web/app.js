@@ -733,6 +733,7 @@ function render(next) {
   const playing = ["playing", "waiting"].includes(snapshot.playback.state);
   document.getElementById("play-label").textContent = playing ? "Пауза"
     : snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
+  document.getElementById("play-icon-path").setAttribute("d", playing ? "M7 5h4v14H7zM13 5h4v14h-4z" : "M8 5v14l11-7Z");
   const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
   const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph ?? snapshot.playback.ended_at];
   document.getElementById("position").textContent = !current || !readable.length ? ""

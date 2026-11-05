@@ -30,11 +30,11 @@
       <div class="transport">
         <div class="controls">
           <span class="playback-transport" role="group" aria-label="Воспроизведение">
-            <button id="previous" type="button" class="secondary playback-only" aria-label="Предыдущий абзац" title="Предыдущий абзац">Назад</button>
-            <button id="play" type="button"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg><span id="play-label">Воспроизвести</span></button>
-            <button id="next" type="button" class="secondary playback-only" aria-label="Следующий абзац" title="Следующий абзац">Вперёд</button>
+            <button id="previous" type="button" class="secondary playback-only" aria-label="Предыдущий абзац" title="Предыдущий абзац"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Назад</span></button>
+            <button id="play" type="button"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path id="play-icon-path" d="M8 5v14l11-7Z"/></svg><span id="play-label">Воспроизвести</span></button>
+            <button id="next" type="button" class="secondary playback-only" aria-label="Следующий абзац" title="Следующий абзац"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span>Вперёд</span></button>
           </span>
-          <button id="repeat" type="button" class="secondary playback-only">Повторить абзац</button>
+          <button id="repeat" type="button" class="secondary playback-only"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m17 2 4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Повторить абзац</span></button>
           <button id="enqueue" type="button" class="secondary">Подготовить озвучку</button>
           <span class="text-size" role="group" aria-label="Размер текста"><span id="text-size-label" class="muted"></span><button id="smaller" type="button" class="secondary" aria-label="Уменьшить размер текста">A−</button><button id="bigger" type="button" class="secondary" aria-label="Увеличить размер текста">A+</button></span>
         </div>
