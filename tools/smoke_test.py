@@ -4,6 +4,7 @@ Unpacks the zip, starts Озвучка.exe from the unpacked folder (without ope
 synthesizes "Hello." with the real Kokoro. A second start on the same port must end by itself without starting another
 program. Then the page says it is closing, and the program must end by itself,
 with its log in its data folder and nothing else written into the program folder.
+Finally checks diagnostics for an early application import failure and a Python initialization failure.
 Usage: python smoke_test.py <release zip>
 """
 
@@ -40,10 +41,59 @@ def main() -> int:
         log = folder / "data" / "ozvuchka.log"
         try:
             _run(folder, shipped, log)
+            _check_early_failure(folder)
+            _check_interpreter_failure(folder)
         except BaseException:
             print(f"--- {log}:", log.read_text(encoding="utf-8") if log.exists() else "(none)", sep="\n", flush=True)
             raise
     return 0
+
+
+def _check_early_failure(folder: Path) -> None:
+    """The actual release launcher must preserve a native-dependency import failure."""
+    source = folder / "ozvuchka" / "core.py"
+    saved = source.read_bytes()
+    bytecode = {p: p.read_bytes() for p in source.parent.glob("__pycache__/core.*.pyc")}
+    try:
+        source.write_text("raise ImportError('release startup diagnostic check')\n", encoding="utf-8")
+        for path in bytecode:
+            path.unlink()
+        assert "ImportError: release startup diagnostic check" in _failed_start(folder)
+        assert "ImportError: release startup diagnostic check" in (folder / "data/ozvuchka.log").read_text(
+            encoding="utf-8"
+        )
+        print("OK: an early import failure has its own diagnostic, identified by the release launcher", flush=True)
+    finally:
+        source.write_bytes(saved)
+        for path, data in bytecode.items():
+            path.write_bytes(data)
+
+
+def _check_interpreter_failure(folder: Path) -> None:
+    """Break Python's standard-library path so it fails before any application code runs."""
+    (config,) = (folder / "runtime").glob("python*._pth")
+    saved = config.read_bytes()
+    try:
+        config.write_text("missing-standard-library\n", encoding="ascii")
+        diagnostic = _failed_start(folder)
+        assert "Fatal Python error" in diagnostic, diagnostic
+        assert "encodings" in diagnostic, diagnostic
+        print("OK: failure before Python logging preserves interpreter output and its exit code", flush=True)
+    finally:
+        config.write_bytes(saved)
+
+
+def _failed_start(folder: Path) -> str:
+    before = set((folder / "data").glob("startup-*.log"))
+    result = subprocess.run(
+        [str(folder / f"{APP}.exe"), "--no-window", "--port", str(_free_port())],
+        capture_output=True, text=True, encoding="utf-8", timeout=START_TIMEOUT,
+    )
+    assert result.returncode != 0, "the deliberately broken startup succeeded"
+    (diagnostic,) = set((folder / "data").glob("startup-*.log")) - before
+    assert diagnostic.name in result.stderr, result.stderr
+    assert str(result.returncode) in result.stderr, result.stderr
+    return diagnostic.read_text(encoding="utf-8")
 
 
 def _run(folder: Path, shipped: set[Path], log: Path) -> None:

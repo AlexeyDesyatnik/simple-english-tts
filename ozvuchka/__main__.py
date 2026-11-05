@@ -5,6 +5,8 @@ The page is served at once; Kokoro loads in the background. A second start on th
 the program already running and ends (ADR-0003).
 """
 
+from __future__ import annotations
+
 import argparse
 import ctypes
 import json
@@ -16,13 +18,13 @@ import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ozvuchka.core import Core
-from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
 from ozvuchka.log import start_log
-from ozvuchka.server import make_server
-from ozvuchka.voices import VoiceRegistry
 from ozvuchka.window import open_window
+
+if TYPE_CHECKING:
+    from ozvuchka.core import Core
 
 ROOT = Path(__file__).resolve().parent.parent  # the program folder (ADR-0001)
 _log = logging.getLogger("ozvuchka")
@@ -37,8 +39,8 @@ def main() -> None:
     parser.add_argument("--no-window", action="store_true", help="with --app: do not open the window (smoke test)")
     args = parser.parse_args()
 
+    start_log(ROOT / "data", console=os.environ.get("OZVUCHKA_LAUNCHER") != "1")
     os.chdir(ROOT)  # as from Озвучка.exe; eSpeak NG needs a path relative to it (kokoro.py)
-    start_log(ROOT / "data")
     version_file = ROOT / "version.txt"  # written by the release build
     version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
     open_page = args.app and not args.no_window
@@ -96,6 +98,12 @@ def _page_opening(url: str) -> bool:
 
 
 def _run(port: int, app: bool, open_page: bool) -> None:
+    # Native dependencies must load after diagnostics and only in the first instance.
+    from ozvuchka.core import Core
+    from ozvuchka.kokoro import DEFAULT_VOICE, KokoroProvider
+    from ozvuchka.server import make_server
+    from ozvuchka.voices import VoiceRegistry
+
     core = Core(
         VoiceRegistry([KokoroProvider(ROOT / "models" / "kokoro")]),
         DEFAULT_VOICE,
