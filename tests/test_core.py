@@ -2,9 +2,11 @@ import json
 import os
 import threading
 import time
+from typing import Literal, cast
 
 import pytest
 
+from ozvuchka.audio import Audio
 from ozvuchka.core import Core
 from ozvuchka.voices import VoiceRegistry
 from tests.fakes import FakeClock, FakeVoiceProvider
@@ -604,6 +606,48 @@ def test_play_again_retries_a_failed_paragraph(make_core):
     core.play()
 
     wait_for(core, all_ready)
+
+
+def test_unsupported_audio_fails_visibly_and_the_next_queued_narration_completes(make_core, tmp_path):
+    class UnsupportedProvider(FakeVoiceProvider):
+        def synthesize(self, text, voice, speed, cancel=None):
+            audio = super().synthesize(text, voice, speed, cancel)
+            if text == "Unsupported speech.":
+                # Deliberately violate the typed provider contract at runtime.
+                return Audio(b"not a WAV", cast(Literal["wav"], "mp3"), 1.0)
+            return audio
+
+    provider = UnsupportedProvider(manual=True)
+    core = make_core(provider)
+    core.set_text("Unsupported speech.")
+    bad_id = core.snapshot()["text"]["id"]
+    core.enqueue()
+    wait_for(core, lambda s: len(provider.requests) == 1)
+    core.new_text()
+    core.set_text("Good morning.")
+    good_id = core.snapshot()["text"]["id"]
+    core.enqueue()
+    core.open_text(bad_id)
+
+    provider.finish_next()
+    wait_for(core, lambda s: len(provider.requests) == 2)
+    failed = core.snapshot()["text"]["paragraphs"][0]
+    assert failed["status"] == "failed"
+    assert failed["error"] == "Неподдерживаемый формат озвучки: mp3. Требуется WAV."
+    assert failed["audio"] is None
+    assert not list((tmp_path / "data").rglob("*.wav"))
+
+    provider.finish_next()
+    wait_for(core, lambda s: s["queue"] == [])
+    core.open_text(good_id)
+    ready = wait_for(core, all_ready)
+    assert ready["queue"] == []
+    (audio_id,) = ready["text"]["paragraphs"][0]["audio"]
+    audio = core.audio(audio_id)
+    assert audio is not None
+    assert audio.format == "wav"
+    assert audio.mime_type == "audio/wav"
+    assert audio.duration > 0
 
 
 def test_the_snapshot_gives_back_the_text_as_pasted_so_a_reloaded_page_can_show_it(make_core):

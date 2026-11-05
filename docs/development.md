@@ -24,6 +24,24 @@ compatibility change from the previous `main` was retained. See the
 [adoption record](design-reviews/main-adoption/README.md) for source commits
 and archived branch states.
 
+## Voice provider audio contract
+
+The current `Audio` and `VoiceProvider` contracts support **WAV only**, including
+Voice samples. Providers return WAV bytes and duration in seconds; Core rejects
+other runtime format values as a visible Narration failure before persistence,
+then continues the Narration queue. This format check does not decode arbitrary
+bytes or establish that a provider's declared WAV bytes are valid; that remains
+part of the provider contract, checked by the fake/real contract suite.
+
+A new WAV Voice provider is one module. A provider producing MP3 or another
+source format must normalize its output to WAV internally, or require a separate
+storage extension. This narrows the original [Issue #1](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/1)
+promise that an Edge/MP3 provider could be added as one module returning MP3;
+that broader promise is not implemented. Any future MP3 storage design must
+cover persistence, duration discovery, readback, deletion, size accounting and
+browser Playback after restart together. No decoder or storage migration is
+introduced now; ADR-0002 still defers the online provider.
+
 ## Local environment
 
 The [2026-11-05 code review fix plan](code-review-fix-plan-2026-11-05.md)

@@ -75,7 +75,7 @@ class LibraryFiles:
         return {path.stem for path in self._pieces.glob("*.wav")}
 
     def save_piece(self, audio_id: str, audio: Audio) -> None:
-        # Only Kokoro's WAV for now; the online Voice provider's MP3 needs its duration stored too.
+        # Core rejects unsupported provider output before it reaches persistence.
         assert audio.format == "wav"
         write_atomically(self._pieces / f"{audio_id}.wav", audio.data)
 

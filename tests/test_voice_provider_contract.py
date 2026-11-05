@@ -72,6 +72,10 @@ def test_every_voice_has_a_voice_sample_of_5_to_7_seconds(provider):
         sample = provider.sample(voice.id)
         assert sample is not None, voice.id
         assert 5.0 <= sample.duration <= 7.0, voice.id
+        assert sample.format == "wav", voice.id
+        assert sample.mime_type == "audio/wav", voice.id
+        with wave.open(io.BytesIO(sample.data)) as wav:
+            assert wav.getnframes() / wav.getframerate() == pytest.approx(sample.duration), voice.id
 
 
 def test_a_voice_it_does_not_have_has_no_sample(provider):

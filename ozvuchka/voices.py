@@ -48,14 +48,16 @@ class VoiceProvider(Protocol):
         ...
 
     def synthesize(self, text: str, voice: str, speed: float, cancel: Event | None = None) -> Audio:
-        """Synthesizes a piece; a set cancellation signal interrupts work with SynthesisCancelled.
+        """Synthesizes a piece into WAV Audio with its duration in seconds.
 
+        Other source formats must be normalized to WAV inside the provider.
+        A set cancellation signal interrupts work with SynthesisCancelled.
         The signal belongs to this call only. Completed pieces from earlier calls remain usable.
         """
         ...
 
     def sample(self, voice: str) -> Audio | None:
-        """A ready-made Voice sample of 5 to 7 seconds, played at once even before the provider is available;
+        """A ready-made WAV Voice sample of 5 to 7 seconds, played even before the provider is available;
         None for a Voice it does not have."""
         ...
 

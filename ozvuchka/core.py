@@ -770,6 +770,8 @@ class Core:
                 if not self._registry.available(voice):
                     raise RuntimeError(load_error or f"{voice.label}: голос недоступен")
                 result = self._registry.provider(voice).synthesize(text, voice.id, voice_speed, cancel)
+                if result.format != "wav":
+                    raise ValueError(f"Неподдерживаемый формат озвучки: {result.format}. Требуется WAV.")
             except SynthesisCancelled:
                 result = None
             except Exception as error:

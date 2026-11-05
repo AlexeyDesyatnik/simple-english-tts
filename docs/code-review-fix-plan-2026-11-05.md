@@ -1,12 +1,12 @@
 # Code review fix plan — 2026-11-05
 
-Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Finding 2 / Issue #41 has HTTP implementation, automated verification, a passing release ZIP smoke test, developer everyday browser acceptance and passing in-app Chromium foreign-loopback-origin checks; The developer accepted these checks as sufficient and requested closure on 2026-11-05; additional Edge/public HTTPS/LNA checks are waived, not recorded as passed. Verification and acceptance are recorded below. Finding 6 / Issue #42 is implemented and verified through bounded child-process and real-provider tests. Findings 4 / #43 and 5 / #44 remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
+Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Finding 2 / Issue #41 has HTTP implementation, automated verification, a passing release ZIP smoke test, developer everyday browser acceptance and passing in-app Chromium foreign-loopback-origin checks; The developer accepted these checks as sufficient and requested closure on 2026-11-05; additional Edge/public HTTPS/LNA checks are waived, not recorded as passed. Verification and acceptance are recorded below. Finding 6 / Issue #42 is implemented and verified through bounded child-process and real-provider tests. Finding 4 / Issue #43 is implemented and verified with the WAV contract and handled runtime-format rejection. Finding 5 / #44 remains planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
 
 ## Start here in a new session
 
 1. Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, docs/agents/issue-tracker.md, docs/agents/domain.md, docs/development.md and docs/manual-checks.md, then the relevant ADRs.
 2. Read this plan and [the original review](code-review-2026-11-05.md). The review's priorities are preliminary; this plan records the subsequent revalidation and chosen scope.
-3. Findings 1 / #39, 3 / #40, 2 / #41 and 6 / #42 are complete. Next is finding 4 / #43. The developer accepted the available #41 checks as sufficient on 2026-11-05 and requested closure. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
+3. Findings 1 / #39, 3 / #40, 2 / #41, 6 / #42 and 4 / #43 are complete. Next is finding 5 / #44. The developer accepted the available #41 checks as sufficient on 2026-11-05 and requested closure. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
 4. Write behaviour tests through the existing public seams before changing behaviour. Keep Core independent of HTTP and the page. Record verification and remaining limitations in the Issue.
 5. Before each implementation commit run `runtime\python.exe -m pytest`, `runtime\python.exe -m mypy`, and `runtime\python.exe -m ruff check`. Run relevant slow tests for provider/contract/cancellation-test changes; follow the coding standards for provider/build changes. HTTP protection also needs launcher/reopen and release ZIP smoke verification.
 
@@ -18,10 +18,10 @@ Recommended order: **1 → 3 → 2 → 6 → 4 → 5**. Findings 1 and 3 share u
 | 2 | 3 — Validate Library records | [#40](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/40) | Verified 2026-11-05 |
 | 3 | 2 — Reject foreign-origin commands | [#41](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/41) | Accepted 2026-11-05; additional browser matrix waived |
 | 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Verified 2026-11-05 |
-| 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Prefer #42 first |
+| 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Verified 2026-11-05 |
 | 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Independent |
 
-Suggested next-session instruction: “Continue with Issue #43 following docs/code-review-fix-plan-2026-11-05.md. Issue #42 bounds the real cancellation test by a child-process deadline and is verified. Issue #41 was accepted with the completed checks; do not resume its optional browser matrix.”
+Suggested next-session instruction: “Continue with Issue #44 following docs/code-review-fix-plan-2026-11-05.md. Issue #43 makes WAV the explicit provider contract and safely rejects unsupported runtime formats. Issue #41 was accepted with the completed checks; do not resume its optional browser matrix.”
 
 ## Evidence and limits
 
@@ -167,13 +167,20 @@ Decision: support WAV now; defer MP3 storage until a concrete provider requires 
 
 Acceptance:
 
-- [ ] Provider and Audio contracts explicitly describe supported WAV output; relevant Voice sample expectations are consistent.
-- [ ] Invalid-format output gives an observable Narration failure without terminating the worker; a subsequent valid Narration completes.
-- [ ] Existing fake/real provider contract tests verify WAV output and duration; required slow checks pass.
-- [ ] Documentation explicitly records the narrower current promise: a WAV provider is one new module; an MP3 provider must normalize internally or require a separate storage extension.
-- [ ] Document that this qualifies the original #1 promise of an Edge/MP3 provider added with one module. Do not silently present WAV-only as fulfilling that promise.
+- [x] Provider and Audio contracts explicitly describe supported WAV output; relevant Voice sample expectations are consistent.
+- [x] Invalid-format output gives an observable Narration failure without terminating the worker; a subsequent valid Narration completes.
+- [x] Existing fake/real provider contract tests verify WAV output and duration; required slow checks pass.
+- [x] Documentation explicitly records the narrower current promise: a WAV provider is one new module; an MP3 provider must normalize internally or require a separate storage extension.
+- [x] Document that this qualifies the original #1 promise of an Edge/MP3 provider added with one module. Do not silently present WAV-only as fulfilling that promise.
 
 Bounds: no MP3 decoder dependency, sidecar-duration format, storage migration or new online provider. If MP3 is later implemented, plan persistence/discovery/readback/deletion/size and browser playback-after-restart together. ADR-0002 continues to defer the online provider; this work does not reverse it.
+
+Implementation record (2026-11-05, #43):
+
+- `Audio.format` is `Literal["wav"]`; Audio, synthesis and Voice sample contracts explicitly require WAV. The MIME mapping no longer advertises MP3 support. Core checks a provider's runtime format inside the handled synthesis boundary, before persistence. Unsupported output becomes the visible Russian Paragraph error `Неподдерживаемый формат озвучки: mp3. Требуется WAV.`; it is neither saved nor measured as successful synthesis, and the worker continues.
+- The new Core-seam regression first reproduced the unhandled persistence assertion and stalled queue. With the fix, a fake returning runtime MP3 fails visibly without a WAV file, then the already queued valid Narration completes and is available as WAV Audio. Contract tests additionally check every fake/real Voice sample's WAV format, MIME type and byte-derived duration; existing synthesis checks cover WAV bytes and duration.
+- `CODING_STANDARDS.md` and `docs/development.md` explicitly qualify the original #1 Edge/MP3 one-module promise: only a WAV provider fits the current one-module extension seam. Other source formats need internal normalization or a separate storage design. ADR-0002's online-provider deferral is unchanged.
+- Agent verification: **210 ordinary tests passed, 8 slow tests passed**, `mypy`, `ruff check` and `git diff --check` passed. The real cancellation test remained bounded through #42 and successfully synthesized again on the same loaded provider. Slow tests used isolated writable TEMP/TMP for eSpeak. No provider algorithm, dependency, build, page or storage-schema change; no release rebuild or new developer manual/browser acceptance is required for this contract/error-handling fix. Existing school-device checks in `docs/manual-checks.md` remain unchanged.
 
 ## Finding 5 — Keep queue titles consistent with the Library
 

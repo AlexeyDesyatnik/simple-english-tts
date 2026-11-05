@@ -1,8 +1,9 @@
-"""Synthesized audio as the page receives it."""
+"""WAV audio returned by Voice providers and kept in the Library or played as a Voice sample."""
 
 import io
 import wave
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -10,13 +11,15 @@ from numpy.typing import ArrayLike
 
 @dataclass(frozen=True)
 class Audio:
+    """WAV bytes and their duration; other source formats must be converted by the provider."""
+
     data: bytes
-    format: str  # "wav" (Kokoro); later "mp3" (Edge)
+    format: Literal["wav"]
     duration: float  # seconds
 
     @property
     def mime_type(self) -> str:
-        return {"wav": "audio/wav", "mp3": "audio/mpeg"}[self.format]
+        return {"wav": "audio/wav"}[self.format]
 
 
 def wav_from_samples(samples: ArrayLike, sample_rate: int) -> Audio:
