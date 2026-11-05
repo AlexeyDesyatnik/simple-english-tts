@@ -582,14 +582,12 @@ function renderQueue(queue) {
         li.dataset.id = n.id;
         const title = document.createElement("span");
         title.className = "title";
-        title.textContent = `${n.title} · ${narrationLabel(n)}`;
         const left = document.createElement("span");
         left.className = "muted";
         const cancel = document.createElement("button");
         cancel.type = "button";
         cancel.className = "secondary";
         cancel.textContent = "Отменить";
-        cancel.setAttribute("aria-label", `Отменить подготовку · ${n.title} · ${narrationLabel(n)}`);
         cancel.setAttribute("aria-describedby", "queue-cancel-help");
         cancel.addEventListener("click", () => act({ command: "cancel", narration: n.id }));
         li.append(title, left, cancel);
@@ -602,9 +600,12 @@ function renderQueue(queue) {
     }
   }
   queue.forEach((n, i) => {
+    const row = queueEl.children[i];
+    row.querySelector(".title").textContent = `${n.title} · ${narrationLabel(n)}`;
+    row.querySelector("button").setAttribute("aria-label", `Отменить подготовку · ${n.title} · ${narrationLabel(n)}`);
     const state = n.synthesizing ? "Готовится" : "В очереди";
     const left = n.ready_in === null ? " · время пока неизвестно" : ` · готово через ${formatDuration(n.ready_in)}`;
-    queueEl.children[i].querySelector(".muted").textContent = state + left;
+    row.querySelector(".muted").textContent = state + left;
   });
 }
 

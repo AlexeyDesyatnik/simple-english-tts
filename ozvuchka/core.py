@@ -714,7 +714,10 @@ class Core:
                 {
                     "id": narration.id,
                     "text_id": narration.text_id,
-                    "title": _title(self._content(narration.text_id)),
+                    "title": next(
+                        (t.title or _title(t.content) for t in self._library if t.id == narration.text_id),
+                        _title(""),
+                    ),
                     "voice": narration.voice.key,
                     "speed": narration.speed,
                     "synthesizing": any(audio_id == self._synthesizing for audio_id, _ in pieces),

@@ -711,6 +711,46 @@ def test_editing_a_renamed_text_keeps_its_custom_title(make_core):
     assert core.snapshot()["library"][0]["title"] == "6B, Unit 3"
 
 
+@pytest.mark.parametrize("rename_before_enqueue", [True, False])
+def test_the_queue_uses_the_chosen_title_and_updates_it_without_changing_narration_id(
+    make_core, rename_before_enqueue,
+):
+    core = make_core(FakeVoiceProvider(loading=True))
+    core.set_text("Tom has a cat.")
+    text_id = core.snapshot()["text"]["id"]
+    if rename_before_enqueue:
+        core.rename_text(text_id, "6B, Unit 3")
+    core.enqueue()
+    narration_id = core.snapshot()["queue"][0]["id"]
+    if not rename_before_enqueue:
+        core.rename_text(text_id, "6B, Unit 3")
+
+    snapshot = core.snapshot()
+    assert snapshot["queue"][0]["title"] == "6B, Unit 3"
+    assert snapshot["queue"][0]["id"] == narration_id
+    assert snapshot["library"][0]["title"] == "6B, Unit 3"
+
+    core.rename_text(text_id, "6B, Unit 4")
+    snapshot = core.snapshot()
+    assert snapshot["queue"][0]["title"] == "6B, Unit 4"
+    assert snapshot["queue"][0]["id"] == narration_id
+
+
+def test_an_automatic_queue_title_tracks_edits_without_changing_narration_id(make_core):
+    core = make_core(FakeVoiceProvider(loading=True))
+    core.set_text("Tom has a cat.")
+    core.enqueue()
+    initial = core.snapshot()["queue"][0]
+    assert initial["title"] == "Tom has a cat."
+
+    core.set_text("Tom has a dog.")
+
+    snapshot = core.snapshot()
+    assert snapshot["queue"][0]["title"] == "Tom has a dog."
+    assert snapshot["queue"][0]["id"] == initial["id"]
+    assert snapshot["library"][0]["title"] == "Tom has a dog."
+
+
 def test_each_library_text_lists_only_its_fully_ready_narrations_with_voice_and_speed(make_core):
     core = make_core(FakeVoiceProvider())
     core.set_text("Tom has a cat.\nThe cat is black.")
