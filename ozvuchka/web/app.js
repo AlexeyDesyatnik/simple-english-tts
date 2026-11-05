@@ -731,7 +731,7 @@ function render(next) {
   document.getElementById("text-title").textContent = shownTitle;
   document.getElementById("text-title").title = shownTitle;
   const playing = ["playing", "waiting"].includes(snapshot.playback.state);
-  document.getElementById("play").textContent = playing ? "Пауза"
+  document.getElementById("play-label").textContent = playing ? "Пауза"
     : snapshot.playback.state === "paused" ? "Продолжить" : "Воспроизвести";
   const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
   const current = snapshot.text?.paragraphs[lingering ?? snapshot.playback.paragraph ?? snapshot.playback.ended_at];
@@ -808,6 +808,7 @@ function renderSave() {
     : editSequence !== savedSequence ? "Изменения не сохранены"
     : editSequence > 0 ? "Сохранено" : "Автосохранение после ввода";
   saveHintEl.className = saveError ? "error" : "muted";
+  document.getElementById("save-check").toggleAttribute("hidden", saveHintEl.textContent !== "Сохранено");
   saveRetryEl.hidden = !saveError;
   saveRetryEl.disabled = Boolean(saving) || transitionBusy;
 }
