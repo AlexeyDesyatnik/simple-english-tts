@@ -24,6 +24,11 @@ compatibility change from the previous `main` was retained. See the
 [adoption record](design-reviews/main-adoption/README.md) for source commits
 and archived branch states.
 
+The developer approved the follow-up [UI visual refresh plan](ui-visual-refresh-plan.md)
+on 2026-11-05. It preserves the accepted interaction model and defines the target visual
+language, six implementation stages and their browser/hardware acceptance. It is a plan,
+not a description of an implemented refresh.
+
 ## Voice provider audio contract
 
 The current `Audio` and `VoiceProvider` contracts support **WAV only**, including

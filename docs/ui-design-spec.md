@@ -9,6 +9,12 @@ the retired alternatives are not sources of further design changes. The previous
 `main` contributes only its NumPy 2.3.5 compatibility pin and explanation.
 See [the adoption record](design-reviews/main-adoption/README.md).
 
+Post-adoption visual refresh, 2026-11-05: the developer approved the visual direction and
+six-stage [UI visual refresh plan](ui-visual-refresh-plan.md). That plan defines a target,
+not the current appearance. Until its implementation and acceptance, this specification and
+the integrated acceptance record continue to describe the current design. The refresh keeps
+this specification's behaviour, accessibility and responsive requirements unchanged.
+
 This specification defines the independent UI design implementation on `experiment-2`.
 The developer treats the work on this branch and the two other implementation tracks as
 three alternatives. Existing Issues and implementations on other branches are not
