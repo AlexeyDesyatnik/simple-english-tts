@@ -4,7 +4,6 @@ import io
 import threading
 import time
 import wave
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -88,37 +87,33 @@ def test_a_cancelled_call_produces_no_audio_and_does_not_cancel_the_next_call(pr
     assert provider.synthesize("Hello, class.", voice, 1.0, threading.Event()).duration > 0
 
 
+def test_a_blocked_cancellation_child_is_killed_and_reaped_with_diagnostics(tmp_path, monkeypatch):
+    import subprocess
+
+    from tests import kokoro_cancellation
+
+    children = []
+    popen = subprocess.Popen
+
+    def start(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", start)
+    before = time.monotonic()
+    with pytest.raises(AssertionError, match="scenario deadline") as failure:
+        kokoro_cancellation.run_child(tmp_path, blocked=True, load_timeout=10, scenario_timeout=0.5)
+    assert time.monotonic() - before < 15
+    assert len(children) == 1
+    assert children[0].poll() is not None
+    assert "Blocked inference is still running" in str(failure.value)
+    assert "TimeoutError" in str(failure.value)
+    assert str(children[0].pid) in str(failure.value)
+
+
 @pytest.mark.slow
-def test_real_kokoro_interrupts_an_active_synthesis_and_can_synthesize_again(kokoro, monkeypatch):
-    import onnxruntime
+def test_real_kokoro_interrupts_an_active_synthesis_and_can_synthesize_again(tmp_path):
+    from tests.kokoro_cancellation import run_child
 
-    cancel = threading.Event()
-    started = threading.Event()
-    run = onnxruntime.InferenceSession.run
-
-    def inference(session, output_names, inputs, run_options=None):
-        # Synchronize at the public native boundary so this cancels inference, not just phonemization.
-        started.set()
-        return run(session, output_names, inputs, run_options)
-
-    monkeypatch.setattr(onnxruntime.InferenceSession, "run", inference)
-
-    def synthesize():
-        return kokoro.synthesize(
-            "The children walked through the village and talked about the books they had read. " * 20,
-            "bf_alice", 1.0, cancel,
-        )
-
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(synthesize)
-        try:
-            assert started.wait(timeout=10)
-            time.sleep(0.1)
-            assert not future.done(), "The long synthesis must still be running when it is cancelled"
-        finally:
-            before = time.monotonic()
-            cancel.set()
-        with pytest.raises(SynthesisCancelled):
-            future.result(timeout=5)
-        print(f"Real Kokoro cancellation returned after {time.monotonic() - before:.3f} s")
-    assert kokoro.synthesize("Good morning.", "bm_george", 1.0, threading.Event()).duration > 0
+    print(run_child(tmp_path))

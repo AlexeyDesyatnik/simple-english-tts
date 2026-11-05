@@ -1,12 +1,12 @@
 # Code review fix plan — 2026-11-05
 
-Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Finding 2 / Issue #41 has HTTP implementation, automated verification, a passing release ZIP smoke test, developer everyday browser acceptance and passing in-app Chromium foreign-loopback-origin checks; The developer accepted these checks as sufficient and requested closure on 2026-11-05; additional Edge/public HTTPS/LNA checks are waived, not recorded as passed. Verification and acceptance are recorded below. Other findings remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
+Status: finding 1 / Issue #39 accepted by the developer, and finding 3 / Issue #40 implemented and verified through Core on 2026-11-05. Finding 2 / Issue #41 has HTTP implementation, automated verification, a passing release ZIP smoke test, developer everyday browser acceptance and passing in-app Chromium foreign-loopback-origin checks; The developer accepted these checks as sufficient and requested closure on 2026-11-05; additional Edge/public HTTPS/LNA checks are waived, not recorded as passed. Verification and acceptance are recorded below. Finding 6 / Issue #42 is implemented and verified through bounded child-process and real-provider tests. Findings 4 / #43 and 5 / #44 remain planned. The developer requested that this plan be recorded in project documentation and GitHub Issues.
 
 ## Start here in a new session
 
 1. Read AGENTS.md, CODING_STANDARDS.md, GLOSSARY.md, docs/agents/issue-tracker.md, docs/agents/domain.md, docs/development.md and docs/manual-checks.md, then the relevant ADRs.
 2. Read this plan and [the original review](code-review-2026-11-05.md). The review's priorities are preliminary; this plan records the subsequent revalidation and chosen scope.
-3. Findings 1 / #39, 3 / #40 and 2 / #41 are complete; the developer accepted the available #41 checks as sufficient on 2026-11-05 and requested closure. Next is finding 6 / #42. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
+3. Findings 1 / #39, 3 / #40, 2 / #41 and 6 / #42 are complete. Next is finding 4 / #43. The developer accepted the available #41 checks as sufficient on 2026-11-05 and requested closure. Read the Issue's latest comments before implementation. Work through one bounded fix at a time; do not resume retired UI design tracks.
 4. Write behaviour tests through the existing public seams before changing behaviour. Keep Core independent of HTTP and the page. Record verification and remaining limitations in the Issue.
 5. Before each implementation commit run `runtime\python.exe -m pytest`, `runtime\python.exe -m mypy`, and `runtime\python.exe -m ruff check`. Run relevant slow tests for provider/contract/cancellation-test changes; follow the coding standards for provider/build changes. HTTP protection also needs launcher/reopen and release ZIP smoke verification.
 
@@ -17,11 +17,11 @@ Recommended order: **1 → 3 → 2 → 6 → 4 → 5**. Findings 1 and 3 share u
 | 1 | 1 — Preserve audio on persistence failure | [#39](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/39) | Accepted 2026-11-05 |
 | 2 | 3 — Validate Library records | [#40](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/40) | Verified 2026-11-05 |
 | 3 | 2 — Reject foreign-origin commands | [#41](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/41) | Accepted 2026-11-05; additional browser matrix waived |
-| 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Before #43 slow verification |
+| 4 | 6 — Bound cancellation test | [#42](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/42) | Verified 2026-11-05 |
 | 5 | 4 — Explicit WAV contract | [#43](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/43) | Prefer #42 first |
 | 6 | 5 — Consistent queue titles | [#44](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/44) | Independent |
 
-Suggested next-session instruction: “Continue with Issue #42 following docs/code-review-fix-plan-2026-11-05.md. Issue #41 was accepted with the completed HTTP, release and browser checks; do not resume its optional browser matrix.”
+Suggested next-session instruction: “Continue with Issue #43 following docs/code-review-fix-plan-2026-11-05.md. Issue #42 bounds the real cancellation test by a child-process deadline and is verified. Issue #41 was accepted with the completed checks; do not resume its optional browser matrix.”
 
 ## Evidence and limits
 
@@ -142,12 +142,20 @@ Run the specific real cancellation scenario in a child process with a parent-enf
 
 Acceptance:
 
-- [ ] The real test still proves active cancellation and successful subsequent synthesis on the same loaded provider.
-- [ ] A deliberately blocked child demonstrates bounded failure and cleanup without consuming the CI job's 60-minute timeout.
-- [ ] Parent timeout handling terminates/reaps the child and returns a diagnostic failure on Windows.
-- [ ] Relevant slow tests pass; no production cancellation algorithm change is made.
+- [x] The real test still proves active cancellation and successful subsequent synthesis on the same loaded provider.
+- [x] A deliberately blocked child demonstrates bounded failure and cleanup without consuming the CI job's 60-minute timeout.
+- [x] Parent timeout handling terminates/reaps the child and returns a diagnostic failure on Windows.
+- [x] Relevant slow tests pass; no production cancellation algorithm change is made.
 
 Do not substitute shutdown(wait=False): [Python 3.12 documents](https://docs.python.org/3.12/library/concurrent.futures.html) that interpreter exit still waits for executor threads. Do not build a general test framework. School-device cancellation latency remains covered by #24, not established by this test change.
+
+Implementation record (2026-11-05, #42):
+
+- The real cancellation scenario now runs in `tests/kokoro_cancellation.py` as a child of the contract test. The parent allows 120 s for process/model startup and a separate 30 s for the scenario. Native inference must start within 10 s; cancellation is measured from its signal and still has the existing 5 s result deadline. A parent deadline also covers a stuck executor exit or subsequent synthesis. Cancellation and the next Voice use one loaded provider in the child.
+- Parent cleanup kills a still-running child and waits for process exit before returning. Failure diagnostics retain PID, exit code, phase/deadline and combined stdout/stderr in the pytest temporary directory. The child prints readiness, active inference, cancellation and subsequent-synthesis progress; a cancellation timeout is printed before potentially blocking executor cleanup.
+- A normal fast test deliberately blocks an executor thread in a child, reproducing the original shutdown wait. Its 0.5 s scenario deadline produces a diagnostic assertion; the test verifies bounded return, exited child and retained original timeout output. It uses no Kokoro model.
+- Agent verification on Windows: full ordinary suite **209 passed, 8 slow tests deselected**; full slow suite **8 passed**, including cancellation after **0.016 s** on the final run and subsequent successful synthesis on the same provider. `mypy`, `ruff check` and `git diff --check` passed. The initial slow run failed because eSpeak could not copy its DLL into the sandbox's default temporary folder; rerunning with isolated writable TEMP/TMP succeeded.
+- Production/provider/build code is unchanged. No new release build or developer browser acceptance is needed for this test-only fix; existing hardware checks in `docs/manual-checks.md` remain unchanged. This development-PC timing is not a school-device latency guarantee.
 
 ## Finding 4 — Make WAV the explicit current provider contract
 
