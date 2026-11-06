@@ -1,5 +1,9 @@
 # Stage 7 — save acknowledgement and ordering (#34)
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Independent branch: `experiment-2`. Starting tree: clean,
 `11433bc`. The final acceptance section of the #33 handoff supersedes its earlier
 pending statements: stages 1–6 are accepted. #33 and all other Issues were untouched.
@@ -197,3 +201,9 @@ were made; the previous stages' full responsive/zoom matrix was not repeated.
 
 Stage 7 awaits developer acceptance. Ask separately before push or CI inspection;
 do not close #33 in this session. No work on stages 8–9 was started.
+
+## Final status
+
+The developer accepted stage 7 on 2026-11-04, and #34 is closed. The pending
+acceptance instructions above belong to the historical handoff. Stage 8 and its
+acceptance are recorded in the [stage 8 handoff](../issue-35/README.md).

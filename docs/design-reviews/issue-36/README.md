@@ -1,5 +1,9 @@
 # Stage 9 — reload and page-hide safety (#36)
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`. Starting tree was clean at `510566e`.
 Stages 1–8 were accepted at implementation start. The then-open #36 was read in the built-in browser:
 `gh issue view` returned 401 and unauthenticated REST was rate-limited.

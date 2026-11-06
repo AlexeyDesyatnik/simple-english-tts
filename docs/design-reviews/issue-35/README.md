@@ -1,5 +1,9 @@
 # Stage 8 — visible autosave and safe Text transitions (#35)
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Independent branch: `experiment-2`. Starting tree: clean,
 HEAD `87edb98` (accepted stage 7, still local). Stages 1–7 are accepted and #34
 is closed according to the developer's handoff. The current open #35 was read

@@ -1,5 +1,9 @@
 # Stage 10 — integrated acceptance (#37)
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`. Starting tree was clean at `b3b212c`,
 five commits ahead of its upstream. Authenticated host GitHub CLI confirmed #36
 closed and #37 open. Stages 1–9 were already accepted. At implementation handoff,

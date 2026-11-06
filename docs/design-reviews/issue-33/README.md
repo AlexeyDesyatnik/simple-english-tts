@@ -1,5 +1,9 @@
 # Stage 6 application dialogs and keyboard — verification and handoff
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#33](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/33).
 Baseline: `c84d1a5`, clean tree, tracking `origin/experiment-2` with no divergence.

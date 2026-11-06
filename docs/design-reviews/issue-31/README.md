@@ -1,5 +1,9 @@
 # Stage 4 Voice choice and Narration queue — verification and handoff
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#31](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/31).
 Baseline: `b3b7b50`, clean working tree, identical to `origin/experiment-2`.

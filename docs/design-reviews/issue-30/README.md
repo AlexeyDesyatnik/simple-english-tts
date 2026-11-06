@@ -1,5 +1,9 @@
 # Stage 3 Library — verification and handoff
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`.
 Issue: [#30](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/30).
 Baseline: `88b56ea`, with a clean working tree and no difference from the tracking branch.

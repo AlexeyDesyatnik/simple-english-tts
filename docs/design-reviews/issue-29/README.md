@@ -1,5 +1,9 @@
 # Stage 2 preparation workspace — verification and handoff
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-04. Branch: `experiment-2`. Issue: [#29](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/29).
 Baseline: `aca9918`, following `289ea5b`. Stage 1's visual direction was explicitly
 accepted by the developer on 2026-11-03; that approval is recorded in the #28 handoff.

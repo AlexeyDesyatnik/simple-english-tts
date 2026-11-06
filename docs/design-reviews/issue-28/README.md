@@ -1,5 +1,9 @@
 # Stage 1 visual review and fresh-session handoff
 
+> **Historical record:** the stage and its Issue are complete. Branch rules, pending
+> statuses, localhost servers and next-session instructions below describe the work at
+> that time, not current guidance. See the [current UI design specification](../../ui-design-spec.md).
+
 Date: 2026-11-03. Branch: `experiment-2`. Issue: [#28](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/28).
 
 ## Review gate

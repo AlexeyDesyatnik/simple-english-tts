@@ -1,5 +1,9 @@
 # Code review findings — 2026-11-05
 
+> **Historical record:** these findings describe the code reviewed on 2026-11-05.
+> All six fixes were subsequently implemented and accepted; see the
+> [completed fix plan](code-review-fix-plan-2026-11-05.md).
+
 This is a handoff for planning fixes, not an implementation plan. The findings below
 were inferred from reading the current code; the individual failure scenarios were
 not reproduced separately. Revalidate them against the current code and distinguish

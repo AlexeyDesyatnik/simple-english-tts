@@ -1,5 +1,9 @@
 # Code review fix plan — 2026-11-05
 
+> **Historical record:** the start-here and implementation-order instructions below
+> describe completed work, not current onboarding. See [development.md](development.md)
+> for current development guidance.
+
 Status: all six findings / Issues #39–#44 are implemented and verified. Developer everyday acceptance for #44 passed on 2026-11-05, completing this fix plan. The additional Edge/public HTTPS/LNA scenarios for #41 were waived by the developer, not recorded as passed. Existing school-device acceptance in #24 and docs/manual-checks.md remains separate and unchanged. Verification and acceptance are recorded below.
 
 ## Start here in a new session
