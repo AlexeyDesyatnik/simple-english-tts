@@ -16,7 +16,7 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 
 - Code, comments, internal documentation and commit messages are in English.
   README.md, teacher-facing instructions and everything the teacher sees in the program are in Russian.
-- Domain concepts are named as in `GLOSSARY.md`, capitalized in prose (Text, Paragraph, Voice, Narration), never with the synonyms it lists under _Avoid_. A concept the glossary lacks is a gap to settle with `/domain-modeling`, not a word to invent.
+- Domain concepts are named as in `GLOSSARY.md`, capitalized in prose (Text, Paragraph, Voice, Narration), never with the synonyms it lists under _Avoid_. If a needed concept is missing, settle the terminology with the developer and add it to the glossary rather than inventing a parallel term.
 
 ## Shape
 
@@ -38,11 +38,11 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 - Tests check behaviour through public seams only:
   - the core: commands, events and the snapshot, built with `FakeVoiceProvider`, `FakeClock` and a temporary data folder;
   - the `VoiceProvider` contract, run against the fake and the real providers;
-  - one HTTP smoke test;
+  - the HTTP adapter: commands and events, snapshots, Voice samples and audio, save acknowledgement/failure/stale results, and `Host`, `Origin` and `Content-Type` protection, including the absence of side effects from rejected requests;
   - the rotation of the program log;
   - the smoke test of the release zip, `tools\smoke_test.py`, run in GitHub Actions on every push (run it locally after touching the build or the launcher).
 - Internal modules (`ozvuchka/text.py`, storage, scheduling) have no tests of their own, so they can be reworked freely.
-- Write tests first (`/tdd`). A test name reads as a sentence of the spec; expected values are literals from the spec or a worked example, never recomputed the way the code does it.
+- Write tests first and check that they fail before the implementation. A test name reads as a sentence of the spec; expected values are literals from the spec or a worked example, never recomputed the way the code does it.
 - Tests that use the real Kokoro are marked `slow`.
 - The page has no automated tests: check it in the built-in browser against the real program.
 

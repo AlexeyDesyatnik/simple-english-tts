@@ -16,19 +16,10 @@ Review older-CPU support before upgrading this dependency.
 
 ## UI design
 
-The accepted ten-stage `experiment-2` implementation is now the basis of `main`.
-Its [UI design specification](ui-design-spec.md) and
-[integrated acceptance record](design-reviews/issue-37/README.md) describe
-the current design. The other design alternatives are retired; only the NumPy
-compatibility change from the previous `main` was retained. See the
-[adoption record](design-reviews/main-adoption/README.md) for source commits
-and archived branch states.
-
-The [UI visual refresh](ui-visual-refresh-plan.md) approved on 2026-11-05 is implemented
-and accepted on `main`. It preserves the accepted interaction model. See the
-[refresh browser/release record](design-reviews/ui-visual-refresh/README.md) for the six
-implementation commits, final screenshots and checks. The developer confirmed actual 200%
-zoom, projector/back-row and Celeron/i5 visual acceptance on 2026-11-06.
+The [UI design specification](ui-design-spec.md) is the source of truth for the current
+UI on `main`. It includes the accepted `experiment-2` interaction model and the visual
+refresh accepted on 2026-11-06. Completed design and acceptance records are listed under
+[Historical records](#historical-records), not as current implementation tasks.
 
 ## Voice provider audio contract
 
@@ -49,11 +40,6 @@ browser Playback after restart together. No decoder or storage migration is
 introduced now; ADR-0002 still defers the online provider.
 
 ## Local environment
-
-The completed [2026-11-05 code review fix plan](code-review-fix-plan-2026-11-05.md)
-records the six implemented fixes (#39–#44), their verification and acceptance.
-It and the [original review](code-review-2026-11-05.md) are historical records,
-not sources of current implementation tasks.
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
 
@@ -141,3 +127,15 @@ To update, replace the folder's `runtime\`, `ozvuchka\`, `models\`, `licenses\`,
 When publishing a release, check the Russian README against the shipped interface,
 update button names and the screenshot, and remove any obsolete next-version note.
 The teacher download link must lead to a published release, not an Actions artifact.
+
+## Historical records
+
+These completed documents preserve implementation evidence and acceptance; they are not
+current onboarding or task lists:
+
+- [Main adoption record](design-reviews/main-adoption/README.md) and
+  [integrated UI acceptance](design-reviews/issue-37/README.md).
+- [Completed UI visual refresh plan](design-reviews/ui-visual-refresh/plan.md) and its
+  [browser/release record](design-reviews/ui-visual-refresh/README.md).
+- The [2026-11-05 code review](code-review-2026-11-05.md) and its
+  [completed fix plan](code-review-fix-plan-2026-11-05.md).

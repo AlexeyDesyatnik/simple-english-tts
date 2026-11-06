@@ -1,7 +1,7 @@
 # UI visual refresh — implementation and verification record
 
 Date: 2026-11-06. Branch: `main`. The direction was approved on 2026-11-05 in the
-[UI visual refresh plan](../../ui-visual-refresh-plan.md). The work changed presentation only;
+[UI visual refresh plan](plan.md). The work changed presentation only;
 the accepted interaction model and Core/HTTP contracts remain unchanged.
 
 ## Implementation commits

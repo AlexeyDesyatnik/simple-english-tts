@@ -1,4 +1,4 @@
-"""Smoke test: commands and their results, the snapshot, a Voice sample and the audio pass through the HTTP layer."""
+"""HTTP adapter tests: commands, snapshots, Voice samples and audio, save results, and request-header protection."""
 
 import http.client
 import json

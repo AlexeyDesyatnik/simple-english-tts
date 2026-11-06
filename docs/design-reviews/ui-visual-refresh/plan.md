@@ -7,11 +7,11 @@ acceptance checks on 2026-11-06.
 ## Authority and relationship to the accepted UI
 
 This completed plan records the target visual language and delivery sequence for the UI
-update. It supplements the [accepted UI design specification](ui-design-spec.md), which
+update. It supplements the [accepted UI design specification](../../ui-design-spec.md), which
 remains authoritative for application behaviour, terminology, accessibility, responsive
 disclosures, persistence and Playback mode. The plan describes design targets rather than
 the current appearance; implementation and acceptance evidence is in the
-[refresh browser/release record](design-reviews/ui-visual-refresh/README.md).
+[refresh browser/release record](README.md).
 
 The refresh changes presentation, not the accepted interaction model. If a visual proposal
 conflicts with an existing behavioural requirement, preserve the behaviour and resolve the

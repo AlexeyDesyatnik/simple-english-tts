@@ -1,6 +1,6 @@
 # AGENTS.md
 
-## Agent skills
+## Agent guidance
 
 ### Issue tracker
 

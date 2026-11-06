@@ -9,7 +9,7 @@ retired alternatives are not sources of further design changes. The previous
 See [the adoption record](design-reviews/main-adoption/README.md).
 
 The developer approved, implemented and accepted the six-stage
-[UI visual refresh](ui-visual-refresh-plan.md) on 2026-11-06. The
+[UI visual refresh](design-reviews/ui-visual-refresh/plan.md) on 2026-11-06. The
 [refresh browser/release record](design-reviews/ui-visual-refresh/README.md) contains final
 screenshots and checks. This specification describes the refreshed visual language. The
 refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom,
@@ -242,7 +242,10 @@ Run pytest, mypy, and ruff before each commit as CODING_STANDARDS.md requires. A
 behaviour tests through public seams when Core behaviour changes; do not add tests
 that merely assert CSS/DOM structure. Slow tests apply if provider/build code changes.
 
-Hardware-only acceptance belongs in `docs/manual-checks.md` in the same implementation
-commit that creates the need, with its owning Issue: projector/back-row readability,
-presenter remote, and school-laptop responsiveness. Browser checks do not establish
-these outcomes. This specification does not mark any of them complete.
+Hardware-only acceptance belongs in [`docs/manual-checks.md`](manual-checks.md) in the
+same implementation commit that creates the need, with its owning Issue. The visual
+refresh acceptance confirmed actual 200% zoom, projector/back-row readability and
+Celeron/i5 visual checks on 2026-11-06. It does not complete the separate #24 checks for
+presenter-remote behaviour, school-laptop responsiveness, real Voice/queue behaviour,
+native cancellation latency or older-CPU integration. Browser checks do not establish
+those outcomes.
