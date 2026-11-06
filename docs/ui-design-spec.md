@@ -6,18 +6,16 @@ The developer accepted all ten design stages and selected their implementation a
 the new `main` on 2026-11-04. Future work starts from the adopted `main`; the
 retired alternatives are not sources of further design changes. The previous
 `main` contributed only its NumPy 2.3.5 compatibility pin and explanation.
-See [the adoption record](design-reviews/main-adoption/README.md).
+See [#37](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/37) for the UI
+acceptance and [#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)
+for the compatibility decision.
 
-The developer approved, implemented and accepted the six-stage
-[UI visual refresh](design-reviews/ui-visual-refresh/plan.md) on 2026-11-06. The
-[refresh browser/release record](design-reviews/ui-visual-refresh/README.md) contains final
-screenshots and checks. This specification describes the refreshed visual language. The
-refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom,
+The developer approved, implemented and accepted the six-stage UI visual refresh on
+2026-11-06. This specification describes the refreshed visual language. The refresh
+kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom,
 projector/back-row and Celeron/i5 visual acceptance were confirmed by the developer.
 
 This document is the design source of truth for the current UI on `main`.
-Historical stage records are retained under `design-reviews/`; their branch rules,
-pending statuses and delivery instructions describe completed work.
 Project documentation is in English; all teacher-facing text is in Russian.
 
 ## Goals

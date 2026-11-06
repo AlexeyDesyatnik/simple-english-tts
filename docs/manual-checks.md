@@ -33,8 +33,8 @@ the new combined archive on the old computer.
 Stage 10 consolidated the outstanding stage checks below without marking any of
 those checks passed. Use the adopted `main` (the accepted `experiment-2` design)
 and a disposable Library with 20 Texts, a long title and several ready
-Narrations. Browser evidence and the short everyday-use acceptance are in
-`docs/design-reviews/issue-37/README.md`. The developer accepted stage 10 on
+Narrations. Browser evidence and the short everyday-use acceptance are recorded in
+[#37](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/37). The developer accepted stage 10 on
 2026-11-04, explicitly confirming actual 200% browser zoom. The visual refresh
 acceptance on 2026-11-06 also confirmed actual 200% zoom and projector/Celeron/i5
 visual checks. That acceptance did not supply the device interaction and

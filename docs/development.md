@@ -127,15 +127,3 @@ To update, replace the folder's `runtime\`, `ozvuchka\`, `models\`, `licenses\`,
 When publishing a release, check the Russian README against the shipped interface,
 update button names and the screenshot, and remove any obsolete next-version note.
 The teacher download link must lead to a published release, not an Actions artifact.
-
-## Historical records
-
-These completed documents preserve implementation evidence and acceptance; they are not
-current onboarding or task lists:
-
-- [Main adoption record](design-reviews/main-adoption/README.md) and
-  [integrated UI acceptance](design-reviews/issue-37/README.md).
-- [Completed UI visual refresh plan](design-reviews/ui-visual-refresh/plan.md) and its
-  [browser/release record](design-reviews/ui-visual-refresh/README.md).
-- The [2026-11-05 code review](code-review-2026-11-05.md) and its
-  [completed fix plan](code-review-fix-plan-2026-11-05.md).
