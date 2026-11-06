@@ -50,10 +50,10 @@ introduced now; ADR-0002 still defers the online provider.
 
 ## Local environment
 
-The [2026-11-05 code review fix plan](code-review-fix-plan-2026-11-05.md)
-records revalidated findings, implementation Issues, dependencies and acceptance.
-Follow the plan's current task and implementation order;
-the original review is [here](code-review-2026-11-05.md).
+The completed [2026-11-05 code review fix plan](code-review-fix-plan-2026-11-05.md)
+records the six implemented fixes (#39–#44), their verification and acceptance.
+It and the [original review](code-review-2026-11-05.md) are historical records,
+not sources of current implementation tasks.
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
 

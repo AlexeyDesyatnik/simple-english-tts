@@ -1,30 +1,23 @@
-# UI design specification — experiment-2
+# UI design specification
 
 ## Authority and scope
 
-Adoption update, 2026-11-04: the developer accepted all ten stages and selected
-this implementation as the new `main`. The branch isolation rules below describe
-the completed design experiment. Future work starts from the adopted `main`;
-the retired alternatives are not sources of further design changes. The previous
-`main` contributes only its NumPy 2.3.5 compatibility pin and explanation.
+The developer accepted all ten design stages and selected their implementation as
+the new `main` on 2026-11-04. Future work starts from the adopted `main`; the
+retired alternatives are not sources of further design changes. The previous
+`main` contributed only its NumPy 2.3.5 compatibility pin and explanation.
 See [the adoption record](design-reviews/main-adoption/README.md).
 
-Post-adoption visual refresh, 2026-11-06: the developer approved, implemented and accepted
-the six-stage [UI visual refresh plan](ui-visual-refresh-plan.md). The
+The developer approved, implemented and accepted the six-stage
+[UI visual refresh](ui-visual-refresh-plan.md) on 2026-11-06. The
 [refresh browser/release record](design-reviews/ui-visual-refresh/README.md) contains final
-screenshots and checks. This specification now describes the refreshed visual language. The
+screenshots and checks. This specification describes the refreshed visual language. The
 refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom,
 projector/back-row and Celeron/i5 visual acceptance were confirmed by the developer.
 
-This specification defines the independent UI design implementation on `experiment-2`.
-The developer treats the work on this branch and the two other implementation tracks as
-three alternatives. Existing Issues and implementations on other branches are not
-dependencies, acceptance criteria, or sources of implementation work for this track.
-Do not close, modify, or reuse their Issues. The stage Issues linked below belong only
-to this specification and branch.
-
-This document is the design source of truth; GitHub Issues hold the implementation
-stages. The developer explicitly requested the specification in project documentation.
+This document is the design source of truth for the current UI on `main`.
+Historical stage records are retained under `design-reviews/`; their branch rules,
+pending statuses and delivery instructions describe completed work.
 Project documentation is in English; all teacher-facing text is in Russian.
 
 ## Goals
@@ -146,8 +139,6 @@ Group the transport in the order previous Paragraph, primary Pause/Continue acti
 next Paragraph. Put `Повторить абзац` beside that group with a small gap, retaining
 one filled primary action. Keep the navigation group together in narrow windows
 where it fits, with repeat and Text size tools wrapping below it.
-This arrangement was approved during the stage 1 visual review on 2026-11-03;
-stage 5 completes its behavior and integrated verification.
 
 Do not show enqueue here. Keep Text size controls near the reading
 tools and provide compact keyboard help and a hint about starting from a Paragraph.
@@ -252,50 +243,6 @@ behaviour tests through public seams when Core behaviour changes; do not add tes
 that merely assert CSS/DOM structure. Slow tests apply if provider/build code changes.
 
 Hardware-only acceptance belongs in `docs/manual-checks.md` in the same implementation
-commit that creates the need, with its stage Issue: projector/back-row readability,
+commit that creates the need, with its owning Issue: projector/back-row readability,
 presenter remote, and school-laptop responsiveness. Browser checks do not establish
-these outcomes. This planning document does not mark any of them complete.
-
-## Delivery stages and fresh-session handoff
-
-Implement the ten stages sequentially, each in a fresh bounded session if useful.
-They are sized for GPT-6.1 Sol with room for inspection, implementation, browser checks,
-and fixes; this is a scope discipline, not an exact model context-capacity guarantee.
-Keep most UI stages in the three web files. Split unexpected cross-layer work rather
-than combining a player rewrite, persistence change, and layout revision in one stage.
-
-1. Visual direction: tokens and browser-checkable workspace/Playback mode prototype.
-2. Workspace layout: wide/narrow structure and visible editor/primary action.
-3. Library: rows, selection, ready Narrations, search/empty states, action menus.
-4. Voices and queue: compact choice, samples, availability, stable queue summary/details.
-5. Playback mode: transport, Paragraph navigation/progress, reading layout, return.
-6. Dialogs and keyboard: application dialogs, title editing, focus and shortcut journeys.
-7. Save acknowledgement: minimal Core/HTTP contract and ordering guarantees.
-8. UI autosave: debounce, save states, flush-before-action, typing stability, retry.
-9. Reload/page-hide safety: pending edits, request races, lifecycle and documented limits.
-10. Integrated acceptance: complete visual/interaction matrix and small corrective fixes.
-
-Stage 1 presents both screens for design review before detailed implementation.
-Stage 6 completes dialogs that stages 3–4 may temporarily implement with existing
-confirmations. Accessibility is required throughout, not deferred to stage 6 or 10.
-Stages 7–9 are deliberately separate: do not hide persistence work in styling changes.
-Stage 10 must not become an unbounded redesign; split substantial discoveries into
-new Issues for this track.
-
-Each handoff records the stage goal/exclusions, changed files and public contracts,
-acceptance checks, resulting commit, screenshot/check record, and remaining limitations.
-Read this document, AGENTS.md, relevant glossary/ADR entries, CODING_STANDARDS.md, the
-current stage Issue, and the preceding handoff. Do not require the full chat history.
-
-### Issue index
-
-1. [Establish the visual direction](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/28)
-2. [Build the preparation workspace layout](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/29)
-3. [Refine Library rows and actions](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/30)
-4. [Compact Voice selection and Narration queue](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/31)
-5. [Improve Playback mode and reading layout](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/32)
-6. [Finish application dialogs and keyboard journeys](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/33)
-7. [Define reliable save acknowledgement and ordering](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/34)
-8. [Add visible autosave and safe Text transitions](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/35)
-9. [Protect edits across reload and page hide](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/36)
-10. [Complete integrated visual and interaction acceptance](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/37)
+these outcomes. This specification does not mark any of them complete.

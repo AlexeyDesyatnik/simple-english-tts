@@ -75,3 +75,16 @@ Use a fresh disposable copy of the new main archive on the old computer: start
 the launcher, paste a short English Text, synthesize/play it, close/reopen, and
 confirm the Text remains and `data/ozvuchka.log` exists. Expect no NumPy startup
 failure. No benchmark or exhaustive UI reacceptance is required.
+
+## Completed UI design stages
+
+1. [Establish the visual direction](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/28)
+2. [Build the preparation workspace layout](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/29)
+3. [Refine Library rows and actions](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/30)
+4. [Compact Voice selection and Narration queue](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/31)
+5. [Improve Playback mode and reading layout](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/32)
+6. [Finish application dialogs and keyboard journeys](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/33)
+7. [Define reliable save acknowledgement and ordering](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/34)
+8. [Add visible autosave and safe Text transitions](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/35)
+9. [Protect edits across reload and page hide](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/36)
+10. [Complete integrated visual and interaction acceptance](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/37)
