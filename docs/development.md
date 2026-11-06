@@ -39,6 +39,13 @@ cover persistence, duration discovery, readback, deletion, size accounting and
 browser Playback after restart together. No decoder or storage migration is
 introduced now; ADR-0002 still defers the online provider.
 
+MP3 export does not broaden this WAV contract. `lameenc==1.9.0` encodes ready mono
+16-bit 24 kHz WAV pieces in memory at 128 kbit/s, with the same piece fades and 0.7-second
+Paragraph pauses as browser playback. It neither synthesizes missing pieces nor stores MP3
+or intermediate WAV files in the Library. The pinned CPython 3.12 Windows x64 wheel is
+self-contained; no compiler, system LAME/FFmpeg, decoder stack, or network is needed at
+runtime. Its LGPL/GPL license texts, notices, and source references ship in `licenses\`.
+
 ## Local environment
 
 Build the local runtime (embeddable Python 3.12, packages, Kokoro model, spaCy model, pytest, mypy, ruff) into `runtime\` and `models\`. Needs internet; run it again after a failure, finished steps are skipped:
@@ -82,7 +89,7 @@ When the window is closed, the page stops sending its heartbeat and the program 
 
 ## Building a release
 
-GitHub Actions (`.github/workflows/build.yml`) does it on every push: it builds the dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, close the page and check that the program ends and wrote only into `data\`). The zip of every run is kept for 14 days among the run's artifacts.
+GitHub Actions (`.github/workflows/build.yml`) does it on every push: it builds the dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The zip of every run is kept for 14 days among the run's artifacts.
 
 To build it locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
 

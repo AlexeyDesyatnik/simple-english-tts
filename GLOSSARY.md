@@ -52,6 +52,10 @@ _Avoid_: Recording, audio, cache, voiceover
 The Narrations waiting to be synthesized, one at a time, in the order the teacher asked for them.
 _Avoid_: Jobs, tasks, backlog
 
+**MP3 export**:
+An on-demand browser download of one complete Narration of the current Text, using the selected Voice and Speed; it is not a persistent Library copy or a Voice provider format.
+_Avoid_: Batch export, export queue, saved MP3 Narration
+
 **Start delay**:
 How long the teacher must wait after pressing Play before a Narration that is still being synthesized can play through without stopping.
 _Avoid_: ETA, loading time, latency

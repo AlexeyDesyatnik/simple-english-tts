@@ -1,11 +1,10 @@
 // The page is only a view (ADR-0003): it sends commands, renders the polled snapshot
 // and plays the paragraphs the core says to play, reporting when each starts and finishes.
 
-const PARAGRAPH_PAUSE = 0.7; // seconds of silence between paragraphs
-const FADE = 0.005; // seconds; pieces fade in and out so they join without clicks
-
 const sourceEl = document.getElementById("source");
 const statusEl = document.getElementById("status");
+const exportEl = document.getElementById("export");
+const exportHelpEl = document.getElementById("export-help");
 const voicesEl = document.getElementById("voices");
 const speedEl = document.getElementById("speed");
 const paragraphsEl = document.getElementById("paragraphs");
@@ -63,6 +62,7 @@ let epoch = 0; // grows when the schedule is thrown away, so an unfinished sched
 let scheduling = false;
 let lingering = null; // the paragraph just heard: it stays highlighted through the pause before the next one
 let blocked = false; // the browser would not play sound after a reload until Play is pressed
+let exporting = false; // transient page state: one download request from this window at a time
 
 // Requests go one at a time, so a snapshot is never older than an event the page has sent.
 let queue = Promise.resolve();
@@ -132,15 +132,16 @@ function clearSchedule() {
 function schedule(paragraph, pieces) {
   const previous = scheduled.at(-1);
   const now = audioContext.currentTime + 0.05;
-  let t = previous ? Math.max(previous.end + PARAGRAPH_PAUSE, now) : now;
+  const { paragraph_pause: paragraphPause, piece_fade: fade } = snapshot.audio_timing;
+  let t = previous ? Math.max(previous.end + paragraphPause, now) : now;
   const item = { paragraph, start: t, nodes: [], started: false };
   for (const buffer of pieces) {
     const source = audioContext.createBufferSource();
     source.buffer = buffer;
     const gain = audioContext.createGain();
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(1, t + FADE);
-    gain.gain.setValueAtTime(1, t + buffer.duration - FADE);
+    gain.gain.linearRampToValueAtTime(1, t + fade);
+    gain.gain.setValueAtTime(1, t + buffer.duration - fade);
     gain.gain.linearRampToValueAtTime(0, t + buffer.duration);
     source.connect(gain).connect(audioContext.destination);
     source.start(t);
@@ -713,6 +714,15 @@ function renderTextSize() {
   return changed;
 }
 
+function renderExport() {
+  const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
+  const ready = Boolean(snapshot.text?.id) && readable.length > 0 && readable.every((p) => p.status === "ready");
+  exportEl.disabled = exporting || transitionBusy || !ready;
+  exportEl.textContent = exporting ? "Создаю MP3…" : "Скачать MP3";
+  exportEl.setAttribute("aria-busy", String(exporting));
+  exportHelpEl.hidden = ready || exporting;
+}
+
 function render(next) {
   const first = snapshot === null;
   const wasReading = document.body.classList.contains("playback");
@@ -740,6 +750,7 @@ function render(next) {
     : `Абзац ${readable.indexOf(current) + 1} из ${readable.length}`;
   renderQueue(snapshot.queue);
   renderParagraphs(snapshot.text, textSizeChanged);
+  renderExport();
   if (document.body.classList.contains("playback") && (!wasReading || startingPlayback)) {
     workspaceEl.focus({ preventScroll: true });
   }
@@ -938,6 +949,7 @@ async function transition(body) {
     return;
   }
   transitionBusy = true;
+  renderExport();
   sourceEl.readOnly = true;
   sourceEl.setAttribute("aria-busy", "true");
   renderSave();
@@ -953,6 +965,53 @@ async function transition(body) {
     sourceEl.readOnly = false;
     sourceEl.removeAttribute("aria-busy");
     renderSave();
+    renderExport();
+  }
+}
+
+function downloadName(response) {
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (!encoded) return "narration.mp3";
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return "narration.mp3";
+  }
+}
+
+async function exportNarration() {
+  if (exporting || transitionBusy || !snapshot) return;
+  exporting = true;
+  renderExport();
+  try {
+    await saveTypedText();
+    await refresh();
+    const textId = snapshot.text?.id;
+    const readable = snapshot.text?.paragraphs.filter((p) => p.status !== "skipped") ?? [];
+    if (!textId || !readable.length || readable.some((p) => p.status !== "ready")) {
+      throw new Error("Сначала подготовьте озвучку целиком");
+    }
+    const query = new URLSearchParams({ voice: snapshot.voice, speed: String(snapshot.speed) });
+    const response = await fetch(`/api/export/${encodeURIComponent(textId)}?${query}`);
+    if (!response.ok) {
+      const reply = await response.json().catch(() => ({}));
+      throw new Error(reply.error || "Программа не смогла создать MP3. Попробуйте ещё раз.");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = downloadName(response);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  } catch (error) {
+    showError(`Не удалось скачать MP3. ${error.message}`);
+  } finally {
+    exporting = false;
+    renderExport();
   }
 }
 
@@ -998,6 +1057,7 @@ speedEl.addEventListener("change", () => {
 });
 
 document.getElementById("enqueue").addEventListener("click", () => actOnTypedText("enqueue"));
+exportEl.addEventListener("click", exportNarration);
 
 smallerEl.addEventListener("click", () => act({ command: "smaller_text" }));
 biggerEl.addEventListener("click", () => act({ command: "bigger_text" }));

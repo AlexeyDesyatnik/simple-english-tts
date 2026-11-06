@@ -8,6 +8,9 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike
 
+PARAGRAPH_PAUSE = 0.7  # seconds between readable Paragraphs in playback and MP3 export
+PIECE_FADE = 0.005  # seconds at each synthesis piece edge
+
 
 @dataclass(frozen=True)
 class Audio:

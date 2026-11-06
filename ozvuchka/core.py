@@ -8,13 +8,15 @@ import hashlib
 import logging
 import threading
 import uuid
-from collections.abc import Callable
+import wave
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from ozvuchka.audio import Audio
+from ozvuchka.audio import PARAGRAPH_PAUSE, PIECE_FADE, Audio
+from ozvuchka.export import ExportError, ExportResult, encode_mp3
 from ozvuchka.library import LibraryFiles, SavedText
 from ozvuchka.scheduling import PlannedPiece, SpeedRecords, SynthesisSpeed, measured, start_delay
 from ozvuchka.settings import Settings, SettingsFile
@@ -488,7 +490,44 @@ class Core:
             "text": text,
             "save": save,
             "playback": playback,
+            "audio_timing": {"paragraph_pause": PARAGRAPH_PAUSE, "piece_fade": PIECE_FADE},
         }
+
+    def export_narration(self, text_id: str, voice_key: str, speed: float) -> ExportResult:
+        """Encodes one complete saved Narration without synthesizing or changing application state."""
+        voice = self._known_voice(voice_key)
+        if speed not in _SPEEDS:
+            raise ValueError(f"speed {speed} is not one of {_SPEEDS}")
+        with self._lock:
+            saved = next((t for t in self._library if t.id == text_id), None)
+            if saved is None:
+                raise ValueError(f"no text {text_id} in the library")
+            readable = [p for p in _parsed(saved.content) if not p.skipped]
+            if not readable:
+                raise ExportError("Нет английского текста для экспорта")
+            audio_ids = [
+                [_audio_id(voice, speed, piece) for piece in paragraph.pieces]
+                for paragraph in readable
+            ]
+            if not all(self._ready(audio_id) for ids in audio_ids for audio_id in ids):
+                raise ExportError("Сначала подготовьте озвучку целиком")
+            title = saved.title or _title(saved.content)
+            voice_label = voice.label
+
+        def pieces() -> Iterable[list[Audio]]:
+            for ids in audio_ids:
+                paragraph_audio = []
+                for audio_id in ids:
+                    try:
+                        audio = self.audio(audio_id)
+                    except (EOFError, wave.Error) as error:
+                        raise ExportError("Не удалось прочитать озвучку. Попробуйте ещё раз.") from error
+                    if audio is None:
+                        raise ExportError("Не удалось прочитать озвучку. Попробуйте ещё раз.")
+                    paragraph_audio.append(audio)
+                yield paragraph_audio
+
+        return encode_mp3(pieces(), title=title, voice_label=voice_label, speed=speed)
 
     def audio(self, audio_id: str) -> Audio | None:
         with self._lock:

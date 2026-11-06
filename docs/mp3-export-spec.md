@@ -306,3 +306,27 @@ As the corresponding stages land:
 
 No stage authorizes changing the excluded scope without revising this specification and
 the relevant issue first.
+
+## Implementation record
+
+Implemented on 2026-11-06 in `mp3-export-without-skills` without expanding the first-version
+scope. The #45 gate selected the self-contained `lameenc==1.9.0` CPython 3.12 Windows x64
+wheel; its mono 24 kHz/128 kbit/s sample passed probing and full decode. Backend public-seam
+tests cover readiness, selected revisions, in-memory pieces, exact PCM timing, filenames,
+HTTP headers/security, failures, and Core lock release during encoding.
+
+The built-in browser exercised the real Kokoro application with a disposable Library:
+readiness, save-first (including a blocked save), successful UTF-8-named downloads,
+request failure/retry, busy state, F5, 1280x720 and narrow 390x844 layouts, keyboard
+activation, and absence in Playback mode. The 40.536-second mono 24 kHz/128 kbit/s result
+passed probing and full decode. Actual 200% browser zoom was subsequently checked and
+accepted by the developer on 2026-11-06.
+
+Checks performed: 225 ordinary tests passed, 8 slow tests passed, mypy and ruff passed,
+and JavaScript syntax checking passed. `dist/ozvuchka-mp3-export-test.zip` was built from
+the offline-capable wheel-only packaging path. Its release smoke test synthesized real
+Kokoro speech and exported a 14,592-byte MPEG attachment, then passed the existing
+shutdown, diagnostics, and write-location checks. On 2026-11-06 the developer accepted
+all manual checks on the school Celeron and i5: responsive export, browser download,
+correct external-player speech and pauses, no encoder/filesystem errors, and actual 200%
+zoom. Issue #48 is closed and the completed manual-check entry has been removed.

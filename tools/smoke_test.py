@@ -1,8 +1,8 @@
 """Smoke test of a release zip, as the teacher gets it.
 
-Unpacks the zip, starts Озвучка.exe from the unpacked folder (without opening the window), gets the page and
-synthesizes "Hello." with the real Kokoro. A second start on the same port must end by itself without starting another
-program. Then the page says it is closing, and the program must end by itself,
+Unpacks the zip, starts Озвучка.exe from the unpacked folder (without opening the window), gets the page,
+synthesizes "Hello." with the real Kokoro and exports it as an MP3 response. A second start on the same port must end
+by itself without starting another program. Then the page says it is closing, and the program must end by itself,
 with its log in its data folder and nothing else written into the program folder.
 Finally checks diagnostics for an early application import failure and a Python initialization failure.
 Usage: python smoke_test.py <release zip>
@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import wave
 import zipfile
@@ -111,6 +112,17 @@ def _run(folder: Path, shipped: set[Path], log: Path) -> None:
         seconds = _wait_for_speech(url)
         print(f'"Hello." synthesized: {seconds:.2f} s of speech', flush=True)
         assert 0.3 < seconds < 3.0, seconds
+        snapshot = json.loads(_get(url + "/api/state"))
+        query = urllib.parse.urlencode({"voice": snapshot["voice"], "speed": snapshot["speed"]})
+        request = f"{url}/api/export/{snapshot['text']['id']}?{query}"
+        with urllib.request.urlopen(request, timeout=30) as response:
+            mp3 = response.read()
+            assert response.headers.get_content_type() == "audio/mpeg"
+            assert response.headers["Cache-Control"] == "no-store"
+            assert ".mp3" in response.headers["Content-Disposition"]
+        assert len(mp3) > 1000 and mp3[0] == 0xFF and mp3[1] & 0xE0 == 0xE0
+        assert all(p.suffix == ".wav" for p in (folder / "data" / "narrations").iterdir())
+        print(f"OK: the offline release exported a {len(mp3)}-byte MPEG attachment", flush=True)
 
         _command(url, "page_closing")
         code = launcher.wait(timeout=EXIT_TIMEOUT)

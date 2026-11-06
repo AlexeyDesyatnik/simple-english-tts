@@ -40,8 +40,8 @@ and storage within the portable application's data folder.
 The scope excludes porting the launcher to Linux/macOS, changing the Voice provider,
 Voice catalogue, synthesis algorithm, audio scheduling, Speed values, queue semantics,
 or Start delay calculation, except for the developer-authorized immediate cancellation
-extension to stage 4 (ADR-0004). It also excludes dark mode, import/export, cloud features,
-new branding, and a separate mobile application. Platform-neutral UI is not a claim
+extension to stage 4 (ADR-0004). It also excludes dark mode, import and export formats
+other than the MP3 download below, cloud features, new branding, and a separate mobile application. Platform-neutral UI is not a claim
 that the whole application already runs on every OS. ADR-0003's current Windows launch
 mechanism remains in place; no ADR change is needed for the font and layout changes.
 
@@ -70,9 +70,15 @@ so an unusually long title does not displace the editor and primary action.
 
 Give the editor a permanent `Текст` label and a separate short explanation that each
 line is a Paragraph. Remove the duplicate rendered Paragraph list from preparation;
-use it in Playback mode. The primary action is `Воспроизвести`; the secondary action
-is `Подготовить озвучку`, using the existing enqueue command. Do not show irrelevant
-Pause/Stop actions in the stopped preparation state.
+use it in Playback mode. The primary action is `Воспроизвести`; the secondary actions
+are `Подготовить озвучку`, using the existing enqueue command, then `Скачать MP3`.
+The download action is enabled only for a complete selected Narration of a saved Text
+with readable Paragraphs. Until then, visible text says `Сначала подготовьте озвучку
+целиком`. It flushes the latest edit through save-first, shows `Создаю MP3…` and prevents
+a duplicate request only while that page is exporting. Polling and other navigation stay
+usable; failures remain in the actionable-error area and allow retry. The browser owns
+the download destination and final result. Do not show export in Playback mode or Library
+rows. Do not show irrelevant Pause/Stop actions in the stopped preparation state.
 
 At 1280 × 720 and 100% browser zoom, with 20 saved Texts, the editor and primary action
 must be visible without scrolling the page. Aim for at least six visible editor lines.
@@ -157,7 +163,7 @@ Autosave after a short pause in typing, coalescing writes. Distinguish unsaved c
 saving, confirmed saved state, and failure. `Сохранено` means a confirmed disk write,
 not merely dispatching a request or receiving a generic HTTP success.
 
-Flush latest edits before opening another Text, creating a Text, playback, or enqueue.
+Flush latest edits before opening another Text, creating a Text, playback, enqueue, or MP3 export.
 Do not complete a transition that could lose edits when saving fails. Older requests
 or responses must neither overwrite newer edits nor mark newer unsaved content saved.
 Snapshot updates must preserve typing, cursor, and selection.
