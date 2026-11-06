@@ -9,12 +9,12 @@ the retired alternatives are not sources of further design changes. The previous
 `main` contributes only its NumPy 2.3.5 compatibility pin and explanation.
 See [the adoption record](design-reviews/main-adoption/README.md).
 
-Post-adoption visual refresh, 2026-11-06: the developer approved and the project implemented
+Post-adoption visual refresh, 2026-11-06: the developer approved, implemented and accepted
 the six-stage [UI visual refresh plan](ui-visual-refresh-plan.md). The
 [refresh browser/release record](design-reviews/ui-visual-refresh/README.md) contains final
 screenshots and checks. This specification now describes the refreshed visual language. The
-refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom
-and school-hardware visual acceptance remain manual checks.
+refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom,
+projector/back-row and Celeron/i5 visual acceptance were confirmed by the developer.
 
 This specification defines the independent UI design implementation on `experiment-2`.
 The developer treats the work on this branch and the two other implementation tracks as

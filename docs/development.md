@@ -25,10 +25,10 @@ compatibility change from the previous `main` was retained. See the
 and archived branch states.
 
 The [UI visual refresh](ui-visual-refresh-plan.md) approved on 2026-11-05 is implemented
-on `main`. It preserves the accepted interaction model. See the
+and accepted on `main`. It preserves the accepted interaction model. See the
 [refresh browser/release record](design-reviews/ui-visual-refresh/README.md) for the six
-implementation commits, final screenshots and checks. Actual 200% zoom and school-hardware
-visual acceptance remain explicit manual checks rather than inferred results.
+implementation commits, final screenshots and checks. The developer confirmed actual 200%
+zoom, projector/back-row and Celeron/i5 visual acceptance on 2026-11-06.
 
 ## Voice provider audio contract
 

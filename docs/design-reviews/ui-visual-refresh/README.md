@@ -100,18 +100,10 @@ above. No CSS/DOM assertion suite or new browser-test stack was introduced.
 The built-in browser reports capture/display scaling metadata that should not be confused
 with browser zoom. Images are retained as layout evidence, not as actual 200% zoom evidence.
 
-## Remaining developer acceptance
+## Developer acceptance — 2026-11-06
 
-See the UI visual refresh section in `docs/manual-checks.md`:
-
-1. Set **actual browser zoom to 200%** at 1280 × 720 and inspect preparation, Library,
-   Voice chooser, dialogs and Playback mode. Vertical scroll is allowed; horizontal clipping
-   is not.
-2. On the projector/back rows, check Onest, transport labels/icons, blue selection and amber
-   current Paragraph at Text sizes 18–80.
-3. On Celeron/i5, open the release offline with a disposable 20-Text Library; check local-font
-   loading, ordinary responsiveness and narrow layouts. Existing #37 hardware checks remain
-   separate and are not marked passed by this record.
-
-No actual 200% zoom, projector, presenter-remote, school-laptop or assistive-technology result
-is claimed from the built-in browser checks.
+The developer reported that all requested manual checks passed: actual 200% browser zoom,
+projector/back-row readability and offline Celeron/i5 visual checks with the release and a
+disposable Library. The visual refresh is accepted; its completed checklist was removed from
+`docs/manual-checks.md`. No per-device measurements were supplied, so none are invented here.
+Existing #37 hardware checks are separate and are not marked passed by this acceptance.

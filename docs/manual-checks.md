@@ -16,16 +16,6 @@ The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech,
 
 Checks the issues ask for, to be done once the work is in a release:
 
-## UI visual refresh (2026-11-06; developer-directed track, no separate Issue)
-
-Use the release from the final refresh commit and a disposable Library with 20 Texts and
-several ready Narrations. Browser automation already checked the ordinary layouts; these
-items cover what it did not establish. Record browser/device, date and observations.
-
-- [ ] **Actual 200% browser zoom:** at 1280 × 720, set actual browser zoom to 200%. Check preparation, Library, Voice chooser, rename/delete dialogs and Playback mode. Vertical scrolling is allowed; no control or option may be clipped and no horizontal page overflow is allowed. At the resulting narrow width, Previous/Next show arrows with accessible names while Play retains its full text label.
-- [ ] **Projector/back-row visual acceptance:** check Onest's Russian and English text, quiet secondary information, blue Library selection, transport labels/icons and the amber current Paragraph with its blue edge. Exercise Text sizes 18–80 and confirm that the current Paragraph starts below the sticky transport.
-- [ ] **School-laptop visual acceptance:** on Celeron and i5, open the release without internet and confirm that the local Onest font loads with correct Cyrillic, panels and controls remain responsive with 20 Texts, and narrow Library/Playback layouts remain usable. This supplements, rather than marks passed, the older #37 hardware checks below.
-
 ## Adopted main with NumPy 2.3.5 (#26, #37)
 
 The older NumPy was previously accepted on Athlon II X2 250 and an 11th-generation
