@@ -24,10 +24,11 @@ compatibility change from the previous `main` was retained. See the
 [adoption record](design-reviews/main-adoption/README.md) for source commits
 and archived branch states.
 
-The developer approved the follow-up [UI visual refresh plan](ui-visual-refresh-plan.md)
-on 2026-11-05. It preserves the accepted interaction model and defines the target visual
-language, six implementation stages and their browser/hardware acceptance. It is a plan,
-not a description of an implemented refresh.
+The [UI visual refresh](ui-visual-refresh-plan.md) approved on 2026-11-05 is implemented
+on `main`. It preserves the accepted interaction model. See the
+[refresh browser/release record](design-reviews/ui-visual-refresh/README.md) for the six
+implementation commits, final screenshots and checks. Actual 200% zoom and school-hardware
+visual acceptance remain explicit manual checks rather than inferred results.
 
 ## Voice provider audio contract
 

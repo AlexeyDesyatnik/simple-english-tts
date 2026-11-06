@@ -9,11 +9,12 @@ the retired alternatives are not sources of further design changes. The previous
 `main` contributes only its NumPy 2.3.5 compatibility pin and explanation.
 See [the adoption record](design-reviews/main-adoption/README.md).
 
-Post-adoption visual refresh, 2026-11-05: the developer approved the visual direction and
-six-stage [UI visual refresh plan](ui-visual-refresh-plan.md). That plan defines a target,
-not the current appearance. Until its implementation and acceptance, this specification and
-the integrated acceptance record continue to describe the current design. The refresh keeps
-this specification's behaviour, accessibility and responsive requirements unchanged.
+Post-adoption visual refresh, 2026-11-06: the developer approved and the project implemented
+the six-stage [UI visual refresh plan](ui-visual-refresh-plan.md). The
+[refresh browser/release record](design-reviews/ui-visual-refresh/README.md) contains final
+screenshots and checks. This specification now describes the refreshed visual language. The
+refresh kept behaviour, accessibility and responsive requirements unchanged; actual 200% zoom
+and school-hardware visual acceptance remain manual checks.
 
 This specification defines the independent UI design implementation on `experiment-2`.
 The developer treats the work on this branch and the two other implementation tracks as
@@ -183,30 +184,33 @@ status updates; longer error text may expand accessibly rather than being clippe
 
 ## Visual language and platform-neutral typography
 
-Keep a warm light background, dark readable text, and a blue accent. Use blue tint for
-selection, yellow for the current Paragraph, and red for errors/destructive actions.
-Define a small CSS token set for colours, surfaces, borders, spacing, radii, and controls.
+Use the refreshed **paper and ink** language: warm light background `#f7f6f2`, white
+surfaces, primary text `#202733`, secondary text `#667085`, ink-blue accent `#315fcc`,
+blue selection `#eaf0fc`, amber current Paragraph `#fff0b8` and red errors/destructive
+actions. Keep decorative dividers separate from the darker essential control-boundary token.
+Define these roles and spacing/radius/control values as CSS tokens.
 
-Initial guidelines:
+Current guidelines:
 
 - UI text 16–18 px; secondary text at least 14 px; Text size remains independent.
 - Spacing steps 4, 8, 12, 16, 24, and 32 px.
 - Interactive targets approximately 44 × 44 px or larger, especially small menu actions.
-- Moderate 8–10 px radii, thin borders, minimal shadows.
-- One filled primary action per working context; quieter secondary actions.
+- Moderate 10–12 px radii (16 px dialogs), thin borders and minimal shadows. Shadows are
+  reserved for overlays, dialogs and the sticky Playback transport.
+- One filled primary action per working context; quieter tonal/ghost secondary actions.
 - Explicit hover, pressed, focus-visible, selected, disabled, and loading states.
 - Information must not rely on colour alone; target 4.5:1 contrast for ordinary text
   and 3:1 for essential control boundaries/focus indicators against adjacent colours.
 
-Use `system-ui, "Noto Sans", "Liberation Sans", sans-serif`. These are fallbacks, not
-installation requirements. Do not privilege Segoe UI or require a Windows-only font.
-No network font loading. Small OS-dependent typographic differences are acceptable;
-the layout must tolerate different metrics. A bundled font, if later needed for exact
-consistency, is a separate decision including licensing and packaging.
+Use the locally bundled variable **Onest** font for its Russian and English glyph coverage,
+with `system-ui, "Noto Sans", "Liberation Sans", sans-serif` as fallbacks. The unmodified
+font and its SIL OFL text ship inside the offline release. No network font loading or
+Windows-only font dependency is allowed; the layout must still tolerate fallback metrics.
 
 Use consistent inline SVG icons, not an icon font or platform-dependent emoji. Keep
-text labels on principal actions. Avoid decorative animation and honour reduced-motion
-preferences for nonessential scrolling/transitions.
+text labels on principal actions. Narrow Playback mode may show Previous/Next as arrows
+alone because their accessible names and tooltips remain. Avoid decorative animation and
+honour reduced-motion preferences for nonessential scrolling/transitions.
 
 ## Accessibility and application dialogs
 
