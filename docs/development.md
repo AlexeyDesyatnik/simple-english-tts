@@ -18,8 +18,7 @@ Review older-CPU support before upgrading this dependency.
 
 The [UI design specification](ui-design-spec.md) is the source of truth for the current
 UI on `main`. It includes the accepted `experiment-2` interaction model and the visual
-refresh accepted on 2026-11-06. Completed design and acceptance records are listed under
-[Historical records](#historical-records), not as current implementation tasks.
+refresh accepted on 2026-11-06.
 
 ## Voice provider audio contract
 
@@ -83,7 +82,7 @@ The release zip `ozvuchka-<version>.zip` holds one folder, `Озвучка\` (AD
 - `Озвучка.exe` — the launcher. It starts `runtime\python.exe -m ozvuchka --app` from its own folder, with no console window; the program opens its window with `msedge --app=http://127.0.0.1:8770` at once, or the default browser on a computer without Edge (ADR-0003), and loads Kokoro in the background: a ready Narration plays meanwhile, a new one waits for the Voices. Starting `Озвучка.exe` again opens the window of the program already running instead of starting a second one. If the program stops with an error, the launcher shows Python's exit code and saves its available error output in a separate `data\startup-<id>.log` for that launch. The message identifies that file, or explains that Python produced no output or that saving failed. Earlier `ozvuchka.log` entries are never presented as evidence of the current failure.
 - `runtime\`, `ozvuchka\`, `models\` — Python with the packages, the program, the Kokoro model and the Voice samples. Python code is compiled ahead, so nothing is written there at start.
 - `licenses\` — third-party licenses; `licenses\NOTICE.txt` lists the components.
-- `data\` — not in the zip: the program makes it on the first start and keeps the Library, the settings and its log `ozvuchka.log` there (rotated: at most three parts of 1 MB), and nothing anywhere else on the computer.
+- `data\` — not in the zip: the program makes it on the first start and keeps the Library, the settings and its log `ozvuchka.log` there (rotated: at most three parts of 1 MB). All program-managed writes stay there; explicitly requested browser downloads are user-owned outputs in browser-selected destinations.
 
 When the window is closed, the page stops sending its heartbeat and the program ends by itself, about 10 seconds later (it waits that long in case the page is only being reloaded with F5). A page that has not been heard from for two minutes counts as closed too.
 

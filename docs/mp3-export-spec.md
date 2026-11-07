@@ -2,10 +2,10 @@
 
 ## Status and purpose
 
-Proposed on 2026-11-06 against release tag `v0.4.1` (commit
-`4dde53112bc5c48a081259c1222b2a9c1c580eb7`). This is the implementation contract for
-adding MP3 export without changing synthesis, playback, or the Library format. It is
-intended to be sufficient to resume the work in a new session without the original chat.
+Implemented and accepted on 2026-11-06. The original contract was proposed against release
+tag `v0.4.1` (commit `4dde53112bc5c48a081259c1222b2a9c1c580eb7`) and is preserved here
+as the record of the first version, which added MP3 export without changing synthesis,
+playback, or the Library format.
 
 Project rules and terminology remain in `AGENTS.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`,
 `docs/development.md`, and `docs/ui-design-spec.md`. Teacher-facing wording is Russian;
@@ -57,13 +57,14 @@ These exclusions are deliberate scope boundaries, not missing acceptance criteri
 - A Paragraph can contain several synthesis pieces. A Skipped paragraph has no pieces.
 - The browser player concatenates pieces within a Paragraph without an added pause,
   applies a 0.005-second fade at piece edges, and inserts 0.7 seconds between readable
-  Paragraphs. These values currently live in `ozvuchka/web/app.js`.
+  Paragraphs. These values are defined in `ozvuchka/audio.py` and exposed to the page
+  through the Core snapshot.
 - The page is a view, Core owns application decisions, and the HTTP server only
   translates requests and responses. The server uses `ThreadingHTTPServer` on loopback.
 - The existing `Audio` contract is deliberately WAV-only. MP3 export must not broaden
   the Voice provider or stored-Narration contract.
-- There is currently no MP3 encoder dependency. Production packages must install from
-  pinned wheels only.
+- MP3 encoding uses the pinned `lameenc==1.9.0` dependency. Production packages install
+  from pinned wheels only.
 
 ## User experience
 
