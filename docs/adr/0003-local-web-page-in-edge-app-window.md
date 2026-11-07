@@ -12,4 +12,5 @@ The UI is plain HTML/JS (no framework, no build step) served by the program's ow
 
 - The page is only a view: all state (the Library, synthesis progress, playback position) lives in the Python process, so a reload (F5) or a reopened window picks up where it was.
 - The program has to handle its own lifecycle: shut down when the window is closed, and a second launch has to open the already-running instance rather than start another server (a named mutex per port, so two launches at once cannot both start one).
+- The main process remembers the Edge window's normal bounds and maximized state in `data/window.json` through Win32 `GetWindowPlacement`/`SetWindowPlacement`. A background monitor restores each new window once and then saves changes; neither Core nor the page owns native window state. The default-browser fallback does not guarantee placement restoration.
 - The core (Library, synthesis, Voice providers) stays independent of the UI, so the UI could still be replaced later.

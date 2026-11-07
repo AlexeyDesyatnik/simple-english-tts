@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ozvuchka.log import start_log
-from ozvuchka.window import open_window
+from ozvuchka.window import WindowMonitor, open_window
 
 if TYPE_CHECKING:
     from ozvuchka.core import Core
@@ -114,8 +114,11 @@ def _run(port: int, app: bool, open_page: bool) -> None:
     server = make_server(core, port)
     url = f"http://127.0.0.1:{server.server_address[1]}"
     _log.info("Serving %s", url)
+    window_stopped = threading.Event()
     if app:
         threading.Thread(target=_end_when_closed, args=(core, server), name="window", daemon=True).start()
+        monitor = WindowMonitor(ROOT / "data")
+        threading.Thread(target=monitor.run, args=(window_stopped,), name="window-placement", daemon=True).start()
     if open_page:
         open_window(url)
     try:
@@ -123,6 +126,7 @@ def _run(port: int, app: bool, open_page: bool) -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        window_stopped.set()
         server.server_close()
         core.close()
 
