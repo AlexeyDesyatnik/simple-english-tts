@@ -1,5 +1,5 @@
-# On every push: Windows checks and release smoke, plus Linux checks on current Ubuntu and minimum glibc.
-# On a tag v*, the Windows zip is also published in GitHub Releases. Linux packaging/publication is stage 5.
+# Every push: Windows and Linux checks, exact-artifact smoke tests and both build artifacts.
+# One downstream job publishes both artifacts together on a tag v*.
 name: Build
 
 on:
@@ -12,8 +12,6 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 60
-    permissions:
-      contents: write # to publish the release on a tag
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,21 +52,14 @@ jobs:
           retention-days: 14
           compression-level: 0 # it is a zip already
 
-      - name: GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create $env:GITHUB_REF_NAME (Get-Item dist\ozvuchka-*.zip).FullName --title $env:GITHUB_REF_NAME --generate-notes
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
   linux:
-    name: Linux checks
+    name: Linux build and checks
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # match the Windows version naming
 
       - uses: actions/setup-python@v5
         with:
@@ -90,8 +81,22 @@ jobs:
           runtime-linux/bin/python -m mypy
           runtime-linux/bin/python -m ruff check
 
+      - name: Linux release archive
+        run: python tools/build_linux.py
+
+      - name: Smoke test of the exact Linux archive
+        run: runtime-linux/bin/python -X utf8 tools/smoke_test.py dist/ozvuchka-*-linux-x86_64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ozvuchka-linux-tar
+          path: dist/ozvuchka-*-linux-x86_64.tar.gz
+          retention-days: 14
+          compression-level: 0 # it is already compressed
+
   linux-minimum:
-    name: Linux checks (glibc 2.29)
+    name: Linux checks and archive smoke (glibc 2.29)
+    needs: linux
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -124,8 +129,51 @@ jobs:
             fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
             /workspace/.cache/linux-python/python/bin/python3.12 tools/setup_linux.py
 
-      - name: Offline checks on minimum glibc
+      - name: Offline development checks on minimum glibc
         run: |
           docker run --rm --network none -v "$PWD:/workspace" -w /workspace \
             fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
             bash -lc 'runtime-linux/bin/python -m pytest && runtime-linux/bin/python -m pytest -m slow && runtime-linux/bin/python -m mypy && runtime-linux/bin/python -m ruff check'
+
+      - name: Download the exact Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ozvuchka-linux-tar
+          path: dist
+
+      - name: Offline archive smoke on minimum glibc
+        run: |
+          docker run --rm --network none -v "$PWD:/workspace" -w /workspace \
+            fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
+            bash -lc '/workspace/.cache/linux-python/python/bin/python3.12 -X utf8 tools/smoke_test.py /workspace/dist/ozvuchka-*-linux-x86_64.tar.gz'
+
+  release:
+    name: Publish both platform artifacts
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, linux, linux-minimum]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download the Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ozvuchka-zip
+          path: release/windows
+
+      - name: Download the Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ozvuchka-linux-tar
+          path: release/linux
+
+      - name: Create or update one GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/windows/*.zip release/linux/*.tar.gz --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/windows/*.zip release/linux/*.tar.gz --title "$GITHUB_REF_NAME" --generate-notes
+          fi

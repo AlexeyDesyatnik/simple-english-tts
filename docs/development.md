@@ -142,19 +142,22 @@ When the window is closed, the page stops sending its heartbeat and the program 
 
 ## Building a release
 
-GitHub Actions (`.github/workflows/build.yml`) builds the Windows release on every push alongside the two Linux check jobs: it builds the Windows dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The Windows zip of every run is kept for 14 days among the run's artifacts. The Linux archive is built locally at this stage; CI artifacts and coordinated publication belong to stage 5.
+GitHub Actions (`.github/workflows/build.yml`) builds both releases on every push. Windows runs its ordinary/slow/type/lint checks, zip build and smoke test. The normal Linux job runs the same checks, builds the tar.gz and smoke-tests that exact archive; the minimum-glibc job downloads the uploaded archive and repeats its smoke test offline on glibc 2.29. Both artifacts are retained for 14 days. On a version tag, one downstream release job waits for all three build/test jobs and places both artifacts in one GitHub Release.
 
-To build the Windows release locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
+The shared smoke test unpacks into a fresh path with spaces/Cyrillic, starts the actual launcher with `--no-window`, gets the page, synthesizes "Hello." with real Kokoro, exports MP3, checks second launch, heartbeat shutdown, data-only writes, and deliberate application-import and interpreter-initialization failures. Windows retains its `.exe`, `_pth` and process-tree checks; Linux checks the executable tar launcher and uses POSIX process cleanup and the standalone runtime layout.
+
+To build and smoke-test the Windows release locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
 
 ```bat
 tools\build.bat release
 runtime\python.exe tools\smoke_test.py dist\ozvuchka-<version>.zip
 ```
 
-To build the Linux release on Linux x86-64 with CPython 3.12 (needs internet):
+To build and smoke-test the Linux release on Linux x86-64 with CPython 3.12 (needs internet for the build only):
 
 ```bash
 python3.12 tools/build_linux.py
+runtime-linux/bin/python -X utf8 tools/smoke_test.py dist/ozvuchka-<version>-linux-x86_64.tar.gz
 ```
 
 The result is `dist/ozvuchka-<version>-linux-x86_64.tar.gz`, containing one `Озвучка/` folder. It includes the
@@ -177,7 +180,7 @@ Both release modes build their folders from scratch and cache downloads in `.cac
    git push origin v1.0
    ```
 
-3. The tag's build publishes `ozvuchka-1.0.zip` in GitHub Releases, under the tag's name, with notes made from the commits. Edit the notes there if needed.
+3. After Windows and both Linux jobs pass, one release job publishes `ozvuchka-1.0.zip` and `ozvuchka-1.0-linux-x86_64.tar.gz` in the same GitHub Release, under the tag's name, with notes made from the commits. If the release already exists, it uploads/replaces both assets instead. Edit the notes there if needed.
 
 ## Unblocking the zip
 

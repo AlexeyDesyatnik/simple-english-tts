@@ -1,18 +1,19 @@
-"""Smoke test of a release zip, as the teacher gets it.
+"""Smoke-test the exact Windows zip or Linux tar.gz release artifact.
 
-Unpacks the zip, starts Озвучка.exe from the unpacked folder (without opening the window), gets the page,
-synthesizes "Hello." with the real Kokoro and exports it as an MP3 response. A second start on the same port must end
-by itself without starting another program. Then the page says it is closing, and the program must end by itself,
-with its log in its data folder and nothing else written into the program folder.
-Finally checks diagnostics for an early application import failure and a Python initialization failure.
-Usage: python smoke_test.py <release zip>
+Unpack into a path with spaces and Cyrillic, start the actual launcher without opening a window, get the page,
+synthesize "Hello." with real Kokoro and export MP3. Check second launch, heartbeat shutdown, data-only writes
+and both early application-import and interpreter-initialization diagnostics.
+Usage: python smoke_test.py <release zip or linux-x86_64 tar.gz>
 """
 
 import io
 import json
+import os
+import signal
 import socket
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.parse
@@ -30,14 +31,26 @@ EXIT_TIMEOUT = 60.0  # the program waits 10 s for a reload after the page closes
 
 
 def main() -> int:
-    zip_path = Path(sys.argv[1]).resolve()
-    with tempfile.TemporaryDirectory(prefix="ozvuchka-smoke-", ignore_cleanup_errors=True) as tmp:
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(tmp)
+    archive_path = Path(sys.argv[1]).resolve()
+    with tempfile.TemporaryDirectory(prefix="Озвучка smoke ", ignore_cleanup_errors=True) as tmp:
+        if archive_path.name.endswith(".zip"):
+            assert sys.platform == "win32", "the Windows zip must be smoke-tested on Windows"
+            with zipfile.ZipFile(archive_path) as archive:
+                archive.extractall(tmp)
+        elif archive_path.name.endswith("-linux-x86_64.tar.gz"):
+            assert sys.platform == "linux", "the Linux archive must be smoke-tested on Linux"
+            with tarfile.open(archive_path, "r:gz") as archive:
+                launcher = archive.getmember(f"{APP}/{APP}.sh")
+                assert launcher.mode & 0o111, "the Linux launcher is not executable in the tar"
+                archive.extractall(tmp, filter="data")
+        else:
+            raise ValueError(f"Unknown release artifact: {archive_path.name}")
         folder = Path(tmp) / APP
         shipped = _files(folder)
-        assert not any(p.parts[0] == "data" for p in shipped), "the zip has user data"
-        assert Path("licenses", "NOTICE.txt") in shipped, "the zip has no licenses"
+        assert not any(p.parts[0] == "data" for p in shipped), "the archive has user data"
+        assert Path("licenses", "NOTICE.txt") in shipped, "the archive has no licenses"
+        if sys.platform == "linux":
+            assert os.access(folder / f"{APP}.sh", os.X_OK), "the unpacked Linux launcher is not executable"
 
         log = folder / "data" / "ozvuchka.log"
         try:
@@ -48,6 +61,10 @@ def main() -> int:
             print(f"--- {log}:", log.read_text(encoding="utf-8") if log.exists() else "(none)", sep="\n", flush=True)
             raise
     return 0
+
+
+def _launcher(folder: Path) -> Path:
+    return folder / f"{APP}.{'sh' if sys.platform == 'linux' else 'exe'}"
 
 
 def _check_early_failure(folder: Path) -> None:
@@ -72,22 +89,33 @@ def _check_early_failure(folder: Path) -> None:
 
 def _check_interpreter_failure(folder: Path) -> None:
     """Break Python's standard-library path so it fails before any application code runs."""
-    (config,) = (folder / "runtime").glob("python*._pth")
-    saved = config.read_bytes()
-    try:
-        config.write_text("missing-standard-library\n", encoding="ascii")
-        diagnostic = _failed_start(folder)
-        assert "Fatal Python error" in diagnostic, diagnostic
-        assert "encodings" in diagnostic, diagnostic
-        print("OK: failure before Python logging preserves interpreter output and its exit code", flush=True)
-    finally:
-        config.write_bytes(saved)
+    if sys.platform == "win32":
+        (config,) = (folder / "runtime").glob("python*._pth")
+        saved = config.read_bytes()
+        try:
+            config.write_text("missing-standard-library\n", encoding="ascii")
+            diagnostic = _failed_start(folder)
+            assert "Fatal Python error" in diagnostic, diagnostic
+            assert "encodings" in diagnostic, diagnostic
+        finally:
+            config.write_bytes(saved)
+    else:
+        encodings = folder / "runtime" / "lib" / "python3.12" / "encodings"
+        saved = encodings.with_name("encodings.smoke-saved")
+        encodings.rename(saved)
+        try:
+            diagnostic = _failed_start(folder)
+            assert "Fatal Python error" in diagnostic, diagnostic
+            assert "encodings" in diagnostic, diagnostic
+        finally:
+            saved.rename(encodings)
+    print("OK: failure before Python logging preserves interpreter output and its exit code", flush=True)
 
 
 def _failed_start(folder: Path) -> str:
     before = set((folder / "data").glob("startup-*.log"))
     result = subprocess.run(
-        [str(folder / f"{APP}.exe"), "--no-window", "--port", str(_free_port())],
+        [str(_launcher(folder)), "--no-window", "--port", str(_free_port())],
         capture_output=True, text=True, encoding="utf-8", timeout=START_TIMEOUT,
     )
     assert result.returncode != 0, "the deliberately broken startup succeeded"
@@ -101,7 +129,10 @@ def _run(folder: Path, shipped: set[Path], log: Path) -> None:
     port = _free_port()
     url = f"http://127.0.0.1:{port}"
     started = time.monotonic()
-    launcher = subprocess.Popen([str(folder / f"{APP}.exe"), "--no-window", "--port", str(port)])
+    launcher = subprocess.Popen(
+        [str(_launcher(folder)), "--no-window", "--port", str(port)],
+        start_new_session=sys.platform == "linux",
+    )
     try:
         _wait_for_page(url, launcher, log)
         print(f"page served after {time.monotonic() - started:.1f} s", flush=True)
@@ -128,20 +159,23 @@ def _run(folder: Path, shipped: set[Path], log: Path) -> None:
         code = launcher.wait(timeout=EXIT_TIMEOUT)
     finally:
         if launcher.poll() is None:
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(launcher.pid)], check=False)
-    assert code == 0, f"Озвучка.exe exited with code {code}"
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(launcher.pid)], check=False)
+            else:
+                os.killpg(launcher.pid, signal.SIGKILL)
+    assert code == 0, f"the release launcher exited with code {code}"
     print("the program ended by itself after the page closed", flush=True)
 
     assert "Voice provider kokoro loaded" in log.read_text(encoding="utf-8"), "no log in the data folder"
     written = sorted(str(p) for p in _files(folder) - shipped if p.parts[0] != "data")
     assert not written, f"written outside data: {written}"
-    print("OK: the log is in data\\, nothing else was written into the program folder", flush=True)
+    print("OK: the log is in data/, nothing else was written into the program folder", flush=True)
 
 
 def _start_again(folder: Path, port: int, log: Path) -> None:
-    start = [str(folder / f"{APP}.exe"), "--no-window", "--port", str(port)]
+    start = [str(_launcher(folder)), "--no-window", "--port", str(port)]
     second = subprocess.run(start, timeout=SECOND_START_TIMEOUT)
-    assert second.returncode == 0, f"the second Озвучка.exe exited with code {second.returncode}"
+    assert second.returncode == 0, f"the second launch exited with code {second.returncode}"
     text = log.read_text(encoding="utf-8")
     assert "already running" in text, "the second start did not find the program running"
     assert text.count("Serving http") == 1, "the second start served the page too"
@@ -178,8 +212,7 @@ def _command(url: str, command: str, **body: Any) -> Any:
 def _wait_for_page(url: str, launcher: subprocess.Popen[bytes], log: Path) -> None:
     deadline = time.monotonic() + START_TIMEOUT
     while True:
-        assert launcher.poll() is None, f"Озвучка.exe exited with code {launcher.returncode}"
-        # after an error the launcher shows a message box and waits for it to be closed
+        assert launcher.poll() is None, f"the release launcher exited with code {launcher.returncode}"
         failed = log.exists() and " CRITICAL " in log.read_text(encoding="utf-8")
         assert not failed, "the program stopped with an error"
         try:

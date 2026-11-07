@@ -1,6 +1,6 @@
 # Linux support plan
 
-Status: stages 1-2 (#57, #58) complete; stage 3 (#59) awaits a pushed CI run; stage 4 (#60) implemented and validated.
+Status: stages 1-2 (#57, #58) and stage 4 (#60) complete; stages 3 and 5 (#59, #61) await pushed green CI runs.
 
 Umbrella: [GitHub Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56).
 The stage Issues are the detailed work contracts. This document is the durable technical plan and
