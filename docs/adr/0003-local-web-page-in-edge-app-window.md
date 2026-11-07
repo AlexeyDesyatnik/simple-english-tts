@@ -1,6 +1,11 @@
-# UI is a local web page shown in an Edge app window
+# UI is a local web page, with an Edge app window on Windows
 
-The UI is plain HTML/JS (no framework, no build step) served by the program's own Python HTTP server on `127.0.0.1` and opened with `msedge --app=http://127.0.0.1:<port>`, so it looks like an ordinary window. We chose this over a native PySide6 window even though 100–200 MB for Qt was acceptable: the deciding factor is that the developer (an AI agent) can open and check the very same page in its own built-in browser, which a Qt window does not allow, and the web stack is already proven on the target laptops in the prototype.
+The UI is plain HTML/JS (no framework, no build step) served by the program's own Python HTTP server on
+`127.0.0.1`. On Windows it opens with `msedge --app=http://127.0.0.1:<port>`, so it looks like an ordinary
+window. On Linux it opens in the installed default browser through Python's standard `webbrowser` mechanism.
+We chose the local web page over a native PySide6 window even though 100–200 MB for Qt was acceptable: the
+deciding factor is that the developer (an AI agent) can open and check the very same page in its own built-in
+browser, which a Qt window does not allow, and the web stack is already proven on the target laptops.
 
 ## Considered Options
 
@@ -11,6 +16,7 @@ The UI is plain HTML/JS (no framework, no build step) served by the program's ow
 ## Consequences
 
 - The page is only a view: all state (the Library, synthesis progress, playback position) lives in the Python process, so a reload (F5) or a reopened window picks up where it was.
-- The program has to handle its own lifecycle: shut down when the window is closed, and a second launch has to open the already-running instance rather than start another server (a named mutex per port, so two launches at once cannot both start one).
-- The main process remembers the Edge window's normal bounds and maximized state in `data/window.json` through Win32 `GetWindowPlacement`/`SetWindowPlacement`. A background monitor restores each new window once and then saves changes; neither Core nor the page owns native window state. The default-browser fallback does not guarantee placement restoration.
+- The program has to handle its own lifecycle: shut down when the page is closed, and a second launch has to open the already-running instance rather than start another server. Windows keeps a named mutex per port; Linux holds a per-port `fcntl.flock` for the owner's process lifetime. Both use the same running-page handshake and timeout, so two launches at once cannot both start one and a stale lock file does not block a restart.
+- The main Windows process remembers the Edge window's normal bounds and maximized state in `data/window.json` through Win32 `GetWindowPlacement`/`SetWindowPlacement`. A background monitor restores each new window once and then saves changes; neither Core nor the page owns native window state. The Windows default-browser fallback does not guarantee placement restoration.
+- Linux has no native window-placement monitor and does not create `data/window.json`. Browser-opening failures are logged without changing application state. X11/Wayland window management is deliberately out of scope.
 - The core (Library, synthesis, Voice providers) stays independent of the UI, so the UI could still be replaced later.

@@ -1,6 +1,7 @@
 """The Edge app window keeps its normal bounds and maximized state across restarts."""
 
 import json
+import sys
 from dataclasses import replace
 
 import pytest
@@ -117,11 +118,36 @@ def test_a_new_window_is_restored_only_once_then_the_user_can_move_it(tmp_path):
     assert WindowPlacementFile(tmp_path).read() == moved
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows Edge discovery")
 def test_without_edge_the_default_browser_opens_as_before(monkeypatch):
+    import ozvuchka.window_windows as window_windows
+
     opened: list[str] = []
-    monkeypatch.setattr(window, "_find_edge", lambda: None)
-    monkeypatch.setattr("ozvuchka.window.webbrowser.open", opened.append)
+    monkeypatch.setattr(window_windows, "_find_edge", lambda: None)
+    monkeypatch.setattr(window_windows, "open_default_browser", opened.append)
 
     window.open_window("http://127.0.0.1:8770")
 
     assert opened == ["http://127.0.0.1:8770"]
+
+
+def test_non_windows_startup_opens_the_default_browser(monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr("ozvuchka.window.sys.platform", "linux")
+    monkeypatch.setattr(window, "open_default_browser", opened.append)
+
+    window.open_window("http://127.0.0.1:8770")
+
+    assert opened == ["http://127.0.0.1:8770"]
+
+
+def test_a_default_browser_failure_is_logged_without_stopping_the_program(monkeypatch, caplog):
+    def fail_to_open(url):
+        raise OSError("no browser available")
+
+    monkeypatch.setattr("ozvuchka.window.webbrowser.open", fail_to_open)
+    with caplog.at_level("WARNING"):
+        window.open_default_browser("http://127.0.0.1:8770")
+
+    assert "Could not open http://127.0.0.1:8770 in the default browser" in caplog.text
+    assert "no browser available" in caplog.text

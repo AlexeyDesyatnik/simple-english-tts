@@ -3,9 +3,12 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows .NET launcher")
 
 
 @pytest.fixture(scope="module")

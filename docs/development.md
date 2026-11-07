@@ -83,6 +83,44 @@ runtime\python.exe -X utf8 -m ozvuchka
 
 Started this way the program keeps running until Ctrl+C. Its log is `data\ozvuchka.log`.
 
+### Linux development runtime
+
+Linux application startup is implemented for development; release packaging remains a later stage. On Linux
+x86-64 with CPython 3.12 and its `venv` module already installed, run from the repository root:
+
+```bash
+python3.12 tools/setup_linux.py
+```
+
+The setup needs internet access. It creates `runtime-linux/`, installs the existing direct and transitive
+pins with `--only-binary=:all:`, and installs the checked spaCy/Kokoro assets into the shared `models/`
+folder. Downloads are cached in `.cache/`; finished setup steps can be rerun. No compiler, system eSpeak,
+LAME or FFmpeg is used.
+
+Start the program and open the loopback page in the default browser:
+
+```bash
+runtime-linux/bin/python -X utf8 -m ozvuchka --app
+```
+
+A second start opens the running page and exits. The per-port `data/instance-<port>.lock` file may remain,
+but its flock is released when the owning process ends. Linux has no placement monitor and does not create
+`data/window.json`; page heartbeat and reload grace work as on Windows.
+
+Run the checks, including the real provider and cancellation tests:
+
+```bash
+runtime-linux/bin/python -m pytest
+runtime-linux/bin/python -m pytest -m slow
+runtime-linux/bin/python -m mypy
+runtime-linux/bin/python -m ruff check
+```
+
+Linux CI adoption belongs to stage 3. The validated dependency target is glibc 2.29 or newer and baseline
+x86-64 (the bundled eSpeak library requires `GLIBC_2.29`); this development setup does not claim musl, ARM
+or older-glibc support. Shared model versions and checksums live in `tools/build-assets.json`, used by both
+the Windows and Linux setup entry points.
+
 ## The program the teacher gets
 
 The release zip `ozvuchka-<version>.zip` holds one folder, `Озвучка\` (ADR-0001):

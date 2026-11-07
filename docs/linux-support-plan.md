@@ -1,6 +1,6 @@
 # Linux support plan
 
-Status: planned; implementation has not started.
+Status: stages 1-2 (#57, #58) implemented and validated; no Linux release is shipped.
 
 Umbrella: [GitHub Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56).
 The stage Issues are the detailed work contracts. This document is the durable technical plan and
@@ -12,7 +12,7 @@ The Windows application already separates its portable Library, Narration queue,
 WAV/MP3 code, loopback HTTP server and plain web page from most operating-system facilities. Linux
 support should extend that architecture rather than introduce another application or UI stack.
 
-The intended outcome is a second release artifact for **Linux x86-64 with glibc 2.28 or newer**.
+The intended outcome is a second release artifact for **Linux x86-64 with glibc 2.29 or newer**.
 It must run offline from an unpacked self-contained folder without a system Python, compiler,
 distribution eSpeak/LAME/FFmpeg packages, or a particular distribution's package manager. The
 existing Windows ZIP and its behavior must remain supported.
@@ -23,7 +23,7 @@ The Library remains in the program folder's `data/` directory and keeps the curr
 
 ## Support contract for the first release
 
-- Linux x86-64, baseline x86-64 CPU instructions, glibc 2.28 or newer.
+- Linux x86-64, baseline x86-64 CPU instructions, glibc 2.29 or newer.
 - CPython 3.12 and the existing pinned application dependencies, subject to the stage-1 gate.
 - A modern installed browser; no browser is bundled.
 - One portable `ozvuchka-<version>-linux-x86_64.tar.gz` containing `Озвучка/` and an executable
@@ -32,10 +32,11 @@ The Library remains in the program folder's `data/` directory and keeps the curr
 - A normally executable filesystem. A removable volume mounted `noexec` is not a supported target.
 - No guarantee that Linux restores browser-window bounds or maximized state.
 
-The glibc floor comes from the pinned `onnxruntime==1.31.0` CPython 3.12
-`manylinux_2_28_x86_64` wheel. Stage 1 must confirm this and the other native packages from actual
-install/runtime evidence. A successful test on a current Ubuntu runner alone does not establish the
-minimum supported environment.
+The original glibc 2.28 estimate came from the pinned `onnxruntime==1.31.0` CPython 3.12
+`manylinux_2_28_x86_64` wheel. Stage 1 confirmed its `GLIBC_2.28` requirement, but also found that the
+bundled `espeakng-loader==0.2.4` library requires `GLIBC_2.29` despite its manylinux_2_17 wheel tag. The
+validated floor is therefore glibc 2.29. A successful test on a current Ubuntu runner alone still does not
+establish the minimum supported environment.
 
 ### Explicit non-goals
 
@@ -108,7 +109,7 @@ folders. Stage 4 must amend the ADR, including the Linux license/notice differen
 
 Keep Windows checks and add Linux ordinary tests, real Kokoro slow tests, strict mypy and ruff.
 Narrowly mark only genuinely platform-specific tests; do not skip broad modules to obtain green CI.
-Include a validated glibc 2.28 environment so newer-runner builds cannot silently raise the floor.
+Include a validated glibc 2.29 environment so newer-runner builds cannot silently raise the floor.
 
 After the archive exists, smoke-test that exact artifact in a clean environment: real synthesis,
 MP3 export, second launch, heartbeat shutdown, diagnostics and writes only under `data/`. Upload
@@ -137,6 +138,15 @@ Linux x86-64. Establish the pinned development setup, check paths containing spa
 record actual wheel/glibc/CPU requirements and collect Linux license differences. Do not start
 startup refactoring or release packaging here. If the gate fails, record it and revise this plan
 before stage 2 rather than hiding it behind unreviewed dependency upgrades.
+
+The stage-4 license inventory starts from the existing package, model, Voice and font notices. Linux uses
+the same eSpeak NG, LAME and ONNX Runtime projects and source references, but their native files are Linux
+shared libraries rather than Windows DLL/PYD files. The archive has no Microsoft Visual C++ runtime or
+.NET launcher; it carries the selected standalone CPython distribution's license instead of the Windows
+embeddable-Python file. Stage 4 must also preserve license files shipped inside the actual manylinux wheels,
+including notices for bundled libraries in `.libs` directories, rather than copying only the Windows license
+folder. In particular, the validated NumPy 2.3.5 manylinux wheel bundles OpenBLAS/LAPACK, libgfortran and
+libquadmath in `numpy.libs/`; its `dist-info/LICENSE.txt` carries their BSD and GCC-runtime-exception notices.
 
 ### Stage 2: cross-platform application startup
 

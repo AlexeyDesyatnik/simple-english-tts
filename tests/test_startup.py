@@ -13,7 +13,15 @@ import pytest
 def program(tmp_path):
     package = tmp_path / "ozvuchka"
     package.mkdir()
-    for name in ("__init__.py", "__main__.py", "log.py", "window.py"):
+    for name in (
+        "__init__.py",
+        "__main__.py",
+        "instance.py",
+        "instance_posix.py",
+        "instance_windows.py",
+        "log.py",
+        "window.py",
+    ):
         shutil.copyfile(Path("ozvuchka") / name, package / name)
     (package / "core.py").write_text("raise ImportError('early dependency failure')\n", encoding="utf-8")
     return tmp_path
@@ -52,5 +60,6 @@ def test_an_unwritable_log_in_existing_data_leaves_the_exception_in_current_laun
     result = run_program(program)
     assert result.returncode != 0
     assert "Traceback (most recent call last)" in result.stderr
-    assert "PermissionError" in result.stderr
+    expected = "PermissionError" if sys.platform == "win32" else "IsADirectoryError"
+    assert expected in result.stderr
     assert "early dependency failure" not in result.stderr
