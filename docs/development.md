@@ -5,6 +5,14 @@ and [CODING_STANDARDS.md](../CODING_STANDARDS.md) for coding rules.
 Teacher-facing instructions are in the [Russian README](../README.md).
 Run the commands below from the repository root.
 
+## Planned Linux support
+
+Linux support is planned, not currently shipped. The support target, technical decisions, ordered
+stage Issues and fresh-session handoff are in the [Linux support plan](linux-support-plan.md).
+[Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56) is the umbrella;
+start with its first open stage and do not begin a later stage before its predecessor's acceptance
+evidence is recorded.
+
 NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
 Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
 ([release notes](https://numpy.org/doc/stable/release/2.4.0-notes.html#modulate-dispatched-x86-cpu-features)).
