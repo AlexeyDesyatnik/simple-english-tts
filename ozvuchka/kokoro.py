@@ -16,6 +16,9 @@ if TYPE_CHECKING:  # imported for real in load(): it takes seconds
 
 _log = logging.getLogger(__name__)
 
+# ONNX Runtime otherwise creates telemetry files in the user's home directory (ADR-0001).
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
+
 SPACY_MODEL = "en_core_web_sm"
 SAMPLE_RATE = 24000
 

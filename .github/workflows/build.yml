@@ -77,7 +77,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache
-          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_ci_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
           restore-keys: downloads-linux-
 
       - name: Dev runtime
@@ -104,17 +104,17 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache
-          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_ci_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
           restore-keys: downloads-linux-
 
       - name: Baseline CPython for the minimum environment
-        run: python tools/download_linux_ci_python.py
+        run: python tools/download_linux_python.py
 
       - name: Show the minimum environment
         run: |
           docker run --rm -v "$PWD:/workspace" -w /workspace \
             fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
-            /workspace/.cache/linux-ci-python/python/bin/python3.12 \
+            /workspace/.cache/linux-python/python/bin/python3.12 \
             -c 'import platform; print(platform.platform()); print(platform.libc_ver()); assert platform.libc_ver() == ("glibc", "2.29")'
 
       - name: Dev runtime on minimum glibc
@@ -122,7 +122,7 @@ jobs:
           docker run --rm --env SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt \
             -v "$PWD:/workspace" -w /workspace \
             fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
-            /workspace/.cache/linux-ci-python/python/bin/python3.12 tools/setup_linux.py
+            /workspace/.cache/linux-python/python/bin/python3.12 tools/setup_linux.py
 
       - name: Offline checks on minimum glibc
         run: |

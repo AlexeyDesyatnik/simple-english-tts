@@ -1,8 +1,10 @@
 {
   "python_version": "3.12.10",
-  "linux_ci_python": {
+  "linux_python": {
     "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.12.10%2B20250529-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
-    "sha256": "f50d08e0304b15d752b22932047135c1dc02f81977b284e51288be9d90627bca"
+    "sha256": "f50d08e0304b15d752b22932047135c1dc02f81977b284e51288be9d90627bca",
+    "licenses_url": "https://github.com/astral-sh/python-build-standalone/archive/refs/tags/20250529.tar.gz",
+    "licenses_sha256": "62b10d6851664cb7cec1b70440845cf37b2fad9a06a0453989e3ba289dba0fc6"
   },
   "spacy_model": {
     "name": "en_core_web_sm",

@@ -85,8 +85,8 @@ Started this way the program keeps running until Ctrl+C. Its log is `data\ozvuch
 
 ### Linux development runtime
 
-Linux application startup is implemented for development; release packaging remains a later stage. On Linux
-x86-64 with CPython 3.12 and its `venv` module already installed, run from the repository root:
+Linux application startup and a local portable-archive build are implemented; CI publication remains a later
+stage. On Linux x86-64 with CPython 3.12 and its `venv` module already installed, run from the repository root:
 
 ```bash
 python3.12 tools/setup_linux.py
@@ -117,10 +117,11 @@ runtime-linux/bin/python -m ruff check
 ```
 
 Every push runs those same four commands in two Linux jobs: current Ubuntu and a pinned Fedora 30 container
-with the minimum glibc 2.29. The minimum job first runs `python tools/download_linux_ci_python.py`, then the
+with the minimum glibc 2.29. The minimum job first runs `python tools/download_linux_python.py`, then the
 same `tools/setup_linux.py` and checks in the container; its final checks run with Docker networking disabled.
-The downloaded baseline CPython is a CI fixture, not a shipped runtime. Both jobs log the environment, cache
-`.cache/` downloads (including pip wheels), and rebuild `runtime-linux/` from the current pins on every run.
+The same downloaded baseline CPython is used by CI and the portable release build. Both jobs log the
+environment, cache `.cache/` downloads (including pip wheels), and rebuild `runtime-linux/` from the current
+pins on every run.
 The Fedora setup passes `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` so the standalone interpreter uses
 the system CA bundle; certificate verification is never disabled.
 
@@ -141,16 +142,30 @@ When the window is closed, the page stops sending its heartbeat and the program 
 
 ## Building a release
 
-GitHub Actions (`.github/workflows/build.yml`) builds the Windows release on every push alongside the two Linux check jobs: it builds the Windows dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The Windows zip of every run is kept for 14 days among the run's artifacts. Linux packaging and publication remain later stages.
+GitHub Actions (`.github/workflows/build.yml`) builds the Windows release on every push alongside the two Linux check jobs: it builds the Windows dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The Windows zip of every run is kept for 14 days among the run's artifacts. The Linux archive is built locally at this stage; CI artifacts and coordinated publication belong to stage 5.
 
-To build it locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
+To build the Windows release locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
 
 ```bat
 tools\build.bat release
 runtime\python.exe tools\smoke_test.py dist\ozvuchka-<version>.zip
 ```
 
-The release mode builds the folder from scratch every time; downloads are cached in `.cache\`. The version is `git describe --tags`, or `-Version 1.0` to name it.
+To build the Linux release on Linux x86-64 with CPython 3.12 (needs internet):
+
+```bash
+python3.12 tools/build_linux.py
+```
+
+The result is `dist/ozvuchka-<version>-linux-x86_64.tar.gz`, containing one `Озвучка/` folder. It includes the
+pinned baseline standalone CPython, application packages, model, Voice samples and actual Linux licenses.
+`Озвучка.sh` starts the bundled interpreter with `-X utf8 -m ozvuchka --app`, forwards arguments and preserves
+the child exit status. On failure it saves and identifies current output in `data/startup-<pid>.log` on the
+terminal; it never uses an old `ozvuchka.log` as current-launch evidence. No desktop message-box dependency
+is introduced. The launcher and native executables retain their permissions in the tar archive.
+
+Both release modes build their folders from scratch and cache downloads in `.cache/`. The version defaults to
+`git describe --tags`; use `-Version 1.0` for Windows or `--version 1.0` for Linux to override it.
 
 ## Releasing a version
 
