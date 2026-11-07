@@ -1,6 +1,6 @@
 # Linux support plan
 
-Status: stages 1-2 (#57, #58) implemented and validated; no Linux release is shipped.
+Status: stages 1-2 (#57, #58) complete; stage 3 (#59) in progress; no Linux release is shipped.
 
 Umbrella: [GitHub Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56).
 The stage Issues are the detailed work contracts. This document is the durable technical plan and

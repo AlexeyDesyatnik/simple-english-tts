@@ -116,10 +116,17 @@ runtime-linux/bin/python -m mypy
 runtime-linux/bin/python -m ruff check
 ```
 
-Linux CI adoption belongs to stage 3. The validated dependency target is glibc 2.29 or newer and baseline
-x86-64 (the bundled eSpeak library requires `GLIBC_2.29`); this development setup does not claim musl, ARM
-or older-glibc support. Shared model versions and checksums live in `tools/build-assets.json`, used by both
-the Windows and Linux setup entry points.
+Every push runs those same four commands in two Linux jobs: current Ubuntu and a pinned Fedora 30 container
+with the minimum glibc 2.29. The minimum job first runs `python tools/download_linux_ci_python.py`, then the
+same `tools/setup_linux.py` and checks in the container; its final checks run with Docker networking disabled.
+The downloaded baseline CPython is a CI fixture, not a shipped runtime. Both jobs log the environment, cache
+`.cache/` downloads (including pip wheels), and rebuild `runtime-linux/` from the current pins on every run.
+The Fedora setup passes `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` so the standalone interpreter uses
+the system CA bundle; certificate verification is never disabled.
+
+The validated dependency target is glibc 2.29 or newer and baseline x86-64 (the bundled eSpeak library
+requires `GLIBC_2.29`); this development setup does not claim musl, ARM or older-glibc support. Shared model
+versions and checksums live in `tools/build-assets.json`, used by the Windows, Linux and CI setup entry points.
 
 ## The program the teacher gets
 
@@ -134,7 +141,7 @@ When the window is closed, the page stops sending its heartbeat and the program 
 
 ## Building a release
 
-GitHub Actions (`.github/workflows/build.yml`) does it on every push: it builds the dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The zip of every run is kept for 14 days among the run's artifacts.
+GitHub Actions (`.github/workflows/build.yml`) builds the Windows release on every push alongside the two Linux check jobs: it builds the Windows dev runtime, runs pytest (with the `slow` tests), mypy and ruff, builds the release zip and runs its smoke test (`tools\smoke_test.py`: unpack, start `Озвучка.exe`, get the page, synthesize "Hello." with the real Kokoro, export a non-empty MPEG attachment, close the page and check that the program ends and wrote only into `data\`). The Windows zip of every run is kept for 14 days among the run's artifacts. Linux packaging and publication remain later stages.
 
 To build it locally (needs internet; the result is `dist\Озвучка\` and `dist\ozvuchka-<version>.zip`):
 

@@ -1,5 +1,9 @@
 {
   "python_version": "3.12.10",
+  "linux_ci_python": {
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.12.10%2B20250529-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    "sha256": "f50d08e0304b15d752b22932047135c1dc02f81977b284e51288be9d90627bca"
+  },
   "spacy_model": {
     "name": "en_core_web_sm",
     "version": "3.8.0",

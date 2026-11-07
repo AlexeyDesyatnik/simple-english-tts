@@ -1,5 +1,5 @@
-# The build in GitHub Actions (ADR-0001): on every push the checks, the release zip and its smoke test;
-# on a tag v*, the zip is also published in GitHub Releases. See docs/development.md, "Releasing a version".
+# On every push: Windows checks and release smoke, plus Linux checks on current Ubuntu and minimum glibc.
+# On a tag v*, the Windows zip is also published in GitHub Releases. Linux packaging/publication is stage 5.
 name: Build
 
 on:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache
-          key: downloads-${{ hashFiles('tools/build.ps1', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          key: downloads-${{ hashFiles('tools/build.ps1', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
           restore-keys: downloads-
 
       - name: Dev runtime
@@ -62,3 +62,70 @@ jobs:
         run: |
           gh release create $env:GITHUB_REF_NAME (Get-Item dist\ozvuchka-*.zip).FullName --title $env:GITHUB_REF_NAME --generate-notes
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  linux:
+    name: Linux checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_ci_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          restore-keys: downloads-linux-
+
+      - name: Dev runtime
+        run: python tools/setup_linux.py
+
+      - name: Checks
+        run: |
+          runtime-linux/bin/python -m pytest
+          runtime-linux/bin/python -m pytest -m slow
+          runtime-linux/bin/python -m mypy
+          runtime-linux/bin/python -m ruff check
+
+  linux-minimum:
+    name: Linux checks (glibc 2.29)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: downloads-linux-${{ hashFiles('tools/setup_linux.py', 'tools/download_linux_ci_python.py', 'tools/build-assets.json', 'tools/requirements*.txt', 'tools/constraints.txt') }}
+          restore-keys: downloads-linux-
+
+      - name: Baseline CPython for the minimum environment
+        run: python tools/download_linux_ci_python.py
+
+      - name: Show the minimum environment
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
+            /workspace/.cache/linux-ci-python/python/bin/python3.12 \
+            -c 'import platform; print(platform.platform()); print(platform.libc_ver()); assert platform.libc_ver() == ("glibc", "2.29")'
+
+      - name: Dev runtime on minimum glibc
+        run: |
+          docker run --rm --env SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt \
+            -v "$PWD:/workspace" -w /workspace \
+            fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
+            /workspace/.cache/linux-ci-python/python/bin/python3.12 tools/setup_linux.py
+
+      - name: Offline checks on minimum glibc
+        run: |
+          docker run --rm --network none -v "$PWD:/workspace" -w /workspace \
+            fedora@sha256:3a0c8c86d8ac2d1bbcfd08d40d3b757337f7916fb14f40efcb1d1137a4edef45 \
+            bash -lc 'runtime-linux/bin/python -m pytest && runtime-linux/bin/python -m pytest -m slow && runtime-linux/bin/python -m mypy && runtime-linux/bin/python -m ruff check'

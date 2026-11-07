@@ -63,6 +63,9 @@ def main() -> int:
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError(f"Run with CPython 3.12, not {platform.python_version()}")
 
+    print(f"  {platform.platform()}")
+    print(f"  CPython {platform.python_version()}, libc {platform.libc_ver()}")
+    os.environ.setdefault("PIP_CACHE_DIR", str(CACHE / "pip"))
     assets = json.loads((TOOLS / "build-assets.json").read_text(encoding="utf-8"))
     spacy = assets["spacy_model"]
     kokoro = assets["kokoro"]
