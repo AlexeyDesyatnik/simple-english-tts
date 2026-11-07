@@ -8,7 +8,7 @@ Everything the developer has to check by hand on the school laptops, the project
 
 ## Getting the program onto a laptop
 
-Take the zip from the latest green build of `main` in GitHub Actions (the run's artifacts) or from GitHub Releases, unblock it before unpacking and copy it to the flash drive: see [development instructions](development.md#unblocking-the-zip) and [copying to a flash drive](development.md#copying-to-a-flash-drive). The program writes only into its `data\` folder; its log is `data\ozvuchka.log`, worth bringing back when something goes wrong.
+Take the platform archive from the latest green build of `main` in GitHub Actions (the run's artifacts) or from GitHub Releases. For Windows, unblock the zip before unpacking; for Linux, use the tar.gz and keep the executable launcher. See [development instructions](development.md#unblocking-the-zip) and [copying to a flash drive](development.md#copying-to-a-flash-drive). The program writes only into its `data/` folder; its log is `data/ozvuchka.log`, worth bringing back when something goes wrong.
 
 The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech, about ×0.44) and **i5** (about ×1.85).
 
@@ -51,3 +51,14 @@ Record device, date and observations when checking these items.
 
 - [ ] **School laptop:** in an isolated copy of the program, move and resize the normal window, close and reopen it, and expect the same bounds. Then maximize, close and reopen; expect a maximized window whose Restore button returns to the saved normal bounds. Check that a second launch still opens the running program and that closing all windows ends it.
 - [ ] **Projector or second monitor:** move the window there, close it, disconnect the monitor and reopen. Expect a visible restored window rather than one left off-screen.
+
+## Linux desktop and browser acceptance (#62)
+
+Use the exact `ozvuchka-<version>-linux-x86_64.tar.gz` from the green release build and fresh disposable
+Libraries. Headless/container synthesis and the agent's built-in-browser checks do not tick these items.
+For every desktop record the date, distribution, X11/Wayland session, `glibc` version and browser/version.
+
+- [ ] **Debian/Ubuntu-family desktop, #62:** unpack the complete archive into a writable path with spaces and Cyrillic and launch `Озвучка.sh` offline without installing Python/eSpeak/encoder packages. In Firefox and a Chromium-family browser, check that the page opens; a short real Narration and independent Voice samples are audible; Pause/Resume, previous/next and repeat follow the yellow Paragraph; and the downloaded MP3 plays in an external player. F5 must preserve the running Text, closing the page must stop the program after the existing delay, and a second launch must open the running instance. Close/reopen with the same `data/` and confirm Texts and ready Narrations persist.
+- [ ] **Non-Debian-family desktop, #62:** repeat the same offline launch, audible Narration/Voice samples, Playback controls, MP3, reload/close, second-launch and persistence checks on a representative non-Debian glibc 2.29+ desktop, using Firefox or a Chromium-family browser so both browser families are covered by the two desktops. There is no promise of restored browser bounds on either desktop.
+- [ ] **Windows/Linux Library transfer, #62:** prepare a disposable Text and ready Narration, close the program and copy its whole `data/` between Windows and Linux in at least one direction. On the destination, open the Text, play the existing Narration without regeneration and export/play MP3. Record source/destination platforms and the result.
+- [ ] **Executable removable mount, #62:** if using the documented flash-drive workflow, copy the complete Linux folder and disposable `data/` to a normally executable removable mount, launch offline and check Text/Playback/persistence. Do not test or claim support for a `noexec` mount; the documented alternative is to copy the folder into ordinary local storage.

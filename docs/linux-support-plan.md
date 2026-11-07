@@ -1,6 +1,6 @@
 # Linux support plan
 
-Status: stages 1-2 (#57, #58) and stage 4 (#60) complete; stages 3 and 5 (#59, #61) await pushed green CI runs.
+Status: stages 1-2 (#57, #58) and stage 4 (#60) complete; stages 3 and 5 (#59, #61) await pushed green CI runs; stage 6 (#62) documentation is complete and desktop acceptance remains open.
 
 Umbrella: [GitHub Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56).
 The stage Issues are the detailed work contracts. This document is the durable technical plan and
@@ -187,6 +187,17 @@ Update Russian README and English development documentation, finish ADR consiste
 remaining manual checks in `docs/manual-checks.md` with #62. Distinguish agent-performed checks
 from the developer's audible/desktop acceptance. Do not close #62 or #56 with required acceptance
 silently unchecked.
+
+## Validated environments and acceptance boundary
+
+The exact Linux archive has passed headless real-provider and lifecycle checks on Debian 12 (glibc 2.36) and
+offline Fedora 30 (glibc 2.29), including paths with spaces/Cyrillic, second launch, MP3 and diagnostics.
+A built-in-browser run against the archive in WSL also confirmed Text autosave, two ready Paragraphs, Playback
+completion, a downloaded MPEG and F5 persistence. These are not audible Linux desktop checks.
+
+The outstanding Debian/Ubuntu and non-Debian desktop/browser matrix, audible Playback, close/reopen persistence,
+Windows/Linux Library transfer and executable-removable-mount check are listed in `docs/manual-checks.md` under
+#62. No distribution or browser coverage beyond the recorded environments is implied.
 
 ## Verification policy
 

@@ -5,13 +5,16 @@ and [CODING_STANDARDS.md](../CODING_STANDARDS.md) for coding rules.
 Teacher-facing instructions are in the [Russian README](../README.md).
 Run the commands below from the repository root.
 
-## Planned Linux support
+## Windows and Linux support
 
-Linux support is planned, not currently shipped. The support target, technical decisions, ordered
-stage Issues and fresh-session handoff are in the [Linux support plan](linux-support-plan.md).
-[Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56) is the umbrella;
-start with its first open stage and do not begin a later stage before its predecessor's acceptance
-evidence is recorded.
+Windows 10/11 x64 uses the embeddable-Python ZIP and `Озвучка.exe`. Linux x86-64 with glibc 2.29 or newer
+uses the standalone-CPython tar.gz and `Озвучка.sh`, with an installed modern Firefox- or Chromium-family
+browser. Linux does not support musl, ARM, `noexec` mounts or promised browser-placement restoration.
+
+The support target, technical decisions, stage Issues, validated environments and remaining acceptance are in
+the [Linux support plan](linux-support-plan.md). [Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56)
+is the umbrella. Do not present headless CI as audible desktop acceptance or close the track while required
+checks remain undocumented or unchecked.
 
 NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
 Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
