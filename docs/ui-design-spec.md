@@ -249,7 +249,6 @@ that merely assert CSS/DOM structure. Slow tests apply if provider/build code ch
 Hardware-only acceptance belongs in [`docs/manual-checks.md`](manual-checks.md) in the
 same implementation commit that creates the need, with its owning Issue. The visual
 refresh acceptance confirmed actual 200% zoom, projector/back-row readability and
-Celeron/i5 visual checks on 2026-11-06. It does not complete the separate #24 checks for
-presenter-remote behaviour, school-laptop responsiveness, real Voice/queue behaviour,
-native cancellation latency or older-CPU integration. Browser checks do not establish
-those outcomes.
+Celeron/i5 visual checks on 2026-11-06. The separate #24 checks for presenter-remote
+behaviour, school-laptop responsiveness, real Voice/queue behaviour, native cancellation
+latency and older-CPU integration were accepted by the developer on 2026-11-12.

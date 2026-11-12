@@ -1,6 +1,6 @@
 # Linux support plan
 
-Status: stages 1-5 (#57-#61) complete; stage 6 (#62) documentation is complete and desktop acceptance remains open.
+Status: all six stages (#57-#62) are complete. Desktop acceptance was completed on 2026-11-12 and umbrella #56 is closed.
 
 Umbrella: [GitHub Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56).
 The stage Issues are the detailed work contracts. This document is the durable technical plan and
@@ -178,26 +178,28 @@ platforms pass.
 
 ### Stage 6: desktop acceptance and documentation
 
-Check the release artifact in a small representative matrix: at least one Debian/Ubuntu-family and
-one non-Debian-family desktop, Firefox and a Chromium-family browser. Verify audible Narration and
-Voice samples, Playback controls, MP3, reload/close, second launch and persistence. Check disposable
-Library transfer between Windows and Linux in at least one direction rather than assuming it.
+The stage originally proposed at least one Debian/Ubuntu-family and one non-Debian-family desktop,
+covering Firefox and a Chromium-family browser. On 2026-11-12 the developer explicitly accepted
+**M.OS 12** (ROSA-based) and **Альт Образование 10** as the sufficient final matrix, replacing the
+Debian/Ubuntu requirement. The developer confirmed the required offline launch, audible Narration
+and Voice samples, Playback controls, MP3, reload/close, second launch and persistence checks, as
+well as disposable Windows/Linux Library transfer and the executable-removable-mount workflow.
 
-Update Russian README and English development documentation, finish ADR consistency and record
-remaining manual checks in `docs/manual-checks.md` with #62. Distinguish agent-performed checks
-from the developer's audible/desktop acceptance. Do not close #62 or #56 with required acceptance
-silently unchecked.
+The Russian README, English development documentation and ADRs are complete. Agent-performed checks
+remain distinguished from the developer's audible/desktop acceptance. Completed manual-check entries
+were removed after acceptance.
 
 ## Validated environments and acceptance boundary
 
 The exact Linux archive has passed headless real-provider and lifecycle checks on Debian 12 (glibc 2.36) and
 offline Fedora 30 (glibc 2.29), including paths with spaces/Cyrillic, second launch, MP3 and diagnostics.
 A built-in-browser run against the archive in WSL also confirmed Text autosave, two ready Paragraphs, Playback
-completion, a downloaded MPEG and F5 persistence. These are not audible Linux desktop checks.
+completion, a downloaded MPEG and F5 persistence. These automated and agent-run results are not the source
+of the audible desktop acceptance.
 
-The outstanding Debian/Ubuntu and non-Debian desktop/browser matrix, audible Playback, close/reopen persistence,
-Windows/Linux Library transfer and executable-removable-mount check are listed in `docs/manual-checks.md` under
-#62. No distribution or browser coverage beyond the recorded environments is implied.
+Final desktop/browser acceptance was completed by the developer on M.OS 12 and Альт Образование 10 on
+2026-11-12, with no reported defects. No distribution or browser coverage beyond the recorded environments
+is implied; the accepted matrix does not establish separate Debian/Ubuntu desktop evidence.
 
 ## Verification policy
 
@@ -213,16 +215,14 @@ Windows/Linux Library transfer and executable-removable-mount check are listed i
 
 ## Fresh-session handoff
 
-1. Read `AGENTS.md`, `CODING_STANDARDS.md`, this plan, umbrella #56 and the first open stage in the
-   table. Read ADR-0001/0003 and ADR-0002 when touching the provider.
-2. Inspect `git status`, recent history and the predecessor Issue's final evidence comment. Do not
-   redo closed stages, overwrite unrelated work or assume an open stage's result.
-3. Work only within the selected stage. If evidence invalidates the support contract or sequencing,
-   record it in the Issue and update this plan before proceeding.
-4. Use `Part of #N` for partial commits and `Closes #N` only for a commit that completes the stage.
+1. Read `AGENTS.md`, `CODING_STANDARDS.md`, this plan, umbrella #56 and the relevant closed stage's
+   final evidence. Read ADR-0001/0003 and ADR-0002 when touching the provider.
+2. Inspect `git status` and recent history. Do not redo closed stages or overwrite unrelated work.
+3. The six implementation stages are complete. The listed non-goals require a new explicit decision
+   and Issue rather than becoming implicit follow-up work.
+4. Use `Part of #N` for partial commits and `Closes #N` only for a commit that completes an Issue.
    Update affected ADRs/docstrings and `docs/manual-checks.md` in the same commit as the behavior.
-5. Post tested environments, commands, results, artifact details and remaining checks in the stage
-   Issue. Close it only when its acceptance criteria are met, then update the stage status here.
+5. Post tested environments, commands, results and artifact details in the owning Issue. Close it
+   only when its acceptance criteria are met, then update the stage status here.
 
-No manual acceptance is required for this planning-only document itself. All implementation and
-acceptance work remains in the open Issues above.
+No manual acceptance remains for this track.

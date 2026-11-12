@@ -11,10 +11,10 @@ Windows 10/11 x64 uses the embeddable-Python ZIP and `Озвучка.exe`. Linux
 uses the standalone-CPython tar.gz and `Озвучка.sh`, with an installed modern Firefox- or Chromium-family
 browser. Linux does not support musl, ARM, `noexec` mounts or promised browser-placement restoration.
 
-The support target, technical decisions, stage Issues, validated environments and remaining acceptance are in
+The support target, technical decisions, stage Issues, validated environments and acceptance record are in
 the [Linux support plan](linux-support-plan.md). [Issue #56](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/56)
-is the umbrella. Do not present headless CI as audible desktop acceptance or close the track while required
-checks remain undocumented or unchecked.
+is the umbrella. Do not present headless CI as audible desktop acceptance; the completed developer acceptance
+is recorded separately in the plan and stage Issue.
 
 NumPy is pinned to 2.3.5 to keep the program usable on older CPUs such as the
 Athlon II X2 250. NumPy 2.4 raised its default CPU baseline to x86-64-v2
