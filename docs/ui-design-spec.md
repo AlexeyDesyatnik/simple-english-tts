@@ -27,7 +27,7 @@ Project documentation is in English; all teacher-facing text is in Russian.
 - Preserve large Text, strong current-Paragraph highlighting, keyboard control, and
   presenter-remote mappings.
 - Support narrow windows and browser zoom without clipped controls.
-- Avoid new Windows-specific UI dependencies in preparation for future portability.
+- Keep UI dependencies platform-neutral across the supported Windows and Linux versions.
 
 ## Architecture and exclusions
 
@@ -37,13 +37,15 @@ page reload; HTTP only translates commands, events, snapshots, and assets. Do no
 localStorage as a second source of application state. Preserve atomic Library writes
 and storage within the portable application's data folder.
 
-The scope excludes porting the launcher to Linux/macOS, changing the Voice provider,
-Voice catalogue, synthesis algorithm, audio scheduling, Speed values, queue semantics,
-or Start delay calculation, except for the developer-authorized immediate cancellation
-extension to stage 4 (ADR-0004). It also excludes dark mode, import and export formats
-other than the MP3 download below, cloud features, new branding, and a separate mobile application. Platform-neutral UI is not a claim
-that the whole application already runs on every OS. ADR-0003's current Windows launch
-mechanism remains in place; no ADR change is needed for the font and layout changes.
+This specification governs UI behavior, not platform support. Linux launcher support was
+completed separately in #56; macOS remains unsupported. UI-only work does not change the
+Voice provider, Voice catalogue, synthesis algorithm, audio scheduling, Speed values,
+queue semantics or Start delay calculation, except for the developer-authorized immediate
+cancellation extension to stage 4 (ADR-0004). It does not add dark mode, import or export
+formats other than the MP3 download below, cloud features, new branding or a separate mobile
+application. Platform-neutral UI is not a claim that the whole application runs on every OS.
+ADR-0003's Windows launch mechanism remains in place; no ADR change is needed for font and
+layout changes.
 
 ## Preparation workspace
 

@@ -24,7 +24,7 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
 - **The HTTP layer** (`ozvuchka/server.py`) only translates: a command or event per JSON body, the snapshot, audio, static files. No logic.
 - **The page** (`ozvuchka/web/`) is a view (ADR-0003): plain HTML, CSS and JS, no framework, no build step. It renders the snapshot, plays what the core says and reports events. It keeps no state that must survive F5, and settings go through the core, not `localStorage`.
 - **A Voice provider** is anything with the `VoiceProvider` shape (`ozvuchka/voices.py`) returning WAV Audio and WAV Voice samples; a new WAV provider is one new module. A provider with another source format must normalize internally or needs a separately designed storage extension (see `docs/development.md`).
-- **Data** lives in the program folder's `data/` (ADR-0001): no absolute paths, and every write goes to a temporary file followed by a rename.
+- **Data** lives in the program folder's `data/` (ADR-0001): no absolute paths. Library and structured JSON writes go to a temporary file followed by a rename; logs and lock files also stay under `data/` but are not atomic snapshots.
 
 ## Threads
 
@@ -40,7 +40,7 @@ All three must pass. Run `runtime\python.exe -m pytest -m slow` as well after to
   - the `VoiceProvider` contract, run against the fake and the real providers;
   - the HTTP adapter: commands and events, snapshots, Voice samples and audio, save acknowledgement/failure/stale results, and `Host`, `Origin` and `Content-Type` protection, including the absence of side effects from rejected requests;
   - the rotation of the program log;
-  - the smoke test of the release zip, `tools\smoke_test.py`, run in GitHub Actions on every push (run it locally after touching the build or the launcher).
+  - the smoke test of each platform's release archive, `tools/smoke_test.py`, run in GitHub Actions on every push, including the exact Linux archive offline on minimum glibc (run the relevant platform smoke test locally after touching the build or launcher).
 - Internal modules (`ozvuchka/text.py`, storage, scheduling) have no tests of their own, so they can be reworked freely.
 - Write tests first and check that they fail before the implementation. A test name reads as a sentence of the spec; expected values are literals from the spec or a worked example, never recomputed the way the code does it.
 - Tests that use the real Kokoro are marked `slow`.

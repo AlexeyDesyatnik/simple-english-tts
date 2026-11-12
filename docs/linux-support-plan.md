@@ -51,76 +51,76 @@ work for this track.
 
 ## Current platform boundaries
 
-The following existing code is expected to remain platform-independent:
+The following code remains platform-independent:
 
 - `ozvuchka/core.py`, `library.py`, `settings.py`, `scheduling.py` and `text.py`;
 - `ozvuchka/audio.py` and `export.py`, including the explicit little-endian MP3 PCM handling;
 - `ozvuchka/kokoro.py` and the pinned ONNX model/Voice data, subject to native dependency checks;
 - `ozvuchka/server.py` and `ozvuchka/web/`, with the browser responsible for audio output;
-- `ozvuchka/log.py` and atomic `data/` persistence.
+- `ozvuchka/log.py` and atomic Library persistence.
 
-The required platform work is concentrated elsewhere:
+Platform integration is separated into small startup modules:
 
-- `ozvuchka/__main__.py` uses a Win32 named mutex for the per-port single-instance protocol.
-- `ozvuchka/window.py` imports `winreg` and Win32 `ctypes` APIs at module import, discovers Edge and
-  monitors native window placement. It cannot currently be imported on Linux.
-- `tools/launcher/Ozvuchka.cs` is a Windows .NET Framework launcher.
-- `tools/build.ps1` acquires Windows embeddable Python and VC++ DLLs and builds the Windows ZIP.
-- `tools/smoke_test.py`, `tests/test_launcher.py` and `.github/workflows/build.yml` contain
-  Windows-specific release and test behavior.
+- `ozvuchka/__main__.py` delegates the per-port single-instance protocol to `ozvuchka/instance.py`.
+  That module selects `WindowsPortLock` from `instance_windows.py` on Windows or `PosixPortLock`
+  from `instance_posix.py` on Linux, importing only the selected implementation.
+- `ozvuchka/window.py` opens the local page and owns the shared window interface. Windows native
+  discovery and placement are loaded from `window_windows.py` only when `WindowMonitor` is created;
+  Linux uses the default browser without a placement monitor.
+- Windows retains its .NET launcher and `tools/build.ps1`; Linux has `Озвучка.sh` and
+  `tools/build_linux.py` with the baseline standalone runtime.
+- `tools/smoke_test.py`, platform tests and `.github/workflows/build.yml` explicitly cover both
+  release archives and their platform-specific lifecycle and diagnostics.
 
-Do not scatter platform checks through Core or the page. Use small startup/platform modules and
-load Windows-only imports only on Windows.
+Keep platform checks out of Core and the page, and load Windows-only imports only on Windows.
 
-## Target design
+## Implemented design
 
 ### Application startup and window behavior
 
-Keep the current per-port protocol and its race/timeout behavior. Preserve the Windows named mutex;
-use a process-lifetime POSIX lock on Linux, such as `fcntl.flock`. A process exit must release the
-lock, and a second start must open the existing loopback page and exit without loading Kokoro or
-creating another server.
+The common per-port protocol preserves the running-page handshake and timeout behavior. Windows
+uses a named mutex; Linux uses a process-lifetime `fcntl.flock`. Process exit releases either lock,
+and a second start opens the existing loopback page and exits without loading Kokoro or creating
+another server.
 
-Keep Windows Edge discovery and `WindowMonitor` in a Windows implementation. On Linux, open the
-URL through Python's standard browser mechanism, retain heartbeat shutdown/reload grace behavior,
-and do not start a native placement monitor. Linux need not create `data/window.json`.
+Windows retains Edge discovery and `WindowMonitor`. On Linux, Python's standard browser mechanism
+opens the URL, heartbeat shutdown/reload grace behavior remains unchanged, and no native placement
+monitor or `data/window.json` is created.
 
-This deliberately makes ADR-0003 platform-specific while preserving its local web-page decision.
-Stage 2 must amend that ADR and affected docstrings when implementing the behavior.
+This made ADR-0003 platform-specific while preserving its local web-page decision. Stage 2 amended
+that ADR and the affected module documentation.
 
 ### Development and release builds
 
-Use an isolated CPython 3.12 development runtime and wheel-only pinned dependencies for stages 1-3.
-For the release, use a pinned **baseline x86-64** standalone CPython distribution, not an
-`x86_64_v2/v3` build, plus manylinux wheels and the same checked Kokoro/spaCy assets.
+Development uses isolated CPython 3.12 runtimes and wheel-only pinned dependencies. The Linux
+release uses a pinned **baseline x86-64** standalone CPython distribution, not an `x86_64_v2/v3`
+build, plus manylinux wheels and the same checked Kokoro/spaCy assets as Windows.
 
 The Linux launcher starts the bundled interpreter with `-X utf8 -m ozvuchka --app`, forwards
 arguments and preserves current-startup diagnostics without Zenity/KDialog dependencies. The tar
-archive must preserve executable permissions and contain no user `data/`, build host paths or
+archive preserves executable permissions and contains no user `data/`, build host paths or
 build-only tooling.
 
-Reuse shared dependency/model versions and checksums where practical rather than allowing Windows
-and Linux builds to drift. Do not rewrite the working Windows build merely for stylistic sharing.
-
-This deliberately extends ADR-0001 from a single Windows portable folder to per-platform portable
-folders. Stage 4 must amend the ADR, including the Linux license/notice differences.
+Shared dependency/model versions and checksums live in `tools/build-assets.json` and the pinned
+requirements. Stage 4 extended ADR-0001 from a single Windows portable folder to per-platform
+portable folders, including the Linux license/notice differences.
 
 ### CI and publication
 
-Keep Windows checks and add Linux ordinary tests, real Kokoro slow tests, strict mypy and ruff.
-Narrowly mark only genuinely platform-specific tests; do not skip broad modules to obtain green CI.
-Include a validated glibc 2.29 environment so newer-runner builds cannot silently raise the floor.
+Windows and Linux ordinary tests, real Kokoro slow tests, strict mypy and ruff run on every push.
+Only genuinely platform-specific tests are marked, and the minimum-glibc 2.29 job prevents a newer
+runner from silently raising the supported floor.
 
-After the archive exists, smoke-test that exact artifact in a clean environment: real synthesis,
-MP3 export, second launch, heartbeat shutdown, diagnostics and writes only under `data/`. Upload
-both artifacts on every successful build. On a version tag, one downstream release job must wait
-for both platform builds and publish both files to one GitHub Release; parallel jobs must not race
-to create separate or partial releases.
+CI smoke-tests the exact uploaded archives: real synthesis, MP3 export, second launch, heartbeat
+shutdown, diagnostics and writes only under `data/`. Both artifacts are uploaded on every successful
+build. On a version tag, one downstream release job waits for all three build/test jobs and publishes
+both files to one GitHub Release; it checks out the repository so `gh` can generate release notes.
 
-## Ordered stages
+## Completed stages
 
-Each stage should be completed and evidenced before the next begins. The linked Issue contains the
-full work list, out-of-scope boundaries and acceptance criteria.
+The stages were completed and evidenced in order. The linked Issues contain their full work lists,
+out-of-scope boundaries and acceptance criteria. The subsections below preserve the original work
+contracts as an implementation record, not as pending instructions.
 
 | Stage | Issue | Deliverable | Depends on |
 | --- | --- | --- | --- |
@@ -198,18 +198,20 @@ completion, a downloaded MPEG and F5 persistence. These automated and agent-run 
 of the audible desktop acceptance.
 
 Final desktop/browser acceptance was completed by the developer on M.OS 12 and Альт Образование 10 on
-2026-11-12, with no reported defects. No distribution or browser coverage beyond the recorded environments
-is implied; the accepted matrix does not establish separate Debian/Ubuntu desktop evidence.
+2026-11-12, with no reported defects. Both desktops used **X11 and Chromium**; exact browser versions and
+the installed glibc versions were not recorded. No distribution or browser coverage beyond the recorded
+environments is implied: the accepted matrix establishes neither separate Debian/Ubuntu nor Firefox
+desktop evidence.
 
 ## Verification policy
 
 - Follow `CODING_STANDARDS.md`: tests first for behavior changes, and pytest, mypy and ruff before
   every commit. Run slow real Kokoro tests after provider or build changes.
-- Preserve the full Windows checks in every relevant stage; Linux success is not evidence that
+- Preserve the full Windows checks alongside Linux checks; Linux success is not evidence that
   Windows still works.
-- Development-venv success is not release success. Stage 5 must test the unpacked shipped artifact.
+- Development-venv success is not release success. Release verification must test the unpacked shipped artifact.
 - Headless WAV generation is not audible browser Playback acceptance. Record real browser/desktop
-  evidence separately in #62.
+  evidence separately in the owning Issue.
 - Use fresh disposable Libraries for manual acceptance and destructive checks.
 - Do not claim musl, ARM, old CPUs, other desktop sessions or `noexec` mounts from inference alone.
 

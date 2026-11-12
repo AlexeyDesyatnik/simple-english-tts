@@ -23,6 +23,8 @@ The isolated v0.2 build with 2.3.5 was tested successfully on the Athlon and an
 11th-generation Core i5 laptop. The developer accepted these checks as sufficient;
 the perceived speed difference was minimal, without timed measurements
 ([#26](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/26)).
+The adopted `main` with the same pin subsequently passed the final older-CPU acceptance
+in [#24](https://github.com/AlexeyDesyatnik/simple-english-tts/issues/24) on 2026-11-12.
 Review older-CPU support before upgrading this dependency.
 
 ## UI design
@@ -52,9 +54,10 @@ introduced now; ADR-0002 still defers the online provider.
 MP3 export does not broaden this WAV contract. `lameenc==1.9.0` encodes ready mono
 16-bit 24 kHz WAV pieces in memory at 128 kbit/s, with the same piece fades and 0.7-second
 Paragraph pauses as browser playback. It neither synthesizes missing pieces nor stores MP3
-or intermediate WAV files in the Library. The pinned CPython 3.12 Windows x64 wheel is
-self-contained; no compiler, system LAME/FFmpeg, decoder stack, or network is needed at
-runtime. Its LGPL/GPL license texts, notices, and source references ship in `licenses\`.
+or intermediate WAV files in the Library. The pinned Windows x64 and Linux x86-64 wheels are
+self-contained; neither release needs a compiler, system LAME/FFmpeg, decoder stack, or network
+at runtime. Each platform ships the encoder's actual LGPL/GPL license texts, notices and source
+references in its `licenses` folder.
 
 ## Local environment
 
@@ -88,8 +91,8 @@ Started this way the program keeps running until Ctrl+C. Its log is `data\ozvuch
 
 ### Linux development runtime
 
-Linux application startup and a local portable-archive build are implemented; CI publication remains a later
-stage. On Linux x86-64 with CPython 3.12 and its `venv` module already installed, run from the repository root:
+Linux application startup, the portable archive, CI checks and coordinated release publication are implemented.
+On Linux x86-64 with CPython 3.12 and its `venv` module already installed, run from the repository root:
 
 ```bash
 python3.12 tools/setup_linux.py
@@ -196,11 +199,11 @@ If the folder was already unpacked from a blocked zip, unblock everything in it:
 
 ## Copying to a flash drive
 
-1. Unblock the zip (above) and unpack it on the computer first: unpacking straight onto a flash drive is much slower.
-2. Copy the whole `Озвучка` folder to the flash drive, anywhere (the drive letter and the path may be different on each laptop; names in Russian are fine). The folder is about 400 MB of many small files, so the copy takes a few minutes; the flash drive may be FAT32, exFAT or NTFS.
-3. On the laptop, open the folder on the flash drive and double-click `Озвучка.exe`. The first start on a laptop is slower while Windows reads the files from the flash drive.
+1. On Windows, unblock the zip as described above. On either platform, unpack the archive on the computer first: unpacking straight onto a flash drive is much slower.
+2. Copy the whole `Озвучка` folder to the flash drive, anywhere (the drive letter or mount point may differ on each computer; names in Russian are fine). The folder contains hundreds of megabytes and many small files, so the copy takes a few minutes.
+3. On the target computer, start `Озвучка.exe` on Windows or `Озвучка.sh` on Linux. The first start is slower while the operating system reads the files from the flash drive. Linux requires a normally executable mount; a `noexec` mount is unsupported.
 
-To update, replace the folder's `runtime\`, `ozvuchka\`, `models\`, `licenses\`, `Озвучка.exe` and `version.txt` with the new ones, and keep `data\`: it holds the teacher's Library.
+To update on either platform, replace `runtime`, `ozvuchka`, `models`, `licenses`, `version.txt` and the platform launcher (`Озвучка.exe` or `Озвучка.sh`) with the new ones, and keep `data`: it holds the teacher's Library.
 
 ## Keeping the welcome page current
 

@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live in GitHub Issues on `AlexeyDesyatnik/simple-english-tts`. Use the `gh` CLI from inside the clone; it infers the repository automatically.
+Issues and their work contracts live in GitHub Issues on `AlexeyDesyatnik/simple-english-tts`. Current design specifications and decisions remain in the repository documents linked from `docs/development.md`. Use the `gh` CLI from inside the clone; it infers the repository automatically.
 
 Use the developer's authenticated `gh`. If it returns HTTP 401, check the authentication
 and whether the execution environment can access its credentials before reporting an

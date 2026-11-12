@@ -29,7 +29,7 @@ A named speaker the teacher picks to read a Text (e.g. Alice, George); every Voi
 _Avoid_: Speaker, model, engine
 
 **Voice provider**:
-A source of Voices: offline (built into the program, always available) or online (available only while there is internet access).
+A source of Voices: offline (built into the program and requiring no internet access) or online (available only while there is internet access).
 _Avoid_: Engine, backend, TTS service
 
 **Voice sample**:

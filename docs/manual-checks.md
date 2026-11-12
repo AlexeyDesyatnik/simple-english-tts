@@ -12,4 +12,4 @@ Take the platform archive from the latest green build of `main` in GitHub Action
 
 The laptops: **Celeron** (N4100, no AVX, 3.8 GB, synthesizes slower than speech, about ×0.44) and **i5** (about ×1.85).
 
-There are no outstanding manual checks. The classroom-hardware checks in #24 and the Linux desktop checks in #62 were accepted by the developer on 2026-11-12; their completed checklist entries have been removed.
+There are no outstanding manual checks.

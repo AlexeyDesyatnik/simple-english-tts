@@ -41,8 +41,10 @@ Cancellation is prompt interruption, not a hard real-time deadline or unsafe Pyt
 thread termination. Native inference exits at ONNX Runtime's cancellation checkpoints;
 phonemization and WAV conversion are checked before/after their synchronous calls.
 Initial shared provider loading is not cancelled when a waiting Narration is removed.
-Device-specific latency, including unusually slow text preparation, must be measured on
-school hardware. Do not claim a fixed millisecond guarantee from the fake or development PC.
+Developer acceptance on the school Celeron and i5 was completed in #24 on 2026-11-12.
+Cancellation and re-enqueue behaved correctly, but numerical latency measurements were not
+preserved. Do not claim a fixed millisecond guarantee from the fake, development PC or this
+acceptance record.
 
 FakeVoiceProvider and the paced preview respect the same Event, so a deliberately
 60-second test wait is interruptible. Tests cover active/waiting cancellation, already
